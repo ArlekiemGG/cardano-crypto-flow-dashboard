@@ -10,7 +10,7 @@ interface CardanoWalletApi {
   };
 }
 
-interface WalletApi {
+export interface WalletApi {
   getNetworkId(): Promise<number>;
   getUtxos(): Promise<string[] | undefined>;
   getBalance(): Promise<string>;
@@ -19,7 +19,7 @@ interface WalletApi {
   getChangeAddress(): Promise<string>;
   getRewardAddresses(): Promise<string[]>;
   signTx(tx: string, partialSign?: boolean): Promise<string>;
-  signData(address: string, payload: string): Promise<string>;
+  signData(address: string, payload: string): Promise<{ signature: string; key: string; }>;
   submitTx(tx: string): Promise<string>;
   getCollateral?(): Promise<string[]>;
   experimental?: {

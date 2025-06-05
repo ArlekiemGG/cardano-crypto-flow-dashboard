@@ -110,10 +110,18 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         throw new Error('Failed to initialize Lucid');
       }
 
-      // Create a compatible wallet API for Lucid
+      // Create a compatible wallet API for Lucid with proper signData signature
       const lucidWalletApi = {
         ...walletApi,
         getCollateral: walletApi.getCollateral || (() => Promise.resolve([])),
+        signData: async (address: string, payload: string) => {
+          const result = await walletApi.signData(address, payload);
+          // Handle both possible return types from different wallets
+          if (typeof result === 'string') {
+            return { signature: result, key: '' };
+          }
+          return result;
+        }
       };
 
       // Select wallet in Lucid
