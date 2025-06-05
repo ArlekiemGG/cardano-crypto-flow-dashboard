@@ -2,10 +2,14 @@
 import { MetricCard } from "@/components/MetricCard"
 import { BarChart3, TrendingUp, Bot, DollarSign, Activity, Zap } from "lucide-react"
 import { useRealTimeData } from "@/hooks/useRealTimeData"
+import { useMarketData } from "@/hooks/useMarketData"
+import { LiveArbitrageOpportunities } from "@/components/LiveArbitrageOpportunities"
+import { DEXConnectionStatus } from "@/components/DEXConnectionStatus"
 import { useEffect, useState } from "react"
 
 export default function Dashboard() {
   const { marketData, isConnected } = useRealTimeData()
+  const { arbitrageOpportunities } = useMarketData()
   const [portfolioValue, setPortfolioValue] = useState(12450.67)
   const [dailyPnL, setDailyPnL] = useState(234.56)
 
@@ -79,8 +83,8 @@ export default function Dashboard() {
         
         <MetricCard
           title="Live Arbitrage Ops"
-          value="12"
-          change="+3 new opportunities"
+          value={arbitrageOpportunities.length.toString()}
+          change={`+${arbitrageOpportunities.filter(op => op.confidence === 'High').length} high confidence`}
           changeType="positive"
           icon={Zap}
           description="Real-time arbitrage detection"
@@ -116,6 +120,12 @@ export default function Dashboard() {
           description="Live market value"
           gradient="gradient-primary"
         />
+      </div>
+
+      {/* Live Data Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <LiveArbitrageOpportunities />
+        <DEXConnectionStatus />
       </div>
 
       {/* Live Charts Section */}

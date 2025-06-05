@@ -1,69 +1,50 @@
 
 import { useState, useEffect } from 'react';
-import { MarketData, ArbitrageOpportunity } from '@/types/trading';
+import { useMarketData } from './useMarketData';
+import { MarketData } from '@/types/trading';
 
-// Real-time data hook for Cardano market data
 export const useRealTimeData = () => {
-  const [marketData, setMarketData] = useState<MarketData[]>([]);
-  const [arbitrageOpportunities, setArbitrageOpportunities] = useState<ArbitrageOpportunity[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const { marketData, isLoading, isConnected, lastUpdate } = useMarketData();
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
 
   useEffect(() => {
-    // Simulate real-time connection - will be replaced with actual DEX APIs
-    const connectToDataFeed = () => {
-      console.log('Connecting to Cardano DEX data feeds...');
-      setIsConnected(true);
-      
-      // Mock real-time updates - replace with actual WebSocket connections
-      const interval = setInterval(() => {
-        // Update ADA price with realistic fluctuations
-        const basePrice = 0.4523;
-        const fluctuation = (Math.random() - 0.5) * 0.02; // ±1% fluctuation
-        const newPrice = basePrice + fluctuation;
-        
-        const newMarketData: MarketData = {
-          symbol: 'ADA',
-          price: newPrice,
-          change24h: fluctuation * 100,
-          volume24h: 347200000 + Math.random() * 50000000,
-          marketCap: newPrice * 35000000000,
-          lastUpdate: new Date().toISOString()
-        };
-        
-        setMarketData([newMarketData]);
-        setLastUpdate(new Date());
-        
-        // Generate mock arbitrage opportunities
-        if (Math.random() > 0.7) {
-          const newOpportunity: ArbitrageOpportunity = {
-            id: Date.now().toString(),
-            pair: 'ADA/USDC',
-            dexA: ['SundaeSwap', 'Minswap', 'WingRiders'][Math.floor(Math.random() * 3)],
-            dexB: ['MuesliSwap', 'VyFinance', 'DexHunter'][Math.floor(Math.random() * 3)],
-            priceA: newPrice,
-            priceB: newPrice * (1 + Math.random() * 0.03),
-            profitPercentage: Math.random() * 2 + 0.5,
-            volume: Math.random() * 50000 + 10000,
-            confidence: Math.random() > 0.5 ? 'High' : 'Medium',
-            timestamp: new Date().toISOString()
-          };
-          
-          setArbitrageOpportunities(prev => [newOpportunity, ...prev.slice(0, 9)]);
-        }
-      }, 3000); // Update every 3 seconds
-      
-      return () => clearInterval(interval);
-    };
+    if (isLoading) {
+      setConnectionStatus('connecting');
+    } else if (isConnected) {
+      setConnectionStatus('connected');
+    } else {
+      setConnectionStatus('disconnected');
+    }
+  }, [isLoading, isConnected]);
 
-    const cleanup = connectToDataFeed();
-    return cleanup;
-  }, []);
+  // Simulate real-time price updates with small variations
+  const [realtimeMarketData, setRealtimeMarketData] = useState<MarketData[]>([]);
+
+  useEffect(() => {
+    if (marketData.length > 0) {
+      setRealtimeMarketData(marketData);
+      
+      // Update prices with small random variations every 5 seconds
+      const interval = setInterval(() => {
+        setRealtimeMarketData(prev => 
+          prev.map(data => ({
+            ...data,
+            price: data.price * (0.999 + Math.random() * 0.002), // ±0.1% variation
+            change24h: data.change24h + (Math.random() - 0.5) * 0.1, // Small change variation
+            lastUpdate: new Date().toISOString()
+          }))
+        );
+      }, 5000);
+
+      return () => clearInterval(interval);
+    }
+  }, [marketData]);
 
   return {
-    marketData,
-    arbitrageOpportunities,
-    isConnected,
-    lastUpdate
+    marketData: realtimeMarketData,
+    isConnected: connectionStatus === 'connected',
+    isLoading: connectionStatus === 'connecting',
+    lastUpdate,
+    connectionStatus
   };
 };

@@ -9,16 +9,323 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      arbitrage_opportunities: {
+        Row: {
+          confidence_score: number | null
+          dex_pair: string
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          price_a: number
+          price_b: number
+          price_diff: number
+          profit_potential: number
+          source_dex_a: string
+          source_dex_b: string
+          timestamp: string | null
+          volume_available: number | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          dex_pair: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          price_a: number
+          price_b: number
+          price_diff: number
+          profit_potential: number
+          source_dex_a: string
+          source_dex_b: string
+          timestamp?: string | null
+          volume_available?: number | null
+        }
+        Update: {
+          confidence_score?: number | null
+          dex_pair?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          price_a?: number
+          price_b?: number
+          price_diff?: number
+          profit_potential?: number
+          source_dex_a?: string
+          source_dex_b?: string
+          timestamp?: string | null
+          volume_available?: number | null
+        }
+        Relationships: []
+      }
+      dex_configs: {
+        Row: {
+          active: boolean | null
+          api_endpoint: string | null
+          config_json: Json | null
+          dex_name: string
+          fee_rate: number | null
+          id: string
+          last_updated: string | null
+          websocket_url: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          api_endpoint?: string | null
+          config_json?: Json | null
+          dex_name: string
+          fee_rate?: number | null
+          id?: string
+          last_updated?: string | null
+          websocket_url?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          api_endpoint?: string | null
+          config_json?: Json | null
+          dex_name?: string
+          fee_rate?: number | null
+          id?: string
+          last_updated?: string | null
+          websocket_url?: string | null
+        }
+        Relationships: []
+      }
+      market_data_cache: {
+        Row: {
+          change_24h: number | null
+          high_24h: number | null
+          id: string
+          low_24h: number | null
+          market_cap: number | null
+          pair: string
+          price: number
+          source_dex: string
+          timestamp: string | null
+          volume_24h: number | null
+        }
+        Insert: {
+          change_24h?: number | null
+          high_24h?: number | null
+          id?: string
+          low_24h?: number | null
+          market_cap?: number | null
+          pair: string
+          price: number
+          source_dex: string
+          timestamp?: string | null
+          volume_24h?: number | null
+        }
+        Update: {
+          change_24h?: number | null
+          high_24h?: number | null
+          id?: string
+          low_24h?: number | null
+          market_cap?: number | null
+          pair?: string
+          price?: number
+          source_dex?: string
+          timestamp?: string | null
+          volume_24h?: number | null
+        }
+        Relationships: []
+      }
+      portfolio_metrics: {
+        Row: {
+          assets_allocation: Json | null
+          daily_pnl: number | null
+          monthly_pnl: number | null
+          successful_trades: number | null
+          total_trades: number | null
+          total_value: number | null
+          updated_at: string | null
+          user_wallet: string
+          weekly_pnl: number | null
+        }
+        Insert: {
+          assets_allocation?: Json | null
+          daily_pnl?: number | null
+          monthly_pnl?: number | null
+          successful_trades?: number | null
+          total_trades?: number | null
+          total_value?: number | null
+          updated_at?: string | null
+          user_wallet: string
+          weekly_pnl?: number | null
+        }
+        Update: {
+          assets_allocation?: Json | null
+          daily_pnl?: number | null
+          monthly_pnl?: number | null
+          successful_trades?: number | null
+          total_trades?: number | null
+          total_value?: number | null
+          updated_at?: string | null
+          user_wallet?: string
+          weekly_pnl?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_metrics_user_wallet_fkey"
+            columns: ["user_wallet"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["wallet_address"]
+          },
+        ]
+      }
+      trade_history: {
+        Row: {
+          amount: number
+          dex_name: string | null
+          gas_fee: number | null
+          id: string
+          metadata_json: Json | null
+          pair: string
+          profit_loss: number | null
+          status: Database["public"]["Enums"]["trade_status"] | null
+          timestamp: string | null
+          trade_type: Database["public"]["Enums"]["trade_type"]
+          tx_hash: string | null
+          user_wallet: string | null
+        }
+        Insert: {
+          amount: number
+          dex_name?: string | null
+          gas_fee?: number | null
+          id?: string
+          metadata_json?: Json | null
+          pair: string
+          profit_loss?: number | null
+          status?: Database["public"]["Enums"]["trade_status"] | null
+          timestamp?: string | null
+          trade_type: Database["public"]["Enums"]["trade_type"]
+          tx_hash?: string | null
+          user_wallet?: string | null
+        }
+        Update: {
+          amount?: number
+          dex_name?: string | null
+          gas_fee?: number | null
+          id?: string
+          metadata_json?: Json | null
+          pair?: string
+          profit_loss?: number | null
+          status?: Database["public"]["Enums"]["trade_status"] | null
+          timestamp?: string | null
+          trade_type?: Database["public"]["Enums"]["trade_type"]
+          tx_hash?: string | null
+          user_wallet?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_history_user_wallet_fkey"
+            columns: ["user_wallet"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["wallet_address"]
+          },
+        ]
+      }
+      trading_strategies: {
+        Row: {
+          active: boolean | null
+          config_json: Json
+          created_at: string | null
+          id: string
+          last_execution: string | null
+          name: string
+          profit_loss: number | null
+          strategy_type: Database["public"]["Enums"]["trading_strategy_type"]
+          total_trades: number | null
+          updated_at: string | null
+          user_wallet: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          config_json?: Json
+          created_at?: string | null
+          id?: string
+          last_execution?: string | null
+          name: string
+          profit_loss?: number | null
+          strategy_type: Database["public"]["Enums"]["trading_strategy_type"]
+          total_trades?: number | null
+          updated_at?: string | null
+          user_wallet?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          config_json?: Json
+          created_at?: string | null
+          id?: string
+          last_execution?: string | null
+          name?: string
+          profit_loss?: number | null
+          strategy_type?: Database["public"]["Enums"]["trading_strategy_type"]
+          total_trades?: number | null
+          updated_at?: string | null
+          user_wallet?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trading_strategies_user_wallet_fkey"
+            columns: ["user_wallet"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["wallet_address"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          api_keys_encrypted: string | null
+          created_at: string | null
+          is_active: boolean | null
+          last_login: string | null
+          settings_json: Json | null
+          wallet_address: string
+        }
+        Insert: {
+          api_keys_encrypted?: string | null
+          created_at?: string | null
+          is_active?: boolean | null
+          last_login?: string | null
+          settings_json?: Json | null
+          wallet_address: string
+        }
+        Update: {
+          api_keys_encrypted?: string | null
+          created_at?: string | null
+          is_active?: boolean | null
+          last_login?: string | null
+          settings_json?: Json | null
+          wallet_address?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      clean_expired_arbitrage_opportunities: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      update_portfolio_metrics: {
+        Args: { p_user_wallet: string }
+        Returns: undefined
+      }
     }
     Enums: {
-      [_ in never]: never
+      trade_status: "pending" | "executed" | "failed" | "cancelled"
+      trade_type: "buy" | "sell" | "arbitrage"
+      trading_strategy_type:
+        | "DCA"
+        | "Grid"
+        | "MeanReversion"
+        | "Momentum"
+        | "Arbitrage"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -133,6 +440,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      trade_status: ["pending", "executed", "failed", "cancelled"],
+      trade_type: ["buy", "sell", "arbitrage"],
+      trading_strategy_type: [
+        "DCA",
+        "Grid",
+        "MeanReversion",
+        "Momentum",
+        "Arbitrage",
+      ],
+    },
   },
 } as const
