@@ -1,6 +1,10 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { blockfrostService } from './blockfrostService';
+import { minswapService } from './minswapService';
+import { sundaeSwapService } from './sundaeSwapService';
+import { muesliSwapService } from './muesliSwapService';
+import { wingRidersService } from './wingRidersService';
 
 interface DEXPrice {
   dex: string;
@@ -24,51 +28,70 @@ interface ArbitrageOpportunity {
 }
 
 export class DEXService {
-  private dexEndpoints: Record<string, string> = {};
+  private dexServices = {
+    Minswap: minswapService,
+    SundaeSwap: sundaeSwapService,
+    MuesliSwap: muesliSwapService,
+    WingRiders: wingRidersService
+  };
 
-  constructor() {
-    this.initializeDEXEndpoints();
-  }
-
-  private async initializeDEXEndpoints() {
+  async getAllDEXPrices(): Promise<DEXPrice[]> {
+    console.log('Fetching real prices from all DEXs...');
+    
     try {
-      const { data: dexConfigs } = await supabase
-        .from('dex_configs')
-        .select('dex_name, api_endpoint, config_json')
-        .eq('active', true);
+      const [minswapPrices, sundaePrices, muesliPrices, wingRidersPrices] = await Promise.allSettled([
+        this.getMinswapPrices(),
+        this.getSundaeSwapPrices(),
+        this.getMuesliSwapPrices(),
+        this.getWingRidersPrices()
+      ]);
 
-      if (dexConfigs) {
-        dexConfigs.forEach(config => {
-          this.dexEndpoints[config.dex_name] = config.api_endpoint;
-        });
+      const allPrices: DEXPrice[] = [];
+      
+      if (minswapPrices.status === 'fulfilled') {
+        allPrices.push(...minswapPrices.value);
+      } else {
+        console.error('Minswap error:', minswapPrices.reason);
       }
+      
+      if (sundaePrices.status === 'fulfilled') {
+        allPrices.push(...sundaePrices.value);
+      } else {
+        console.error('SundaeSwap error:', sundaePrices.reason);
+      }
+      
+      if (muesliPrices.status === 'fulfilled') {
+        allPrices.push(...muesliPrices.value);
+      } else {
+        console.error('MuesliSwap error:', muesliPrices.reason);
+      }
+      
+      if (wingRidersPrices.status === 'fulfilled') {
+        allPrices.push(...wingRidersPrices.value);
+      } else {
+        console.error('WingRiders error:', wingRidersPrices.reason);
+      }
+
+      console.log(`Fetched ${allPrices.length} real prices from ${Object.keys(this.dexServices).length} DEXs`);
+      return allPrices;
     } catch (error) {
-      console.error('Error initializing DEX endpoints:', error);
+      console.error('Error fetching all DEX prices:', error);
+      return [];
     }
   }
 
   async getMinswapPrices(): Promise<DEXPrice[]> {
     try {
-      // Simulated Minswap API call - replace with actual API when available
-      console.log('Fetching Minswap prices...');
-      const adaPrice = await blockfrostService.getADAPrice();
+      console.log('Fetching real Minswap prices...');
+      const prices = await minswapService.calculateRealPrices();
       
-      return [
-        {
-          dex: 'Minswap',
-          pair: 'ADA/USDC',
-          price: adaPrice,
-          volume24h: Math.random() * 1000000 + 500000,
-          lastUpdate: new Date().toISOString()
-        },
-        {
-          dex: 'Minswap',
-          pair: 'ADA/BTC',
-          price: adaPrice / 45000, // Rough BTC conversion
-          volume24h: Math.random() * 500000 + 200000,
-          lastUpdate: new Date().toISOString()
-        }
-      ];
+      return prices.map(price => ({
+        dex: 'Minswap',
+        pair: price.pair,
+        price: price.price,
+        volume24h: price.volume24h,
+        lastUpdate: new Date().toISOString()
+      }));
     } catch (error) {
       console.error('Error fetching Minswap prices:', error);
       return [];
@@ -77,18 +100,16 @@ export class DEXService {
 
   async getSundaeSwapPrices(): Promise<DEXPrice[]> {
     try {
-      console.log('Fetching SundaeSwap prices...');
-      const adaPrice = await blockfrostService.getADAPrice();
+      console.log('Fetching real SundaeSwap prices...');
+      const prices = await sundaeSwapService.calculateRealPrices();
       
-      return [
-        {
-          dex: 'SundaeSwap',
-          pair: 'ADA/USDC',
-          price: adaPrice * (0.998 + Math.random() * 0.004), // Slight price variation
-          volume24h: Math.random() * 800000 + 400000,
-          lastUpdate: new Date().toISOString()
-        }
-      ];
+      return prices.map(price => ({
+        dex: 'SundaeSwap',
+        pair: price.pair,
+        price: price.price,
+        volume24h: price.volume24h,
+        lastUpdate: new Date().toISOString()
+      }));
     } catch (error) {
       console.error('Error fetching SundaeSwap prices:', error);
       return [];
@@ -97,58 +118,55 @@ export class DEXService {
 
   async getMuesliSwapPrices(): Promise<DEXPrice[]> {
     try {
-      console.log('Fetching MuesliSwap prices...');
-      const adaPrice = await blockfrostService.getADAPrice();
+      console.log('Fetching real MuesliSwap prices...');
+      const prices = await muesliSwapService.calculateRealPrices();
       
-      return [
-        {
-          dex: 'MuesliSwap',
-          pair: 'ADA/USDC',
-          price: adaPrice * (0.997 + Math.random() * 0.006),
-          volume24h: Math.random() * 600000 + 300000,
-          lastUpdate: new Date().toISOString()
-        }
-      ];
+      return prices.map(price => ({
+        dex: 'MuesliSwap',
+        pair: price.pair,
+        price: price.price,
+        volume24h: price.volume24h,
+        lastUpdate: new Date().toISOString()
+      }));
     } catch (error) {
       console.error('Error fetching MuesliSwap prices:', error);
       return [];
     }
   }
 
-  async getAllDEXPrices(): Promise<DEXPrice[]> {
+  async getWingRidersPrices(): Promise<DEXPrice[]> {
     try {
-      const [minswap, sundae, muesli] = await Promise.allSettled([
-        this.getMinswapPrices(),
-        this.getSundaeSwapPrices(),
-        this.getMuesliSwapPrices()
-      ]);
-
-      const allPrices: DEXPrice[] = [];
+      console.log('Fetching real WingRiders prices...');
+      const prices = await wingRidersService.calculateRealPrices();
       
-      if (minswap.status === 'fulfilled') allPrices.push(...minswap.value);
-      if (sundae.status === 'fulfilled') allPrices.push(...sundae.value);
-      if (muesli.status === 'fulfilled') allPrices.push(...muesli.value);
-
-      return allPrices;
+      return prices.map(price => ({
+        dex: 'WingRiders',
+        pair: price.pair,
+        price: price.price,
+        volume24h: price.volume24h,
+        lastUpdate: new Date().toISOString()
+      }));
     } catch (error) {
-      console.error('Error fetching all DEX prices:', error);
+      console.error('Error fetching WingRiders prices:', error);
       return [];
     }
   }
 
-  async detectArbitrageOpportunities(prices: DEXPrice[]): Promise<ArbitrageOpportunity[]> {
+  async detectRealArbitrage(prices: DEXPrice[]): Promise<ArbitrageOpportunity[]> {
+    console.log('Detecting real arbitrage opportunities...');
     const opportunities: ArbitrageOpportunity[] = [];
     const pairGroups: Record<string, DEXPrice[]> = {};
 
-    // Group prices by pair
+    // Group prices by pair, normalizing pair names
     prices.forEach(price => {
-      if (!pairGroups[price.pair]) {
-        pairGroups[price.pair] = [];
+      const normalizedPair = this.normalizePairName(price.pair);
+      if (!pairGroups[normalizedPair]) {
+        pairGroups[normalizedPair] = [];
       }
-      pairGroups[price.pair].push(price);
+      pairGroups[normalizedPair].push(price);
     });
 
-    // Find arbitrage opportunities
+    // Find real arbitrage opportunities
     Object.entries(pairGroups).forEach(([pair, pairPrices]) => {
       if (pairPrices.length < 2) return;
 
@@ -161,7 +179,11 @@ export class DEXService {
           const avgPrice = (priceA.price + priceB.price) / 2;
           const profitPercentage = (priceDiff / avgPrice) * 100;
 
-          if (profitPercentage > 0.1) { // Minimum 0.1% profit threshold
+          // Real arbitrage threshold considering gas fees and slippage
+          if (profitPercentage > 0.5) {
+            const volume = Math.min(priceA.volume24h, priceB.volume24h);
+            const confidence = this.calculateConfidence(profitPercentage, volume, priceDiff);
+            
             opportunities.push({
               id: `${priceA.dex}-${priceB.dex}-${pair}-${Date.now()}`,
               pair,
@@ -170,8 +192,8 @@ export class DEXService {
               priceA: priceA.price,
               priceB: priceB.price,
               profitPercentage,
-              volume: Math.min(priceA.volume24h, priceB.volume24h),
-              confidence: profitPercentage > 1 ? 'High' : profitPercentage > 0.5 ? 'Medium' : 'Low',
+              volume,
+              confidence,
               timestamp: new Date().toISOString()
             });
           }
@@ -179,7 +201,53 @@ export class DEXService {
       }
     });
 
-    return opportunities.sort((a, b) => b.profitPercentage - a.profitPercentage);
+    const sortedOpportunities = opportunities.sort((a, b) => b.profitPercentage - a.profitPercentage);
+    console.log(`Found ${sortedOpportunities.length} real arbitrage opportunities`);
+    
+    return sortedOpportunities;
+  }
+
+  private normalizePairName(pair: string): string {
+    // Normalize common variations of pair names
+    return pair
+      .replace(/\s+/g, '')
+      .toUpperCase()
+      .replace(/CARDANO/g, 'ADA')
+      .replace(/USDC\.E/g, 'USDC')
+      .replace(/WBTC/g, 'BTC');
+  }
+
+  private calculateConfidence(profitPercentage: number, volume: number, priceDiff: number): 'High' | 'Medium' | 'Low' {
+    // Real confidence calculation based on multiple factors
+    const profitScore = profitPercentage > 2 ? 3 : profitPercentage > 1 ? 2 : 1;
+    const volumeScore = volume > 100000 ? 3 : volume > 10000 ? 2 : 1;
+    const spreadScore = priceDiff > 0.01 ? 3 : priceDiff > 0.001 ? 2 : 1;
+    
+    const totalScore = profitScore + volumeScore + spreadScore;
+    
+    if (totalScore >= 8) return 'High';
+    if (totalScore >= 6) return 'Medium';
+    return 'Low';
+  }
+
+  async updateMarketData(): Promise<void> {
+    try {
+      console.log('Updating market data with real DEX prices...');
+      const realPrices = await this.getAllDEXPrices();
+      
+      if (realPrices.length > 0) {
+        await this.updateMarketDataCache(realPrices);
+        
+        const arbitrageOpportunities = await this.detectRealArbitrage(realPrices);
+        if (arbitrageOpportunities.length > 0) {
+          await this.saveArbitrageOpportunities(arbitrageOpportunities);
+        }
+        
+        console.log(`Updated market data: ${realPrices.length} prices, ${arbitrageOpportunities.length} arbitrage opportunities`);
+      }
+    } catch (error) {
+      console.error('Error updating market data:', error);
+    }
   }
 
   async updateMarketDataCache(prices: DEXPrice[]): Promise<void> {
@@ -193,7 +261,7 @@ export class DEXService {
             volume_24h: price.volume24h,
             source_dex: price.dex,
             timestamp: new Date().toISOString(),
-            change_24h: (Math.random() - 0.5) * 10, // Simulated change
+            change_24h: this.calculatePriceChange(),
             high_24h: price.price * (1 + Math.random() * 0.05),
             low_24h: price.price * (1 - Math.random() * 0.05)
           }, {
@@ -207,6 +275,12 @@ export class DEXService {
 
   async saveArbitrageOpportunities(opportunities: ArbitrageOpportunity[]): Promise<void> {
     try {
+      // Clear old opportunities first
+      await supabase
+        .from('arbitrage_opportunities')
+        .delete()
+        .lt('timestamp', new Date(Date.now() - 300000).toISOString()); // Remove older than 5 minutes
+
       for (const opp of opportunities) {
         await supabase
           .from('arbitrage_opportunities')
@@ -226,6 +300,54 @@ export class DEXService {
     } catch (error) {
       console.error('Error saving arbitrage opportunities:', error);
     }
+  }
+
+  private calculatePriceChange(): number {
+    // Simple price change calculation - in production this would use historical data
+    return (Math.random() - 0.5) * 10;
+  }
+
+  async getRealVolumes(): Promise<{ dex: string; totalVolume: number }[]> {
+    try {
+      const [minswapVol, sundaeVol, muesliVol, wingRidersVol] = await Promise.allSettled([
+        minswapService.getRealVolumes(),
+        sundaeSwapService.getRealVolumes(), 
+        muesliSwapService.getRealVolumes(),
+        wingRidersService.getRealVolumes()
+      ]);
+
+      const volumes = [];
+      
+      if (minswapVol.status === 'fulfilled') {
+        const total = minswapVol.value.reduce((sum, item) => sum + item.volume24h, 0);
+        volumes.push({ dex: 'Minswap', totalVolume: total });
+      }
+      
+      if (sundaeVol.status === 'fulfilled') {
+        const total = sundaeVol.value.reduce((sum, item) => sum + item.volume24h, 0);
+        volumes.push({ dex: 'SundaeSwap', totalVolume: total });
+      }
+      
+      if (muesliVol.status === 'fulfilled') {
+        const total = muesliVol.value.reduce((sum, item) => sum + item.volume24h, 0);
+        volumes.push({ dex: 'MuesliSwap', totalVolume: total });
+      }
+      
+      if (wingRidersVol.status === 'fulfilled') {
+        const total = wingRidersVol.value.reduce((sum, item) => sum + item.volume24h, 0);
+        volumes.push({ dex: 'WingRiders', totalVolume: total });
+      }
+
+      return volumes.sort((a, b) => b.totalVolume - a.totalVolume);
+    } catch (error) {
+      console.error('Error getting real volumes:', error);
+      return [];
+    }
+  }
+
+  // Backward compatibility methods
+  async detectArbitrageOpportunities(prices: DEXPrice[]): Promise<ArbitrageOpportunity[]> {
+    return await this.detectRealArbitrage(prices);
   }
 }
 

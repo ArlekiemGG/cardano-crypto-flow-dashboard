@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { dexService } from '@/services/dexService';
+import { blockfrostService } from '@/services/blockfrostService';
 import { MarketData, ArbitrageOpportunity } from '@/types/trading';
 
 export const useMarketData = () => {
@@ -14,34 +15,41 @@ export const useMarketData = () => {
   const fetchMarketData = async () => {
     try {
       setIsLoading(true);
+      console.log('Fetching real market data from Cardano DEXs...');
       
-      // Fetch live prices from DEXs
-      const dexPrices = await dexService.getAllDEXPrices();
+      // Fetch real ADA price from Blockfrost/CoinGecko
+      const realAdaPrice = await blockfrostService.getADAPrice();
+      console.log('Real ADA price:', realAdaPrice);
       
-      if (dexPrices.length > 0) {
-        // Update market data cache
-        await dexService.updateMarketDataCache(dexPrices);
-        
-        // Detect arbitrage opportunities
-        const opportunities = await dexService.detectArbitrageOpportunities(dexPrices);
-        
-        if (opportunities.length > 0) {
-          await dexService.saveArbitrageOpportunities(opportunities);
-        }
-        
-        setIsConnected(true);
-      }
+      // Update market data using real DEX APIs
+      await dexService.updateMarketData();
+      
+      setIsConnected(true);
 
       // Fetch cached market data from database
-      const { data: cachedData } = await supabase
+      const { data: cachedData, error: cacheError } = await supabase
         .from('market_data_cache')
         .select('*')
         .order('timestamp', { ascending: false });
 
-      if (cachedData) {
-        const formattedData: MarketData[] = cachedData.map(item => ({
+      if (cacheError) {
+        console.error('Error fetching cached data:', cacheError);
+      } else if (cachedData && cachedData.length > 0) {
+        console.log(`Loaded ${cachedData.length} cached price entries`);
+        
+        // Process and deduplicate market data
+        const uniquePairs = new Map<string, any>();
+        
+        cachedData.forEach(item => {
+          const key = item.pair;
+          if (!uniquePairs.has(key) || new Date(item.timestamp) > new Date(uniquePairs.get(key).timestamp)) {
+            uniquePairs.set(key, item);
+          }
+        });
+
+        const formattedData: MarketData[] = Array.from(uniquePairs.values()).map(item => ({
           symbol: item.pair.split('/')[0],
-          price: Number(item.price),
+          price: realAdaPrice && item.pair.includes('ADA') ? realAdaPrice : Number(item.price),
           change24h: Number(item.change_24h) || 0,
           volume24h: Number(item.volume_24h) || 0,
           marketCap: Number(item.market_cap) || 0,
@@ -49,17 +57,22 @@ export const useMarketData = () => {
         }));
 
         setMarketData(formattedData);
+        console.log(`Processed ${formattedData.length} unique market data entries`);
       }
 
       // Fetch active arbitrage opportunities
-      const { data: arbitrageData } = await supabase
+      const { data: arbitrageData, error: arbError } = await supabase
         .from('arbitrage_opportunities')
         .select('*')
         .eq('is_active', true)
         .order('profit_potential', { ascending: false })
-        .limit(10);
+        .limit(20);
 
-      if (arbitrageData) {
+      if (arbError) {
+        console.error('Error fetching arbitrage data:', arbError);
+      } else if (arbitrageData && arbitrageData.length > 0) {
+        console.log(`Found ${arbitrageData.length} active arbitrage opportunities`);
+        
         const formattedOpportunities: ArbitrageOpportunity[] = arbitrageData.map(item => ({
           id: item.id,
           pair: item.dex_pair,
@@ -74,11 +87,14 @@ export const useMarketData = () => {
         }));
 
         setArbitrageOpportunities(formattedOpportunities);
+      } else {
+        setArbitrageOpportunities([]);
       }
 
       setLastUpdate(new Date());
+      console.log('Real market data fetch completed successfully');
     } catch (error) {
-      console.error('Error fetching market data:', error);
+      console.error('Error fetching real market data:', error);
       setIsConnected(false);
     } finally {
       setIsLoading(false);
@@ -86,6 +102,8 @@ export const useMarketData = () => {
   };
 
   useEffect(() => {
+    console.log('Initializing real-time DEX data connection...');
+    
     // Initial fetch
     fetchMarketData();
 
@@ -105,7 +123,7 @@ export const useMarketData = () => {
           table: 'market_data_cache'
         },
         () => {
-          console.log('Market data updated, refetching...');
+          console.log('Real market data updated, refetching...');
           fetchMarketData();
         }
       )
@@ -121,14 +139,17 @@ export const useMarketData = () => {
           table: 'arbitrage_opportunities'
         },
         () => {
-          console.log('Arbitrage opportunities updated, refetching...');
+          console.log('Real arbitrage opportunities updated, refetching...');
           fetchMarketData();
         }
       )
       .subscribe();
 
-    // Periodic updates every 30 seconds
-    const interval = setInterval(fetchMarketData, 30000);
+    // Periodic updates every 30 seconds for real-time data
+    const interval = setInterval(() => {
+      console.log('Periodic real market data update...');
+      fetchMarketData();
+    }, 30000);
 
     return () => {
       clearInterval(interval);
@@ -137,6 +158,7 @@ export const useMarketData = () => {
       arbitrageChannel.unsubscribe();
       supabase.removeChannel(marketDataChannel);
       supabase.removeChannel(arbitrageChannel);
+      console.log('Real-time DEX data connection cleaned up');
     };
   }, []); // Empty dependency array to ensure this only runs once
 

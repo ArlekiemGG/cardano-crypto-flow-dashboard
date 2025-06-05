@@ -1,7 +1,5 @@
 
-import { supabase } from '@/integrations/supabase/client';
-
-const BLOCKFROST_API_KEY = 'mainnetpUHEGp8g3PU5BLzMlHXxsqLH7iYHW7Av';
+const BLOCKFROST_API_KEY = 'mainnetqDbcAxZGzm4fvd6efh43cp81lL1VK6TT';
 const BLOCKFROST_BASE_URL = 'https://cardano-mainnet.blockfrost.io/api/v0';
 
 interface BlockfrostAsset {
@@ -16,9 +14,38 @@ interface BlockfrostAsset {
   metadata: any;
 }
 
-interface BlockfrostPrice {
-  unit: string;
-  quantity: string;
+interface BlockfrostUtxo {
+  address: string;
+  tx_hash: string;
+  output_index: number;
+  amount: Array<{
+    unit: string;
+    quantity: string;
+  }>;
+  block: string;
+  data_hash?: string;
+}
+
+interface BlockfrostPool {
+  pool_id: string;
+  hex: string;
+  vrf_key: string;
+  blocks_minted: number;
+  blocks_epoch: number;
+  live_stake: string;
+  live_size: number;
+  live_saturation: number;
+  live_delegators: number;
+  active_stake: string;
+  active_size: number;
+  declared_pledge: string;
+  live_pledge: string;
+  margin_cost: number;
+  fixed_cost: string;
+  reward_account: string;
+  owners: string[];
+  registration: string[];
+  retirement: string[];
 }
 
 export class BlockfrostService {
@@ -27,9 +54,24 @@ export class BlockfrostService {
     'Content-Type': 'application/json'
   };
 
+  private async request(endpoint: string) {
+    const response = await fetch(`${BLOCKFROST_BASE_URL}${endpoint}`, {
+      headers: this.headers
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Blockfrost API error: ${response.status} ${response.statusText}`);
+    }
+    
+    return await response.json();
+  }
+
   async getADAPrice(): Promise<number> {
     try {
-      // Get ADA price from a reliable source (CoinGecko as fallback)
+      // Get latest epoch parameters for network data
+      const epochParams = await this.request('/epochs/latest/parameters');
+      
+      // Fallback to CoinGecko for USD price as Blockfrost doesn't provide fiat prices
       const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd');
       const data = await response.json();
       return data.cardano?.usd || 0;
@@ -39,40 +81,44 @@ export class BlockfrostService {
     }
   }
 
-  async getPoolInfo(poolId: string) {
-    try {
-      const response = await fetch(`${BLOCKFROST_BASE_URL}/pools/${poolId}`, {
-        headers: this.headers
-      });
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching pool info:', error);
-      throw error;
-    }
+  async getPoolInfo(poolId: string): Promise<BlockfrostPool> {
+    return await this.request(`/pools/${poolId}`);
   }
 
-  async getAddressUtxos(address: string) {
-    try {
-      const response = await fetch(`${BLOCKFROST_BASE_URL}/addresses/${address}/utxos`, {
-        headers: this.headers
-      });
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching address UTXOs:', error);
-      throw error;
-    }
+  async getAllPools(): Promise<string[]> {
+    return await this.request('/pools');
+  }
+
+  async getPoolsExtended(page: number = 1): Promise<BlockfrostPool[]> {
+    return await this.request(`/pools/extended?page=${page}&count=100`);
+  }
+
+  async getAddressUtxos(address: string): Promise<BlockfrostUtxo[]> {
+    return await this.request(`/addresses/${address}/utxos`);
   }
 
   async getLatestBlock() {
-    try {
-      const response = await fetch(`${BLOCKFROST_BASE_URL}/blocks/latest`, {
-        headers: this.headers
-      });
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching latest block:', error);
-      throw error;
-    }
+    return await this.request('/blocks/latest');
+  }
+
+  async getNetworkInfo() {
+    return await this.request('/network');
+  }
+
+  async getAssetInfo(asset: string): Promise<BlockfrostAsset> {
+    return await this.request(`/assets/${asset}`);
+  }
+
+  async getTransaction(txHash: string) {
+    return await this.request(`/txs/${txHash}`);
+  }
+
+  async getTransactionUtxos(txHash: string) {
+    return await this.request(`/txs/${txHash}/utxos`);
+  }
+
+  async getAddressTransactions(address: string, page: number = 1) {
+    return await this.request(`/addresses/${address}/transactions?page=${page}&count=50&order=desc`);
   }
 }
 
