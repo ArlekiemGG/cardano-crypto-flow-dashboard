@@ -36,7 +36,10 @@ export const useRealTimeData = () => {
         );
       }, 5000);
 
-      return () => clearInterval(interval);
+      return () => {
+        console.log('Clearing real-time price simulation interval');
+        clearInterval(interval);
+      };
     }
   }, [marketData]);
 

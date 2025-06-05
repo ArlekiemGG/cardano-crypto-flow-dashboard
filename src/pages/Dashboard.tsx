@@ -9,6 +9,7 @@ import { useEffect, useState } from "react"
 
 export default function Dashboard() {
   const { marketData, isConnected } = useRealTimeData()
+  // Get arbitrage opportunities directly from the market data hook to avoid duplication
   const { arbitrageOpportunities } = useMarketData()
   const [portfolioValue, setPortfolioValue] = useState(12450.67)
   const [dailyPnL, setDailyPnL] = useState(234.56)
