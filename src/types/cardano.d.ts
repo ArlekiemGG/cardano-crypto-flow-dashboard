@@ -21,6 +21,7 @@ interface WalletApi {
   signTx(tx: string, partialSign?: boolean): Promise<string>;
   signData(address: string, payload: string): Promise<string>;
   submitTx(tx: string): Promise<string>;
+  getCollateral?(): Promise<string[]>;
   experimental?: {
     [key: string]: any;
   };

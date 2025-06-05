@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Blockfrost, Lucid, Network, WalletApi } from 'lucid-cardano';
+import { Blockfrost, Lucid, Network, UTxO } from 'lucid-cardano';
+import type { WalletApi } from '@/types/cardano';
 
 export interface WalletState {
   isConnected: boolean;
@@ -11,7 +12,7 @@ export interface WalletState {
   balance: number;
   network: Network;
   lucid: Lucid | null;
-  utxos: any[];
+  utxos: UTxO[];
   stakeAddress: string | null;
   error: string | null;
 }
@@ -109,8 +110,14 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         throw new Error('Failed to initialize Lucid');
       }
 
+      // Create a compatible wallet API for Lucid
+      const lucidWalletApi = {
+        ...walletApi,
+        getCollateral: walletApi.getCollateral || (() => Promise.resolve([])),
+      };
+
       // Select wallet in Lucid
-      lucid.selectWallet(walletApi);
+      lucid.selectWallet(lucidWalletApi);
 
       // Get wallet address
       const address = await lucid.wallet.address();
