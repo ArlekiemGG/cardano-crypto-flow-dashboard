@@ -1,5 +1,5 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Blockfrost, Lucid, Network, UTxO, WalletApi as LucidWalletApi } from 'lucid-cardano';
 import type { WalletApi as CardanoWalletApi } from '@/types/cardano';
 
 export interface WalletState {
@@ -9,9 +9,8 @@ export interface WalletState {
   walletApi: CardanoWalletApi | null;
   address: string | null;
   balance: number;
-  network: Network;
-  lucid: Lucid | null;
-  utxos: UTxO[];
+  network: 'Mainnet' | 'Testnet';
+  utxos: any[];
   stakeAddress: string | null;
   error: string | null;
 }
@@ -32,7 +31,6 @@ const initialState: WalletState = {
   address: null,
   balance: 0,
   network: 'Mainnet',
-  lucid: null,
   utxos: [],
   stakeAddress: null,
   error: null,
@@ -55,24 +53,6 @@ interface WalletProviderProps {
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [walletState, setWalletState] = useState<WalletState>(initialState);
 
-  // Initialize Lucid with Blockfrost
-  const initializeLucid = async (network: Network = 'Mainnet') => {
-    try {
-      const blockfrostUrl = network === 'Mainnet' 
-        ? 'https://cardano-mainnet.blockfrost.io/api/v0'
-        : 'https://cardano-testnet.blockfrost.io/api/v0';
-      
-      // Using a public Blockfrost endpoint for demo - in production use your API key
-      const blockfrost = new Blockfrost(blockfrostUrl, 'mainnet1234567890'); // Replace with real API key
-      
-      const lucid = await Lucid.new(blockfrost, network);
-      return lucid;
-    } catch (error) {
-      console.error('Failed to initialize Lucid:', error);
-      return null;
-    }
-  };
-
   // Get available wallets from window.cardano
   const getAvailableWallets = (): string[] => {
     if (typeof window === 'undefined') return [];
@@ -91,7 +71,28 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     return availableWallets;
   };
 
-  // Connect to wallet
+  // Convert hex to address (simplified)
+  const hexToAddress = (hex: string): string => {
+    try {
+      // This is a simplified conversion - in production you'd use proper Cardano address libraries
+      return hex;
+    } catch (error) {
+      console.error('Error converting hex to address:', error);
+      return hex;
+    }
+  };
+
+  // Convert lovelace to ADA
+  const lovelaceToAda = (lovelace: string): number => {
+    try {
+      return parseInt(lovelace, 16) / 1000000;
+    } catch (error) {
+      console.error('Error converting lovelace to ADA:', error);
+      return 0;
+    }
+  };
+
+  // Connect to wallet using native Cardano wallet APIs
   const connectWallet = async (walletName: string): Promise<void> => {
     try {
       setWalletState(prev => ({ ...prev, isConnecting: true, error: null }));
@@ -103,102 +104,50 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       // Enable wallet
       const walletApi = await window.cardano[walletName].enable();
       
-      // Initialize Lucid
-      const lucid = await initializeLucid(walletState.network);
-      if (!lucid) {
-        throw new Error('Failed to initialize Lucid');
+      console.log('Wallet API enabled:', walletApi);
+
+      // Get network ID
+      const networkId = await walletApi.getNetworkId();
+      const network = networkId === 1 ? 'Mainnet' : 'Testnet';
+
+      // Get wallet addresses
+      const usedAddresses = await walletApi.getUsedAddresses();
+      const unusedAddresses = await walletApi.getUnusedAddresses();
+      
+      let address = '';
+      if (usedAddresses && usedAddresses.length > 0) {
+        address = hexToAddress(usedAddresses[0]);
+      } else if (unusedAddresses && unusedAddresses.length > 0) {
+        address = hexToAddress(unusedAddresses[0]);
+      } else {
+        // Fallback: get change address
+        address = await walletApi.getChangeAddress();
+        address = hexToAddress(address);
       }
 
-      // Create event listeners registry for experimental.on/off methods
-      const eventListeners = new Map<string, Set<(...args: unknown[]) => void>>();
-
-      // Create a compatible wallet API for Lucid that implements LucidWalletApi
-      const lucidWalletApi: LucidWalletApi = {
-        getNetworkId: walletApi.getNetworkId,
-        getUtxos: walletApi.getUtxos,
-        getBalance: walletApi.getBalance,
-        getUsedAddresses: walletApi.getUsedAddresses,
-        getUnusedAddresses: walletApi.getUnusedAddresses,
-        getChangeAddress: walletApi.getChangeAddress,
-        getRewardAddresses: walletApi.getRewardAddresses,
-        signTx: walletApi.signTx,
-        submitTx: walletApi.submitTx,
-        getCollateral: walletApi.getCollateral || (() => Promise.resolve([])),
-        experimental: {
-          // Implement getCollateral method for experimental
-          getCollateral: async (): Promise<string[]> => {
-            try {
-              // Try to get collateral from the wallet's native getCollateral method
-              if (walletApi.getCollateral) {
-                return await walletApi.getCollateral();
-              }
-              
-              // Fallback: return empty array if wallet doesn't support collateral
-              console.log('Wallet does not support native collateral, returning empty array');
-              return [];
-            } catch (error) {
-              console.error('Error getting collateral:', error);
-              return [];
-            }
-          },
-
-          // Implement event listener registration
-          on: (eventName: string, callback: (...args: unknown[]) => void): void => {
-            console.log(`Registering event listener for: ${eventName}`);
-            
-            if (!eventListeners.has(eventName)) {
-              eventListeners.set(eventName, new Set());
-            }
-            
-            const listeners = eventListeners.get(eventName);
-            if (listeners) {
-              listeners.add(callback);
-            }
-          },
-
-          // Implement event listener removal
-          off: (eventName: string, callback: (...args: unknown[]) => void): void => {
-            console.log(`Removing event listener for: ${eventName}`);
-            
-            const listeners = eventListeners.get(eventName);
-            if (listeners) {
-              listeners.delete(callback);
-              
-              // Clean up empty listener sets
-              if (listeners.size === 0) {
-                eventListeners.delete(eventName);
-              }
-            }
-          },
-
-          // Include any additional experimental features from the original wallet
-          ...(walletApi.experimental || {})
-        },
-        signData: async (address: string, payload: string) => {
-          const result = await walletApi.signData(address, payload);
-          // Handle both possible return types from different wallets
-          if (typeof result === 'string') {
-            return { signature: result, key: '' };
-          }
-          return result;
-        }
-      };
-
-      // Select wallet in Lucid
-      lucid.selectWallet(lucidWalletApi);
-
-      // Get wallet address
-      const address = await lucid.wallet.address();
-      
       // Get wallet balance
-      const utxos = await lucid.wallet.getUtxos();
-      const balance = utxos.reduce((total, utxo) => {
-        const lovelace = utxo.assets.lovelace || 0n;
-        return total + Number(lovelace) / 1000000; // Convert from lovelace to ADA
-      }, 0);
+      const balanceHex = await walletApi.getBalance();
+      const balance = lovelaceToAda(balanceHex);
+
+      // Get UTXOs
+      let utxos: any[] = [];
+      try {
+        const utxosHex = await walletApi.getUtxos();
+        utxos = utxosHex || [];
+      } catch (error) {
+        console.warn('Could not fetch UTXOs:', error);
+      }
 
       // Get stake address
-      const rewardAddress = await lucid.wallet.rewardAddress();
+      let stakeAddress: string | null = null;
+      try {
+        const rewardAddresses = await walletApi.getRewardAddresses();
+        if (rewardAddresses && rewardAddresses.length > 0) {
+          stakeAddress = hexToAddress(rewardAddresses[0]);
+        }
+      } catch (error) {
+        console.warn('Could not fetch stake address:', error);
+      }
 
       // Save to localStorage for persistence
       localStorage.setItem('connectedWallet', walletName);
@@ -212,15 +161,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         walletApi,
         address,
         balance,
-        lucid,
+        network,
         utxos,
-        stakeAddress: rewardAddress,
+        stakeAddress,
         error: null,
       }));
 
       console.log(`Successfully connected to ${walletName} wallet`);
       console.log('Address:', address);
       console.log('Balance:', balance, 'ADA');
+      console.log('Network:', network);
       
     } catch (error) {
       console.error('Wallet connection failed:', error);
@@ -243,20 +193,22 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   // Refresh balance
   const refreshBalance = async (): Promise<void> => {
-    if (!walletState.lucid || !walletState.isConnected) return;
+    if (!walletState.walletApi || !walletState.isConnected) return;
 
     try {
-      const utxos = await walletState.lucid.wallet.getUtxos();
-      const balance = utxos.reduce((total, utxo) => {
-        const lovelace = utxo.assets.lovelace || 0n;
-        return total + Number(lovelace) / 1000000;
-      }, 0);
+      const balanceHex = await walletState.walletApi.getBalance();
+      const balance = lovelaceToAda(balanceHex);
+
+      const utxosHex = await walletState.walletApi.getUtxos();
+      const utxos = utxosHex || [];
 
       setWalletState(prev => ({
         ...prev,
         balance,
         utxos,
       }));
+
+      console.log('Balance refreshed:', balance, 'ADA');
     } catch (error) {
       console.error('Failed to refresh balance:', error);
     }
