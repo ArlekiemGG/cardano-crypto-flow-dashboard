@@ -17,11 +17,11 @@ export const useMarketData = () => {
       setIsLoading(true);
       console.log('Fetching real market data from Cardano DEXs...');
       
-      // Fetch real ADA price from Blockfrost/CoinGecko
+      // Fetch real ADA price
       const realAdaPrice = await blockfrostService.getADAPrice();
       console.log('Real ADA price:', realAdaPrice);
       
-      // Update market data using real DEX APIs
+      // Update market data using edge function
       await dexService.updateMarketData();
       
       setIsConnected(true);
@@ -60,36 +60,10 @@ export const useMarketData = () => {
         console.log(`Processed ${formattedData.length} unique market data entries`);
       }
 
-      // Fetch active arbitrage opportunities
-      const { data: arbitrageData, error: arbError } = await supabase
-        .from('arbitrage_opportunities')
-        .select('*')
-        .eq('is_active', true)
-        .order('profit_potential', { ascending: false })
-        .limit(20);
-
-      if (arbError) {
-        console.error('Error fetching arbitrage data:', arbError);
-      } else if (arbitrageData && arbitrageData.length > 0) {
-        console.log(`Found ${arbitrageData.length} active arbitrage opportunities`);
-        
-        const formattedOpportunities: ArbitrageOpportunity[] = arbitrageData.map(item => ({
-          id: item.id,
-          pair: item.dex_pair,
-          dexA: item.source_dex_a,
-          dexB: item.source_dex_b,
-          priceA: Number(item.price_a),
-          priceB: Number(item.price_b),
-          profitPercentage: Number(item.profit_potential),
-          volume: Number(item.volume_available) || 0,
-          confidence: item.confidence_score >= 80 ? 'High' : item.confidence_score >= 60 ? 'Medium' : 'Low',
-          timestamp: item.timestamp || new Date().toISOString()
-        }));
-
-        setArbitrageOpportunities(formattedOpportunities);
-      } else {
-        setArbitrageOpportunities([]);
-      }
+      // Fetch arbitrage opportunities using the updated service
+      const opportunities = await dexService.detectRealArbitrage();
+      setArbitrageOpportunities(opportunities);
+      console.log(`Found ${opportunities.length} arbitrage opportunities`);
 
       setLastUpdate(new Date());
       console.log('Real market data fetch completed successfully');
@@ -145,11 +119,11 @@ export const useMarketData = () => {
       )
       .subscribe();
 
-    // Periodic updates every 30 seconds for real-time data
+    // Periodic updates every 60 seconds for real-time data
     const interval = setInterval(() => {
       console.log('Periodic real market data update...');
       fetchMarketData();
-    }, 30000);
+    }, 60000);
 
     return () => {
       clearInterval(interval);

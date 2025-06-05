@@ -1,5 +1,3 @@
-
-const BLOCKFROST_API_KEY = 'mainnetqDbcAxZGzm4fvd6efh43cp81lL1VK6TT';
 const BLOCKFROST_BASE_URL = 'https://cardano-mainnet.blockfrost.io/api/v0';
 
 interface BlockfrostAsset {
