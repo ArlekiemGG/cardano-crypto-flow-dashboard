@@ -89,9 +89,14 @@ export const useMarketData = () => {
     // Initial fetch
     fetchMarketData();
 
-    // Set up real-time subscriptions
+    // Create unique channel names with timestamp to avoid conflicts
+    const timestamp = Date.now();
+    const marketChannelName = `market-data-changes-${timestamp}`;
+    const arbitrageChannelName = `arbitrage-changes-${timestamp}`;
+
+    // Set up real-time subscriptions with unique channel names
     const marketDataChannel = supabase
-      .channel('market-data-changes')
+      .channel(marketChannelName)
       .on(
         'postgres_changes',
         {
@@ -99,12 +104,15 @@ export const useMarketData = () => {
           schema: 'public',
           table: 'market_data_cache'
         },
-        () => fetchMarketData()
+        () => {
+          console.log('Market data updated, refetching...');
+          fetchMarketData();
+        }
       )
       .subscribe();
 
     const arbitrageChannel = supabase
-      .channel('arbitrage-changes')
+      .channel(arbitrageChannelName)
       .on(
         'postgres_changes',
         {
@@ -112,7 +120,10 @@ export const useMarketData = () => {
           schema: 'public',
           table: 'arbitrage_opportunities'
         },
-        () => fetchMarketData()
+        () => {
+          console.log('Arbitrage opportunities updated, refetching...');
+          fetchMarketData();
+        }
       )
       .subscribe();
 
@@ -121,10 +132,13 @@ export const useMarketData = () => {
 
     return () => {
       clearInterval(interval);
+      // Properly unsubscribe and remove channels
+      marketDataChannel.unsubscribe();
+      arbitrageChannel.unsubscribe();
       supabase.removeChannel(marketDataChannel);
       supabase.removeChannel(arbitrageChannel);
     };
-  }, []);
+  }, []); // Empty dependency array to ensure this only runs once
 
   return {
     marketData,
