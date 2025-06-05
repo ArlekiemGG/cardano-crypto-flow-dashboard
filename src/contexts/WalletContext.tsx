@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Blockfrost, Lucid, Network, UTxO } from 'lucid-cardano';
-import type { WalletApi } from '@/types/cardano';
+import { Blockfrost, Lucid, Network, UTxO, WalletApi as LucidWalletApi } from 'lucid-cardano';
+import type { WalletApi as CardanoWalletApi } from '@/types/cardano';
 
 export interface WalletState {
   isConnected: boolean;
   isConnecting: boolean;
   walletName: string | null;
-  walletApi: WalletApi | null;
+  walletApi: CardanoWalletApi | null;
   address: string | null;
   balance: number;
   network: Network;
@@ -109,8 +109,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         throw new Error('Failed to initialize Lucid');
       }
 
-      // Create a compatible wallet API for Lucid with proper type handling
-      const lucidWalletApi = {
+      // Create a compatible wallet API for Lucid that implements LucidWalletApi
+      const lucidWalletApi: LucidWalletApi = {
         getNetworkId: walletApi.getNetworkId,
         getUtxos: walletApi.getUtxos,
         getBalance: walletApi.getBalance,
@@ -121,6 +121,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         signTx: walletApi.signTx,
         submitTx: walletApi.submitTx,
         getCollateral: walletApi.getCollateral || (() => Promise.resolve([])),
+        experimental: walletApi.experimental || {},
         signData: async (address: string, payload: string) => {
           const result = await walletApi.signData(address, payload);
           // Handle both possible return types from different wallets

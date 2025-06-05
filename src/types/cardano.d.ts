@@ -1,6 +1,6 @@
 
 interface CardanoWalletApi {
-  enable(): Promise<WalletApi>;
+  enable(): Promise<CardanoWalletApiInstance>;
   isEnabled(): Promise<boolean>;
   apiVersion: string;
   name: string;
@@ -10,7 +10,7 @@ interface CardanoWalletApi {
   };
 }
 
-export interface WalletApi {
+export interface CardanoWalletApiInstance {
   getNetworkId(): Promise<number>;
   getUtxos(): Promise<string[] | undefined>;
   getBalance(): Promise<string>;
@@ -26,6 +26,9 @@ export interface WalletApi {
     [key: string]: any;
   };
 }
+
+// Renaming to avoid conflict with Lucid's WalletApi
+export interface WalletApi extends CardanoWalletApiInstance {}
 
 interface Cardano {
   [walletName: string]: CardanoWalletApi;
