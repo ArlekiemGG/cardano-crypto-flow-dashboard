@@ -2,10 +2,10 @@
 import { MetricCard } from "@/components/MetricCard"
 import { TrendingUp, Clock, Zap, Target, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useRealTimeData } from "@/hooks/useRealTimeData"
+import { useMarketData } from "@/hooks/useMarketData"
 
 export default function Arbitrage() {
-  const { arbitrageOpportunities, isConnected } = useRealTimeData()
+  const { arbitrageOpportunities, isConnected } = useMarketData()
 
   const handleExecuteArbitrage = (opportunityId: string) => {
     console.log(`Executing arbitrage for opportunity: ${opportunityId}`)
