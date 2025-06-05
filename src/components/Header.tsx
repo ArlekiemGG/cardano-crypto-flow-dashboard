@@ -4,9 +4,14 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { RealTimePrice } from "@/components/RealTimePrice"
 import { useRealTimeData } from "@/hooks/useRealTimeData"
+import { useWallet } from "@/contexts/WalletContext"
+import { WalletConnector } from "./WalletConnector"
+import { WalletInfo } from "./WalletInfo"
+import { NetworkIndicator } from "./NetworkIndicator"
 
 export function Header() {
   const { isConnected } = useRealTimeData()
+  const { isConnected: walletConnected } = useWallet()
   const notifications = 3
 
   return (
@@ -29,7 +34,10 @@ export function Header() {
       </div>
 
       <div className="flex items-center space-x-4">
-        {/* Network Status */}
+        {/* Network Indicator */}
+        <NetworkIndicator />
+
+        {/* DEX Connection Status */}
         <div className="flex items-center space-x-2">
           {isConnected ? (
             <Wifi className="h-4 w-4 text-green-400" />
@@ -51,14 +59,8 @@ export function Header() {
           )}
         </Button>
 
-        {/* Wallet */}
-        <Button 
-          className="glass border border-crypto-primary/30 text-crypto-primary hover:bg-crypto-primary/10 text-sm"
-          size="sm"
-        >
-          <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
-          Wallet Connected
-        </Button>
+        {/* Wallet Connection */}
+        {walletConnected ? <WalletInfo /> : <WalletConnector />}
       </div>
     </header>
   )

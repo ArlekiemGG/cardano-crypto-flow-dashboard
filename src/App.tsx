@@ -5,6 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { WalletProvider } from "@/contexts/WalletContext";
+import { WalletGuard } from "@/components/WalletGuard";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Header } from "@/components/Header";
 import Dashboard from "./pages/Dashboard";
@@ -22,27 +24,31 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <SidebarProvider>
-          <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
-            <AppSidebar />
-            <div className="flex-1 flex flex-col">
-              <Header />
-              <main className="flex-1 p-6 overflow-y-auto">
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/arbitrage" element={<Arbitrage />} />
-                  <Route path="/strategies" element={<TradingStrategies />} />
-                  <Route path="/market-making" element={<MarketMaking />} />
-                  <Route path="/portfolio" element={<Portfolio />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </main>
-            </div>
-          </div>
-        </SidebarProvider>
-      </BrowserRouter>
+      <WalletProvider>
+        <BrowserRouter>
+          <WalletGuard>
+            <SidebarProvider>
+              <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
+                <AppSidebar />
+                <div className="flex-1 flex flex-col">
+                  <Header />
+                  <main className="flex-1 p-6 overflow-y-auto">
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/arbitrage" element={<Arbitrage />} />
+                      <Route path="/strategies" element={<TradingStrategies />} />
+                      <Route path="/market-making" element={<MarketMaking />} />
+                      <Route path="/portfolio" element={<Portfolio />} />
+                      <Route path="/settings" element={<Settings />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </main>
+                </div>
+              </div>
+            </SidebarProvider>
+          </WalletGuard>
+        </BrowserRouter>
+      </WalletProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
