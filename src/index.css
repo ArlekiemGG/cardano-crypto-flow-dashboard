@@ -43,6 +43,14 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Cardano Web3 Theme Colors */
+    --crypto-primary: 55, 145, 230;
+    --crypto-secondary: 139, 92, 246;
+    --crypto-success: 34, 197, 94;
+    --crypto-profit: 16, 185, 129;
+    --crypto-loss: 239, 68, 68;
+    --crypto-accent: 236, 72, 153;
   }
 
   .dark {
@@ -92,6 +100,7 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%);
   }
 
   html {
@@ -102,30 +111,37 @@
 @layer utilities {
   .glass {
     @apply bg-white/5 backdrop-blur-md border border-white/10;
+    backdrop-filter: blur(16px);
   }
 
+  /* Enhanced Web3 Gradients */
   .gradient-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, rgb(var(--crypto-primary)) 0%, rgb(var(--crypto-secondary)) 100%);
   }
 
   .gradient-secondary {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    background: linear-gradient(135deg, rgb(var(--crypto-accent)) 0%, rgb(var(--crypto-secondary)) 100%);
   }
 
   .gradient-success {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    background: linear-gradient(135deg, rgb(var(--crypto-primary)) 0%, rgb(var(--crypto-success)) 100%);
   }
 
   .gradient-profit {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, rgb(var(--crypto-profit)) 0%, rgb(var(--crypto-success)) 100%);
   }
 
   .gradient-loss {
-    background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%);
+    background: linear-gradient(135deg, rgb(var(--crypto-loss)) 0%, rgb(var(--crypto-accent)) 100%);
   }
 
+  /* Enhanced Animations */
   .animate-float {
     animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   @keyframes float {
@@ -133,15 +149,42 @@
     50% { transform: translateY(-10px); }
   }
 
+  /* Enhanced Glow Effects */
   .glow {
-    box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 0 30px rgba(var(--crypto-primary), 0.3);
   }
 
   .glow-green {
-    box-shadow: 0 0 20px rgba(56, 239, 125, 0.3);
+    box-shadow: 0 0 30px rgba(var(--crypto-profit), 0.4);
   }
 
   .glow-red {
-    box-shadow: 0 0 20px rgba(252, 70, 107, 0.3);
+    box-shadow: 0 0 30px rgba(var(--crypto-loss), 0.4);
   }
+
+  .glow-purple {
+    box-shadow: 0 0 30px rgba(var(--crypto-secondary), 0.3);
+  }
+
+  /* CSS Variables for consistent theming */
+  .crypto-primary { color: rgb(var(--crypto-primary)); }
+  .crypto-secondary { color: rgb(var(--crypto-secondary)); }
+  .crypto-success { color: rgb(var(--crypto-success)); }
+  .crypto-profit { color: rgb(var(--crypto-profit)); }
+  .crypto-loss { color: rgb(var(--crypto-loss)); }
+  .crypto-accent { color: rgb(var(--crypto-accent)); }
+
+  .bg-crypto-primary { background-color: rgb(var(--crypto-primary)); }
+  .bg-crypto-secondary { background-color: rgb(var(--crypto-secondary)); }
+  .bg-crypto-success { background-color: rgb(var(--crypto-success)); }
+  .bg-crypto-profit { background-color: rgb(var(--crypto-profit)); }
+  .bg-crypto-loss { background-color: rgb(var(--crypto-loss)); }
+  .bg-crypto-accent { background-color: rgb(var(--crypto-accent)); }
+
+  .border-crypto-primary { border-color: rgb(var(--crypto-primary)); }
+  .border-crypto-secondary { border-color: rgb(var(--crypto-secondary)); }
+  .border-crypto-success { border-color: rgb(var(--crypto-success)); }
+  .border-crypto-profit { border-color: rgb(var(--crypto-profit)); }
+  .border-crypto-loss { border-color: rgb(var(--crypto-loss)); }
+  .border-crypto-accent { border-color: rgb(var(--crypto-accent)); }
 }

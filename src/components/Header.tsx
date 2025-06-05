@@ -2,24 +2,21 @@
 import { Bell, Wifi, WifiOff } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { RealTimePrice } from "@/components/RealTimePrice"
+import { useRealTimeData } from "@/hooks/useRealTimeData"
 
 export function Header() {
-  const [isConnected, setIsConnected] = useState(true)
-  const [notifications, setNotifications] = useState(3)
+  const { isConnected } = useRealTimeData()
+  const notifications = 3
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
       <div className="flex items-center space-x-4">
         <SidebarTrigger className="text-white hover:bg-white/10" />
         
-        {/* Live Stats */}
+        {/* Real-Time Stats */}
         <div className="hidden md:flex items-center space-x-6">
-          <div className="text-sm">
-            <span className="text-gray-400">ADA/USD: </span>
-            <span className="text-green-400 font-mono">$0.4523</span>
-            <span className="text-green-400 text-xs ml-1">+2.4%</span>
-          </div>
+          <RealTimePrice />
           <div className="text-sm">
             <span className="text-gray-400">24h Vol: </span>
             <span className="text-white font-mono">$347.2M</span>
@@ -40,7 +37,7 @@ export function Header() {
             <WifiOff className="h-4 w-4 text-red-400" />
           )}
           <span className={`text-xs hidden sm:block ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
-            {isConnected ? 'Connected' : 'Disconnected'}
+            {isConnected ? 'DEX Connected' : 'Disconnected'}
           </span>
         </div>
 
