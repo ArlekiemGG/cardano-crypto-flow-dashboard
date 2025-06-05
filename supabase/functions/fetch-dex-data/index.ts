@@ -19,6 +19,34 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    const requestBody = await req.json()
+    const { action, endpoint } = requestBody
+
+    // Handle Blockfrost requests
+    if (action === 'blockfrost_request') {
+      const blockfrostKey = Deno.env.get('BLOCKFROST_API_KEY')
+      if (!blockfrostKey) {
+        throw new Error('BLOCKFROST_API_KEY not configured')
+      }
+
+      const blockfrostResponse = await fetch(`https://cardano-mainnet.blockfrost.io/api/v0${endpoint}`, {
+        headers: {
+          'project_id': blockfrostKey,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!blockfrostResponse.ok) {
+        throw new Error(`Blockfrost API error: ${blockfrostResponse.status} ${blockfrostResponse.statusText}`)
+      }
+
+      const data = await blockfrostResponse.json()
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      })
+    }
+
     console.log('Starting DEX data fetch...')
     
     // Get API endpoints from secrets
