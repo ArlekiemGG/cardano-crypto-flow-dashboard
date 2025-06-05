@@ -109,6 +109,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         throw new Error('Failed to initialize Lucid');
       }
 
+      // Create event listeners registry for experimental.on/off methods
+      const eventListeners = new Map<string, Set<(...args: unknown[]) => void>>();
+
       // Create a compatible wallet API for Lucid that implements LucidWalletApi
       const lucidWalletApi: LucidWalletApi = {
         getNetworkId: walletApi.getNetworkId,
@@ -121,7 +124,56 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         signTx: walletApi.signTx,
         submitTx: walletApi.submitTx,
         getCollateral: walletApi.getCollateral || (() => Promise.resolve([])),
-        experimental: walletApi.experimental || {},
+        experimental: {
+          // Implement getCollateral method for experimental
+          getCollateral: async (): Promise<string[]> => {
+            try {
+              // Try to get collateral from the wallet's native getCollateral method
+              if (walletApi.getCollateral) {
+                return await walletApi.getCollateral();
+              }
+              
+              // Fallback: return empty array if wallet doesn't support collateral
+              console.log('Wallet does not support native collateral, returning empty array');
+              return [];
+            } catch (error) {
+              console.error('Error getting collateral:', error);
+              return [];
+            }
+          },
+
+          // Implement event listener registration
+          on: (eventName: string, callback: (...args: unknown[]) => void): void => {
+            console.log(`Registering event listener for: ${eventName}`);
+            
+            if (!eventListeners.has(eventName)) {
+              eventListeners.set(eventName, new Set());
+            }
+            
+            const listeners = eventListeners.get(eventName);
+            if (listeners) {
+              listeners.add(callback);
+            }
+          },
+
+          // Implement event listener removal
+          off: (eventName: string, callback: (...args: unknown[]) => void): void => {
+            console.log(`Removing event listener for: ${eventName}`);
+            
+            const listeners = eventListeners.get(eventName);
+            if (listeners) {
+              listeners.delete(callback);
+              
+              // Clean up empty listener sets
+              if (listeners.size === 0) {
+                eventListeners.delete(eventName);
+              }
+            }
+          },
+
+          // Include any additional experimental features from the original wallet
+          ...(walletApi.experimental || {})
+        },
         signData: async (address: string, payload: string) => {
           const result = await walletApi.signData(address, payload);
           // Handle both possible return types from different wallets
