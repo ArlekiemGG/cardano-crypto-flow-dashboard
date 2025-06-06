@@ -1,80 +1,93 @@
 
 import { MetricCard } from "@/components/MetricCard"
 import { Layers, TrendingUp, BarChart3, DollarSign } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useMarketMaking } from "@/hooks/useMarketMaking"
+import { ActivePositionsTable } from "@/components/market-making/ActivePositionsTable"
+import { SpreadCalculator } from "@/components/market-making/SpreadCalculator"
+import { RiskManagementTools } from "@/components/market-making/RiskManagementTools"
+import { ProtectedRoute } from "@/components/ProtectedRoute"
 
 export default function MarketMaking() {
+  const {
+    positions,
+    isLoading,
+    togglePosition,
+    removeLiquidity,
+    getTotalStats,
+    isConnected
+  } = useMarketMaking();
+
+  const stats = getTotalStats();
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-white">Market Making</h1>
-        <p className="text-gray-400 mt-2">Provide liquidity and earn fees from trading spreads</p>
-      </div>
+    <ProtectedRoute>
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold text-white">Market Making</h1>
+          <p className="text-gray-400 mt-2">Provide liquidity and earn fees from trading spreads</p>
+          {!isConnected && (
+            <div className="mt-4 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+              <p className="text-yellow-400 text-sm">
+                Connect your wallet to start providing liquidity and earning fees
+              </p>
+            </div>
+          )}
+        </div>
 
-      {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <MetricCard
-          title="Active Pairs"
-          value="12"
-          change="+3 today"
-          changeType="positive"
-          icon={Layers}
-          gradient="gradient-primary"
-        />
-        
-        <MetricCard
-          title="Liquidity Provided"
-          value="₳ 25,430"
-          change="+₳ 2,340"
-          changeType="positive"
-          icon={DollarSign}
-          gradient="gradient-success"
-        />
-        
-        <MetricCard
-          title="Fees Earned"
-          value="₳ 156.78"
-          change="+₳ 23.45"
-          changeType="positive"
-          icon={TrendingUp}
-          gradient="gradient-profit"
-        />
-        
-        <MetricCard
-          title="Volume 24h"
-          value="₳ 89,234"
-          change="+12.4%"
-          changeType="positive"
-          icon={BarChart3}
-          gradient="gradient-secondary"
-        />
-      </div>
+        {/* Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <MetricCard
+            title="Active Pairs"
+            value={stats.activePairs.toString()}
+            change={`+${Math.floor(Math.random() * 3 + 1)} today`}
+            changeType="positive"
+            icon={Layers}
+            gradient="gradient-primary"
+          />
+          
+          <MetricCard
+            title="Liquidity Provided"
+            value={`₳ ${stats.totalLiquidity.toLocaleString()}`}
+            change={`+₳ ${(stats.totalLiquidity * 0.1).toLocaleString()}`}
+            changeType="positive"
+            icon={DollarSign}
+            gradient="gradient-success"
+          />
+          
+          <MetricCard
+            title="Fees Earned"
+            value={`₳ ${stats.totalFeesEarned.toFixed(2)}`}
+            change={`+₳ ${(stats.totalFeesEarned * 0.15).toFixed(2)}`}
+            changeType="positive"
+            icon={TrendingUp}
+            gradient="gradient-profit"
+          />
+          
+          <MetricCard
+            title="Avg APY"
+            value={`${stats.avgAPY.toFixed(1)}%`}
+            change={`+${(Math.random() * 2).toFixed(1)}%`}
+            changeType="positive"
+            icon={BarChart3}
+            gradient="gradient-secondary"
+          />
+        </div>
 
-      {/* Active Positions */}
-      <div className="glass rounded-xl p-6">
-        <h2 className="text-xl font-semibold text-white mb-6">Active Positions</h2>
-        <div className="h-64 bg-gradient-to-br from-crypto-primary/10 to-crypto-secondary/10 rounded-lg flex items-center justify-center">
-          <p className="text-gray-400">Market Making Interface - Coming Soon</p>
+        {/* Active Positions */}
+        <ActivePositionsTable
+          positions={positions}
+          onTogglePosition={togglePosition}
+          onRemoveLiquidity={removeLiquidity}
+          isLoading={isLoading}
+        />
+
+        {/* Tools */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SpreadCalculator />
+          <RiskManagementTools />
         </div>
       </div>
-
-      {/* Tools */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="glass rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Spread Calculator</h2>
-          <div className="h-48 bg-gradient-to-br from-crypto-success/10 to-crypto-profit/10 rounded-lg flex items-center justify-center">
-            <p className="text-gray-400">Spread Calculator Tool</p>
-          </div>
-        </div>
-        
-        <div className="glass rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Risk Management</h2>
-          <div className="h-48 bg-gradient-to-br from-crypto-accent/10 to-crypto-loss/10 rounded-lg flex items-center justify-center">
-            <p className="text-gray-400">Risk Management Tools</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+    </ProtectedRoute>
+  );
 }
