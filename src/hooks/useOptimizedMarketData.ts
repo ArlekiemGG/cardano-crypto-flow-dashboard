@@ -1,6 +1,5 @@
-
 import { useState, useEffect, useRef } from 'react';
-import { optimizedDataService } from '@/services/optimizedDataService';
+import { optimizedDataService } from '@/services/optimized-data/OptimizedDataService';
 
 interface OptimizedMarketData {
   prices: Record<string, any>;

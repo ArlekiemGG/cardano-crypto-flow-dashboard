@@ -1,0 +1,178 @@
+
+import { supabase } from '@/integrations/supabase/client';
+import { CacheManager } from './CacheManager';
+import { DeFiLlamaAPIClient } from './DeFiLlamaAPIClient';
+import { DeFiLlamaProtocol, DeFiLlamaPrice } from './types';
+
+class OptimizedDataService {
+  private cacheManager: CacheManager;
+  private apiClient: DeFiLlamaAPIClient;
+
+  constructor() {
+    this.cacheManager = new CacheManager(5 * 60 * 1000); // 5 minutes TTL
+    this.apiClient = new DeFiLlamaAPIClient();
+    
+    // Auto-clean cache every 10 minutes
+    setInterval(() => {
+      this.cacheManager.clearExpiredCache();
+    }, 10 * 60 * 1000);
+  }
+
+  // 🎯 Get current prices with cache and fallback
+  async getCurrentPrices(tokens: string[]): Promise<any> {
+    const tokensString = tokens.join(',');
+    const cacheKey = `prices:${tokensString}`;
+    
+    // Check cache
+    const cached = this.cacheManager.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Cache hit for prices: ${tokensString}`);
+      return cached.data;
+    }
+
+    try {
+      // Try DeFiLlama first
+      console.log(`📊 Fetching prices from DeFiLlama: ${tokensString}`);
+      const data = await this.apiClient.getCurrentPrices(tokens);
+
+      // Save to cache
+      this.cacheManager.set(cacheKey, data, 'defillama');
+      console.log(`✅ DeFiLlama prices cached: ${Object.keys(data.coins || {}).length} tokens`);
+      return data;
+
+    } catch (error) {
+      console.error('❌ DeFiLlama prices error:', error);
+      
+      // Fallback to native API
+      const fallbackData = await this.fallbackToNativeAPI('prices', { tokens });
+      this.cacheManager.set(cacheKey, fallbackData, 'native');
+      return fallbackData;
+    }
+  }
+
+  // 📈 Get Cardano DEX volumes
+  async getCardanoDexVolumes(): Promise<any> {
+    const cacheKey = 'cardano-dex-volumes';
+    
+    const cached = this.cacheManager.get(cacheKey);
+    if (cached) {
+      console.log('✅ Cache hit for Cardano DEX volumes');
+      return cached.data;
+    }
+
+    try {
+      console.log('📊 Fetching Cardano DEX volumes from DeFiLlama...');
+      const data = await this.apiClient.getCardanoDexVolumes();
+
+      this.cacheManager.set(cacheKey, data, 'defillama');
+      console.log(`✅ Cardano DEX volumes cached: ${data.protocols?.length || 0} protocols`);
+      return data;
+
+    } catch (error) {
+      console.error('❌ DeFiLlama DEX volumes error:', error);
+      const fallbackData = await this.fallbackToNativeAPI('dex-volumes');
+      
+      this.cacheManager.set(cacheKey, fallbackData, 'native');
+      return fallbackData;
+    }
+  }
+
+  // 🏦 Get Cardano protocols
+  async getCardanoProtocols(): Promise<DeFiLlamaProtocol[]> {
+    const cacheKey = 'cardano-protocols';
+    
+    const cached = this.cacheManager.get(cacheKey);
+    if (cached) {
+      console.log('✅ Cache hit for Cardano protocols');
+      return cached.data;
+    }
+
+    try {
+      console.log('📊 Fetching Cardano protocols from DeFiLlama...');
+      const allProtocols = await this.apiClient.getAllProtocols();
+
+      // Filter only Cardano protocols
+      const cardanoProtocols = allProtocols.filter(protocol => 
+        protocol.chains?.includes('Cardano') && protocol.tvl > 100000
+      );
+
+      this.cacheManager.set(cacheKey, cardanoProtocols, 'defillama');
+      console.log(`✅ Cardano protocols cached: ${cardanoProtocols.length} protocols`);
+      return cardanoProtocols;
+
+    } catch (error) {
+      console.error('❌ DeFiLlama protocols error:', error);
+      const fallbackData = await this.fallbackToNativeAPI('protocols');
+      
+      this.cacheManager.set(cacheKey, fallbackData || [], 'native');
+      return fallbackData || [];
+    }
+  }
+
+  // 📊 Get historical prices
+  async getHistoricalPrices(tokens: string[], timestamp: number): Promise<any> {
+    const tokensString = tokens.join(',');
+    const cacheKey = `historical-prices:${tokensString}:${timestamp}`;
+    
+    const cached = this.cacheManager.get(cacheKey);
+    if (cached) {
+      console.log(`✅ Cache hit for historical prices: ${tokensString}`);
+      return cached.data;
+    }
+
+    try {
+      console.log(`📊 Fetching historical prices from DeFiLlama: ${tokensString} at ${timestamp}`);
+      const data = await this.apiClient.getHistoricalPrices(tokens, timestamp);
+
+      this.cacheManager.set(cacheKey, data, 'defillama');
+      return data;
+
+    } catch (error) {
+      console.error('❌ DeFiLlama historical prices error:', error);
+      const fallbackData = await this.fallbackToNativeAPI('historical-prices', { tokens, timestamp });
+      
+      this.cacheManager.set(cacheKey, fallbackData, 'native');
+      return fallbackData;
+    }
+  }
+
+  // 🔍 Fallback to native API
+  private async fallbackToNativeAPI(dataType: string, params?: any): Promise<any> {
+    console.warn(`⚠️ Fallback to native API for: ${dataType}`);
+    
+    try {
+      // Use edge function as fallback
+      const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
+        body: JSON.stringify({ action: 'fetch_all', fallback: true })
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('❌ Fallback failed:', error);
+      throw new Error(`Fallback failed for ${dataType}: ${error}`);
+    }
+  }
+
+  // 📈 Get cache statistics
+  getCacheStats() {
+    return this.cacheManager.getStats();
+  }
+
+  // 🔄 Refresh critical data
+  async refreshCriticalData(): Promise<void> {
+    console.log('🔄 Refreshing critical data...');
+    
+    const criticalTokens = ['coingecko:cardano'];
+    
+    await Promise.allSettled([
+      this.getCurrentPrices(criticalTokens),
+      this.getCardanoDexVolumes(),
+      this.getCardanoProtocols()
+    ]);
+    
+    console.log('✅ Critical data refresh completed');
+  }
+}
+
+export const optimizedDataService = new OptimizedDataService();
