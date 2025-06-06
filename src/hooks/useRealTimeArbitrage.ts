@@ -68,7 +68,7 @@ export const useRealTimeArbitrage = () => {
 
     console.log('🚀 Inicializando monitoreo de arbitraje ÚNICO...');
     
-    const initializeServices = async () => {
+    const initializeServices = async (): Promise<(() => void) | undefined> => {
       try {
         // Solo inicializar si el servicio no está activo
         if (!realTimeMarketDataService.isConnected()) {
@@ -124,14 +124,18 @@ export const useRealTimeArbitrage = () => {
       }
     };
 
-    const cleanup = initializeServices();
+    let cleanupFunction: (() => void) | undefined;
+
+    initializeServices().then((cleanup) => {
+      cleanupFunction = cleanup;
+    }).catch((error) => {
+      console.error('Error initializing services:', error);
+    });
 
     return () => {
       console.log('🔄 Limpieza programada para useRealTimeArbitrage...');
-      if (cleanup instanceof Promise) {
-        cleanup.then(cleanupFn => cleanupFn && cleanupFn());
-      } else if (typeof cleanup === 'function') {
-        cleanup();
+      if (cleanupFunction) {
+        cleanupFunction();
       }
       
       isInitializedRef.current = false;
