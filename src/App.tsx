@@ -26,7 +26,7 @@ const App = () => (
       <Sonner />
       <WalletProvider>
         <BrowserRouter>
-          <ProtectedRoute requireMinimumBalance={100}>
+          <ProtectedRoute>
             <SidebarProvider>
               <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
                 <AppSidebar />
