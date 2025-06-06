@@ -3,7 +3,6 @@ import { useRealTimeData } from "@/hooks/useRealTimeData"
 import { useRealTimeArbitrage } from "@/hooks/useRealTimeArbitrage"
 import { useArbitrageStats } from "@/hooks/useArbitrageStats"
 import { usePortfolioCalculations } from "@/hooks/usePortfolioCalculations"
-import { useConnectionHealth } from "@/hooks/useConnectionHealth"
 import { LiveArbitrageOpportunities } from "@/components/LiveArbitrageOpportunities"
 import { DEXConnectionStatus } from "@/components/DEXConnectionStatus"
 import { HeroSection } from "@/components/dashboard/HeroSection"
@@ -25,7 +24,6 @@ export default function Dashboard() {
   
   const arbitrageStats = useArbitrageStats(opportunities, stats)
   const portfolioCalculations = usePortfolioCalculations(marketData, balance)
-  const { connectedSources } = useConnectionHealth()
 
   const marketStats = useMemo(() => {
     const allPrices = realTimeMarketDataService.getCurrentPrices()
@@ -57,7 +55,6 @@ export default function Dashboard() {
         avgProfitPercentage={arbitrageStats.avgProfitPercentage}
         activePairs={marketStats.activePairs}
         totalVolume24h={marketStats.totalVolume24h}
-        connectedSources={connectedSources}
       />
 
       {/* Real-Time Trading Panel Preview */}

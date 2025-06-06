@@ -1,6 +1,6 @@
 
 import { MetricCard } from "@/components/MetricCard";
-import { TrendingUp, DollarSign, Activity, Database, Zap, Globe } from "lucide-react";
+import { TrendingUp, DollarSign, Activity, Database, Zap } from "lucide-react";
 
 interface MetricsGridProps {
   portfolioValue: number;
@@ -11,7 +11,6 @@ interface MetricsGridProps {
   avgProfitPercentage: number;
   activePairs: number;
   totalVolume24h: number;
-  connectedSources: number;
 }
 
 export const MetricsGrid = ({
@@ -22,8 +21,7 @@ export const MetricsGrid = ({
   totalPotentialProfit,
   avgProfitPercentage,
   activePairs,
-  totalVolume24h,
-  connectedSources
+  totalVolume24h
 }: MetricsGridProps) => {
   // Formatear volumen para mostrar en formato legible
   const formatVolume = (volume: number) => {
@@ -72,13 +70,6 @@ export const MetricsGrid = ({
         value={activePairs.toString()}
         description="Trading pairs"
         icon={Zap}
-      />
-      
-      <MetricCard
-        title="Data Sources"
-        value={`${connectedSources}/2`}
-        description="Connected"
-        icon={Globe}
       />
     </div>
   );
