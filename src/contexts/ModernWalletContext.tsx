@@ -1,27 +1,14 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Lucid, Blockfrost, LucidEvolution } from '@lucid-evolution/lucid';
-
-// Environment configuration
-const BLOCKFROST_API_URL = 'https://cardano-mainnet.blockfrost.io/api/v0';
-const BLOCKFROST_PROJECT_ID = 'mainnetqDbcAxZGzm4fvd6efh43cp81lL1VK6TT';
-const CARDANO_NETWORK = 'Mainnet';
-
-// Supported wallets for 2025
-const SUPPORTED_WALLETS = ['eternl', 'nami', 'yoroi', 'flint', 'typhoncip30', 'gerowallet', 'brave'];
-
-export interface WalletState {
-  isConnected: boolean;
-  isConnecting: boolean;
-  walletName: string | null;
-  walletApi: any | null;
-  lucid: LucidEvolution | null;
-  address: string | null;
-  balance: number;
-  network: string;
-  error: string | null;
-  lastUpdate: Date | null;
-}
+import React, { createContext, useContext, useEffect, ReactNode } from 'react';
+import { useModernWalletState, WalletState } from '@/hooks/useModernWalletState';
+import { useModernWalletConnection } from '@/hooks/useModernWalletConnection';
+import { useModernWalletBalance } from '@/hooks/useModernWalletBalance';
+import { 
+  getAvailableWallets, 
+  hasWallet, 
+  setupWalletCleanup, 
+  clearWalletStorage 
+} from '@/utils/modernWalletUtils';
 
 export interface WalletContextType extends WalletState {
   connectWallet: (walletName: string) => Promise<void>;
@@ -31,19 +18,6 @@ export interface WalletContextType extends WalletState {
   checkMinimumBalance: (minAda: number) => boolean;
   hasWallet: (walletName: string) => boolean;
 }
-
-const initialState: WalletState = {
-  isConnected: false,
-  isConnecting: false,
-  walletName: null,
-  walletApi: null,
-  lucid: null,
-  address: null,
-  balance: 0,
-  network: CARDANO_NETWORK,
-  error: null,
-  lastUpdate: null,
-};
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
@@ -60,158 +34,37 @@ interface WalletProviderProps {
 }
 
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
-  const [walletState, setWalletState] = useState<WalletState>(initialState);
+  const { walletState, updateWalletState, resetWalletState } = useModernWalletState();
+  const { connectWallet: connectWalletHook } = useModernWalletConnection();
+  const { refreshBalance } = useModernWalletBalance(
+    walletState.lucid,
+    walletState.walletApi,
+    walletState.isConnected,
+    updateWalletState
+  );
 
-  // Initialize Lucid Evolution with Blockfrost
-  const initializeLucid = async (): Promise<LucidEvolution> => {
-    console.log('Initializing Lucid Evolution with Blockfrost...');
-    
-    try {
-      const blockfrost = new Blockfrost(
-        BLOCKFROST_API_URL,
-        BLOCKFROST_PROJECT_ID
-      );
-
-      const lucid = await Lucid(blockfrost, CARDANO_NETWORK);
-      console.log('Lucid Evolution initialized successfully');
-      
-      return lucid;
-    } catch (error) {
-      console.error('Failed to initialize Lucid:', error);
-      throw new Error('Failed to initialize blockchain connection');
-    }
-  };
-
-  // Check if wallet is available
-  const hasWallet = (walletName: string): boolean => {
-    if (typeof window === 'undefined' || !window.cardano) return false;
-    return !!window.cardano[walletName];
-  };
-
-  // Get available wallets
-  const getAvailableWallets = (): string[] => {
-    if (typeof window === 'undefined' || !window.cardano) return [];
-    
-    return SUPPORTED_WALLETS.filter(walletName => {
-      const wallet = window.cardano[walletName];
-      return wallet && typeof wallet.enable === 'function';
-    });
-  };
-
-  // Convert hex address to bech32 if needed
-  const convertAddress = (hexAddress: string): string => {
-    // If already bech32, return as is
-    if (hexAddress.startsWith('addr')) {
-      return hexAddress;
-    }
-    
-    // For now, return hex address as is - proper conversion would require cardano-serialization-lib
-    console.warn('Address is in hex format, conversion needed:', hexAddress);
-    return hexAddress;
-  };
-
-  // Connect to wallet using Lucid Evolution
+  // Connect to wallet
   const connectWallet = async (walletName: string): Promise<void> => {
     try {
-      console.log(`=== CONNECTING TO ${walletName.toUpperCase()} WALLET ===`);
-      
-      setWalletState(prev => ({
-        ...prev,
+      updateWalletState({
         isConnecting: true,
         error: null,
-      }));
+      });
 
-      // Check if wallet is available
-      if (!hasWallet(walletName)) {
-        throw new Error(`${walletName} wallet not found. Please install the wallet extension.`);
-      }
+      const connectionResult = await connectWalletHook(walletName);
 
-      // Initialize Lucid
-      const lucid = await initializeLucid();
-
-      // Connect to wallet
-      const walletApi = await window.cardano[walletName].enable();
-      
-      if (!walletApi) {
-        throw new Error(`Failed to connect to ${walletName}. Please approve the connection.`);
-      }
-
-      // Select wallet in Lucid
-      lucid.selectWallet.fromAPI(walletApi);
-
-      // Get wallet address - try different methods
-      let address = '';
-      
-      try {
-        // Try Lucid's method first
-        address = await lucid.wallet().address();
-      } catch (error) {
-        console.warn('Lucid address method failed, trying wallet API directly:', error);
-        
-        // Fallback to wallet API methods
-        try {
-          const usedAddresses = await walletApi.getUsedAddresses();
-          if (usedAddresses && usedAddresses.length > 0) {
-            address = convertAddress(usedAddresses[0]);
-          }
-        } catch (error) {
-          console.warn('getUsedAddresses failed:', error);
-        }
-        
-        if (!address) {
-          try {
-            const changeAddress = await walletApi.getChangeAddress();
-            if (changeAddress) {
-              address = convertAddress(changeAddress);
-            }
-          } catch (error) {
-            console.warn('getChangeAddress failed:', error);
-          }
-        }
-      }
-
-      if (!address) {
-        throw new Error('Could not retrieve wallet address. Please try reconnecting.');
-      }
-
-      console.log('Wallet address:', address);
-
-      // Get initial balance
-      let balance = 0;
-      try {
-        const utxos = await lucid.wallet().getUtxos();
-        balance = utxos.reduce((total, utxo) => {
-          return total + Number(utxo.assets.lovelace) / 1000000;
-        }, 0);
-      } catch (error) {
-        console.warn('Failed to get balance from Lucid, trying wallet API:', error);
-        
-        try {
-          const balanceHex = await walletApi.getBalance();
-          balance = parseInt(balanceHex, 16) / 1000000;
-        } catch (error) {
-          console.warn('Failed to get balance from wallet API:', error);
-          balance = 0; // Default to 0 if balance fetch fails
-        }
-      }
-
-      console.log('Initial balance:', balance, 'ADA');
-
-      // Update state
-      setWalletState(prev => ({
-        ...prev,
+      // Update state with real wallet data
+      updateWalletState({
         isConnected: true,
         isConnecting: false,
         walletName,
-        walletApi,
-        lucid,
-        address,
-        balance,
+        walletApi: connectionResult.walletApi,
+        lucid: connectionResult.lucid,
+        address: connectionResult.address,
+        balance: connectionResult.balance,
         error: null,
         lastUpdate: new Date(),
-      }));
-
-      console.log(`=== ${walletName.toUpperCase()} WALLET CONNECTED SUCCESSFULLY ===`);
+      });
       
     } catch (error) {
       console.error('Wallet connection failed:', error);
@@ -227,60 +80,13 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         }
       }
       
-      setWalletState(prev => ({
-        ...prev,
+      updateWalletState({
         isConnecting: false,
         error: errorMessage,
         isConnected: false,
-      }));
+      });
       
       throw error;
-    }
-  };
-
-  // Refresh balance using Lucid Evolution
-  const refreshBalance = async (): Promise<void> => {
-    if (!walletState.lucid || !walletState.isConnected) {
-      console.log('No Lucid instance or not connected, skipping balance refresh');
-      return;
-    }
-
-    try {
-      console.log('Refreshing balance...');
-      
-      let balance = 0;
-      
-      try {
-        const utxos = await walletState.lucid.wallet().getUtxos();
-        balance = utxos.reduce((total, utxo) => {
-          return total + Number(utxo.assets.lovelace) / 1000000;
-        }, 0);
-      } catch (error) {
-        console.warn('Failed to refresh balance via Lucid, trying wallet API:', error);
-        
-        if (walletState.walletApi) {
-          try {
-            const balanceHex = await walletState.walletApi.getBalance();
-            balance = parseInt(balanceHex, 16) / 1000000;
-          } catch (error) {
-            console.warn('Failed to refresh balance via wallet API:', error);
-          }
-        }
-      }
-
-      setWalletState(prev => ({
-        ...prev,
-        balance,
-        lastUpdate: new Date(),
-      }));
-
-      console.log('Balance updated:', balance, 'ADA');
-    } catch (error) {
-      console.error('Failed to refresh balance:', error);
-      setWalletState(prev => ({
-        ...prev,
-        error: 'Failed to refresh balance',
-      }));
     }
   };
 
@@ -292,49 +98,14 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   // Disconnect wallet - COMPLETELY clear state without persistence
   const disconnectWallet = () => {
     console.log('=== DISCONNECTING WALLET - NO PERSISTENCE ===');
-    setWalletState(initialState);
-    
-    // Clear any potential localStorage data
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('walletConnection');
-      localStorage.removeItem('connectedWallet');
-      localStorage.removeItem('walletSession');
-    }
-    
+    resetWalletState();
+    clearWalletStorage();
     console.log('Wallet disconnected completely - no session saved');
   };
 
-  // Auto-refresh balance every 30 seconds only when connected
-  useEffect(() => {
-    if (!walletState.isConnected) return;
-
-    const interval = setInterval(() => {
-      refreshBalance();
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(interval);
-  }, [walletState.isConnected, walletState.lucid]);
-
   // Clear wallet state on page/tab close
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      console.log('Page unloading - clearing wallet state');
-      setWalletState(initialState);
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        console.log('Tab hidden - wallet will disconnect when tab closes');
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    return setupWalletCleanup(resetWalletState);
   }, []);
 
   // Initialize with NO persistence - NEVER auto-reconnect
@@ -347,11 +118,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     console.log('Wallet will ALWAYS disconnect when browser tab closes');
     
     // Ensure no lingering session data
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('walletConnection');
-      localStorage.removeItem('connectedWallet');
-      localStorage.removeItem('walletSession');
-    }
+    clearWalletStorage();
   }, []);
 
   const contextValue: WalletContextType = {
