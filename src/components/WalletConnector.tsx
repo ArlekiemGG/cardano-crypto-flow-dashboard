@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { AlertCircle, CheckCircle, Loader2, Wallet, Shield } from 'lucide-react';
+import { AlertCircle, CheckCircle, Loader2, Wallet, Shield, Download } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const walletInfo = {
@@ -18,36 +18,43 @@ const walletInfo = {
     name: 'Nami',
     icon: '🟦',
     downloadUrl: 'https://namiwallet.io/',
+    description: 'Light wallet for Cardano',
   },
   eternl: {
     name: 'Eternl',
-    icon: '🔷',
+    icon: '♾️',
     downloadUrl: 'https://eternl.io/',
+    description: 'Feature-rich Cardano wallet',
   },
   flint: {
     name: 'Flint',
     icon: '🔥',
     downloadUrl: 'https://flint-wallet.com/',
+    description: 'Simple and secure',
   },
   vespr: {
     name: 'Vespr',
     icon: '🦋',
     downloadUrl: 'https://vespr.xyz/',
+    description: 'Modern Cardano wallet',
   },
   yoroi: {
     name: 'Yoroi',
     icon: '⚡',
     downloadUrl: 'https://yoroi-wallet.com/',
+    description: 'Emurgo official wallet',
   },
   gerowallet: {
     name: 'Gero',
     icon: '🚀',
     downloadUrl: 'https://gerowallet.io/',
+    description: 'Advanced features',
   },
   nufi: {
     name: 'NuFi',
     icon: '💎',
     downloadUrl: 'https://nu.fi/',
+    description: 'Multi-chain wallet',
   },
 };
 
@@ -62,11 +69,15 @@ export const WalletConnector: React.FC = () => {
       setConnectingWallet(walletName);
       await connectWallet(walletName);
       setIsModalOpen(false);
-      setConnectingWallet(null);
     } catch (error) {
       console.error('Failed to connect wallet:', error);
+    } finally {
       setConnectingWallet(null);
     }
+  };
+
+  const handleDownloadWallet = (url: string) => {
+    window.open(url, '_blank');
   };
 
   return (
@@ -87,7 +98,7 @@ export const WalletConnector: React.FC = () => {
             Connect Cardano Wallet
           </DialogTitle>
           <DialogDescription className="text-gray-400">
-            Choose your wallet. You'll be asked to authorize the connection for security.
+            Connect your Cardano wallet to access real blockchain features.
           </DialogDescription>
         </DialogHeader>
 
@@ -95,7 +106,7 @@ export const WalletConnector: React.FC = () => {
         <Alert className="border-crypto-primary/50 bg-crypto-primary/10">
           <Shield className="h-4 w-4 text-crypto-primary" />
           <AlertDescription className="text-crypto-primary text-sm">
-            Your wallet will ask for permission before connecting. This is normal and ensures your security.
+            Only connect wallets you trust. We never store your private keys.
           </AlertDescription>
         </Alert>
 
@@ -110,70 +121,80 @@ export const WalletConnector: React.FC = () => {
 
         <div className="space-y-3">
           {availableWallets.length > 0 ? (
-            availableWallets.map((walletName) => {
-              const wallet = walletInfo[walletName as keyof typeof walletInfo];
-              const isCurrentlyConnecting = connectingWallet === walletName;
-              
-              return (
-                <Button
-                  key={walletName}
-                  onClick={() => handleWalletConnect(walletName)}
-                  disabled={isConnecting}
-                  className="w-full h-16 glass border border-white/10 hover:border-crypto-primary/50 hover:bg-crypto-primary/10 text-white justify-start"
-                  variant="ghost"
-                >
-                  <div className="flex items-center space-x-3">
-                    <span className="text-2xl">{wallet?.icon}</span>
-                    <div className="text-left">
-                      <div className="font-medium">{wallet?.name}</div>
-                      <div className="text-xs text-gray-400">
-                        {isCurrentlyConnecting ? (
-                          <div className="flex items-center text-crypto-primary">
-                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                            Requesting authorization...
-                          </div>
-                        ) : (
-                          'Click to authorize connection'
-                        )}
+            <>
+              <h4 className="text-sm font-medium text-white mb-2">Available Wallets:</h4>
+              {availableWallets.map((walletName) => {
+                const wallet = walletInfo[walletName as keyof typeof walletInfo];
+                const isCurrentlyConnecting = connectingWallet === walletName;
+                
+                return (
+                  <Button
+                    key={walletName}
+                    onClick={() => handleWalletConnect(walletName)}
+                    disabled={isConnecting}
+                    className="w-full h-16 glass border border-white/10 hover:border-crypto-primary/50 hover:bg-crypto-primary/10 text-white justify-start"
+                    variant="ghost"
+                  >
+                    <div className="flex items-center space-x-3 w-full">
+                      <span className="text-2xl">{wallet?.icon}</span>
+                      <div className="text-left flex-1">
+                        <div className="font-medium">{wallet?.name}</div>
+                        <div className="text-xs text-gray-400">
+                          {isCurrentlyConnecting ? (
+                            <div className="flex items-center text-crypto-primary">
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              Connecting...
+                            </div>
+                          ) : (
+                            wallet?.description
+                          )}
+                        </div>
                       </div>
+                      {isCurrentlyConnecting ? (
+                        <Loader2 className="w-5 h-5 text-crypto-primary animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-5 h-5 text-green-400 opacity-50" />
+                      )}
                     </div>
-                  </div>
-                  {isCurrentlyConnecting ? (
-                    <Loader2 className="w-5 h-5 ml-auto text-crypto-primary animate-spin" />
-                  ) : (
-                    <CheckCircle className="w-5 h-5 ml-auto text-green-400 opacity-50" />
-                  )}
-                </Button>
-              );
-            })
+                  </Button>
+                );
+              })}
+            </>
           ) : (
             <div className="text-center py-8">
               <Wallet className="w-16 h-16 mx-auto text-gray-600 mb-4" />
               <p className="text-gray-400 mb-4">No Cardano wallets detected</p>
               <p className="text-sm text-gray-500 mb-6">
-                Install a Cardano wallet extension to continue
+                Install a wallet extension to continue
               </p>
               
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(walletInfo).map(([key, wallet]) => (
-                  <Button
-                    key={key}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs border-white/20 hover:border-crypto-primary/50"
-                    onClick={() => window.open(wallet.downloadUrl, '_blank')}
-                  >
-                    {wallet.icon} {wallet.name}
-                  </Button>
-                ))}
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-white mb-3">Recommended Wallets:</h4>
+                <div className="grid grid-cols-1 gap-2">
+                  {Object.entries(walletInfo).slice(0, 4).map(([key, wallet]) => (
+                    <Button
+                      key={key}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs border-white/20 hover:border-crypto-primary/50 justify-between"
+                      onClick={() => handleDownloadWallet(wallet.downloadUrl)}
+                    >
+                      <span className="flex items-center">
+                        <span className="mr-2">{wallet.icon}</span>
+                        {wallet.name}
+                      </span>
+                      <Download className="w-3 h-3" />
+                    </Button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
         </div>
 
         <div className="text-xs text-gray-500 text-center mt-4 space-y-1">
-          <p>🔒 Each connection requires your explicit authorization</p>
-          <p>Refresh the page after installing wallet extensions</p>
+          <p>🔒 Each connection requires your approval</p>
+          <p>Refresh page after installing new wallets</p>
         </div>
       </DialogContent>
     </Dialog>

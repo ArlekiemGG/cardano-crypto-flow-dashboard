@@ -58,17 +58,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [walletState, setWalletState] = useState<WalletState>(initialState);
   const { isConnecting, error, connectWallet: connectWalletHook } = useWalletConnection();
   
-  // Pass address to balance manager to fetch real data
+  // Use balance manager for real blockchain data
   const { balance, utxos, refreshBalance, checkMinimumBalance } = useBalanceManager(
     walletState.walletApi,
     walletState.isConnected,
     walletState.address
   );
 
-  // Update wallet state with balance and utxos from the balance manager (real Blockfrost data)
+  // Update wallet state with real balance data
   useEffect(() => {
     if (walletState.isConnected && walletState.address) {
-      console.log('Updating wallet state with new balance:', balance);
       setWalletState(prev => ({
         ...prev,
         balance,
@@ -77,7 +76,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
   }, [balance, utxos, walletState.isConnected, walletState.address]);
 
-  // Update wallet state with connection state
+  // Update connection state
   useEffect(() => {
     setWalletState(prev => ({
       ...prev,
@@ -86,53 +85,41 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }));
   }, [isConnecting, error]);
 
-  // Connect to wallet with FORCED explicit authorization
+  // Connect to wallet
   const connectWallet = async (walletName: string): Promise<void> => {
     try {
-      console.log('=== STARTING EXPLICIT WALLET CONNECTION ===');
+      console.log('=== STARTING WALLET CONNECTION ===');
       console.log('Target wallet:', walletName);
       
-      // CRITICAL: Clear any cached wallet data first
+      // Reset state
       setWalletState(initialState);
       
-      // Clear localStorage to prevent any auto-connection attempts
-      localStorage.removeItem('connectedWallet');
-      localStorage.removeItem('walletAddress');
-      
-      // Force a small delay to ensure state is cleared
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      console.log('Requesting explicit authorization...');
+      // Connect to wallet
       const connectionResult = await connectWalletHook(walletName);
       
-      console.log('=== WALLET AUTHORIZATION SUCCESSFUL ===');
+      console.log('=== WALLET CONNECTION SUCCESSFUL ===');
       console.log('Connection result:', connectionResult);
-      console.log('Address format:', connectionResult.address);
       
-      // Validate address format
+      // Validate the connection result
       if (!connectionResult.address) {
         throw new Error('No address received from wallet');
       }
       
-      // Log address details for debugging
-      console.log('Received address:', connectionResult.address);
-      console.log('Address starts with addr1:', connectionResult.address.startsWith('addr1'));
-      console.log('Address length:', connectionResult.address.length);
-      
+      // Update state with real wallet data
       setWalletState(prev => ({
         ...prev,
         isConnected: true,
         walletName,
         walletApi: connectionResult.walletApi,
         address: connectionResult.address,
-        balance: 0, // Will be updated by useBalanceManager with real Blockfrost data
+        balance: connectionResult.balance,
         network: connectionResult.network,
-        utxos: [],
+        utxos: connectionResult.utxos,
         stakeAddress: connectionResult.stakeAddress,
         error: null,
       }));
 
-      // Save wallet session to database with real data ONLY after successful explicit connection
+      // Save session with real data
       await walletService.saveWalletSession({
         address: connectionResult.address,
         walletName,
@@ -140,19 +127,17 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         network: connectionResult.network,
       });
 
-      console.log('=== WALLET CONNECTED SUCCESSFULLY ===');
-      console.log('Final address in state:', connectionResult.address);
+      console.log('=== WALLET SESSION SAVED ===');
+      console.log('Address:', connectionResult.address);
       console.log('Network:', connectionResult.network);
-      console.log('Stake address:', connectionResult.stakeAddress);
       
     } catch (error) {
       console.error('=== WALLET CONNECTION FAILED ===');
-      console.error('Error details:', error);
+      console.error('Error:', error);
       
-      // Clear state on error
       setWalletState(prev => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Failed to connect wallet with explicit authorization',
+        error: error instanceof Error ? error.message : 'Failed to connect wallet',
         isConnected: false,
         walletName: null,
         walletApi: null,
@@ -165,23 +150,17 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   // Disconnect wallet
   const disconnectWallet = () => {
     console.log('=== DISCONNECTING WALLET ===');
-    
-    // Clear ALL stored data to prevent any auto-reconnection
-    localStorage.removeItem('connectedWallet');
-    localStorage.removeItem('walletAddress');
-    
-    // Reset to initial state
     setWalletState(initialState);
-    
-    console.log('Wallet disconnected and all cached data cleared');
+    console.log('Wallet disconnected');
   };
 
-  // CRITICAL: NO AUTO-RECONNECTION
-  // Users must explicitly authorize each session for security
+  // No auto-reconnection for security
   useEffect(() => {
-    console.log('WalletProvider initialized - NO auto-reconnection for security compliance');
-    console.log('All wallet connections require explicit user authorization');
-    // NO auto-reconnection code - this ensures security compliance
+    console.log('WalletProvider initialized - NO auto-reconnection');
+    
+    // Check if wallets are available
+    const availableWallets = getAvailableWallets();
+    console.log('Available wallets on startup:', availableWallets);
   }, []);
 
   const contextValue: WalletContextType = {
