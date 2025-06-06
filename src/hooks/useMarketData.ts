@@ -1,7 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { blockfrostService } from '@/services/blockfrostService';
 import { MarketData, ArbitrageOpportunity } from '@/types/trading';
 
 export const useMarketData = () => {
@@ -18,90 +17,97 @@ export const useMarketData = () => {
   const fetchMarketData = async () => {
     try {
       setIsLoading(true);
-      console.log('📊 Fetching ADA data from cached database...');
+      console.log('📊 Fetching market data from database...');
       
-      // CAMBIO IMPORTANTE: Solo leer de la cache, no escribir
-      // El edge function se encarga de mantener los datos actualizados
-      const { data: cachedADA, error } = await supabase
+      // Fetch recent data from cache (last 30 minutes)
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      
+      const { data: cachedData, error } = await supabase
         .from('market_data_cache')
         .select('*')
-        .eq('pair', 'ADA/USD')
-        .order('timestamp', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .gte('timestamp', thirtyMinutesAgo)
+        .order('timestamp', { ascending: false });
 
-      if (cachedADA && !error) {
-        const adaMarketData: MarketData = {
-          symbol: 'ADA',
-          price: Number(cachedADA.price),
-          change24h: Number(cachedADA.change_24h) || 0,
-          volume24h: Number(cachedADA.volume_24h) || 0,
-          marketCap: Number(cachedADA.market_cap) || 0,
-          lastUpdate: cachedADA.timestamp || new Date().toISOString()
-        };
+      if (error) {
+        console.error('❌ Error fetching market data:', error);
+        setIsConnected(false);
+        return;
+      }
 
-        setMarketData([adaMarketData]);
-        setIsConnected(true);
-        console.log('✅ ADA data loaded from cache:', adaMarketData);
-      } else {
-        console.log('📊 No cached ADA data found, triggering edge function...');
+      if (cachedData && cachedData.length > 0) {
+        // Process and organize data
+        const processedData: MarketData[] = [];
+        const seenPairs = new Set<string>();
+
+        // Group by pair and get the most recent data for each
+        const pairMap = new Map<string, any>();
         
-        // Solo disparar el edge function, no cachear nosotros mismos
-        await supabase.functions.invoke('fetch-dex-data', {
-          body: JSON.stringify({ action: 'fetch_all' })
-        });
-        
-        // Intentar leer de nuevo después de disparar el edge function
-        setTimeout(async () => {
-          const { data: retryData } = await supabase
-            .from('market_data_cache')
-            .select('*')
-            .eq('pair', 'ADA/USD')
-            .order('timestamp', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (retryData) {
-            const adaMarketData: MarketData = {
-              symbol: 'ADA',
-              price: Number(retryData.price),
-              change24h: Number(retryData.change_24h) || 0,
-              volume24h: Number(retryData.volume_24h) || 0,
-              marketCap: Number(retryData.market_cap) || 0,
-              lastUpdate: retryData.timestamp || new Date().toISOString()
-            };
-            setMarketData([adaMarketData]);
-            setIsConnected(true);
+        cachedData.forEach(item => {
+          const pairKey = `${item.pair}-${item.source_dex}`;
+          if (!pairMap.has(item.pair) || new Date(item.timestamp) > new Date(pairMap.get(item.pair).timestamp)) {
+            pairMap.set(item.pair, item);
           }
-        }, 3000);
+        });
+
+        // Convert to MarketData format
+        pairMap.forEach((item, pair) => {
+          if (pair.includes('ADA') || pair.includes('CARDANO')) {
+            const symbol = pair.includes('ADA/USD') ? 'ADA' : 
+                          pair.includes('CARDANO') ? 'ADA' : 
+                          pair.split('/')[0];
+            
+            processedData.push({
+              symbol,
+              price: Number(item.price) || 0,
+              change24h: Number(item.change_24h) || 0,
+              volume24h: Number(item.volume_24h) || 0,
+              marketCap: Number(item.market_cap) || 0,
+              lastUpdate: item.timestamp
+            });
+          }
+        });
+
+        if (processedData.length > 0) {
+          setMarketData(processedData);
+          setIsConnected(true);
+          console.log(`✅ Market data loaded: ${processedData.length} items`);
+        } else {
+          console.log('⚠️ No relevant market data found, triggering refresh...');
+          // Trigger edge function to fetch fresh data
+          triggerDataRefresh();
+        }
+      } else {
+        console.log('📊 No cached data found, triggering edge function...');
+        await triggerDataRefresh();
       }
 
       setLastUpdate(new Date());
     } catch (error) {
-      console.error('❌ Error fetching market data:', error);
+      console.error('❌ Error in fetchMarketData:', error);
       setIsConnected(false);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const cleanupChannels = () => {
-    console.log(`🧹 Cleaning up ${channelsRef.current.length} channels...`);
-    channelsRef.current.forEach(channel => {
-      try {
-        channel.unsubscribe();
-        supabase.removeChannel(channel);
-      } catch (error) {
-        console.error('Error cleaning up channel:', error);
-      }
-    });
-    channelsRef.current = [];
-  };
+  const triggerDataRefresh = async () => {
+    try {
+      console.log('🔄 Triggering data refresh via edge function...');
+      const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
+        body: JSON.stringify({ action: 'fetch_all' })
+      });
 
-  const clearInterval = () => {
-    if (intervalRef.current) {
-      window.clearInterval(intervalRef.current);
-      intervalRef.current = null;
+      if (error) {
+        console.error('❌ Edge function error:', error);
+      } else {
+        console.log('✅ Edge function completed:', data);
+        // Wait a bit and then fetch the updated data
+        setTimeout(() => {
+          fetchMarketData();
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('❌ Error triggering data refresh:', error);
     }
   };
 
@@ -111,22 +117,57 @@ export const useMarketData = () => {
       return;
     }
 
-    console.log('🚀 Initializing market data connection (read-only mode)...');
+    console.log('🚀 Initializing market data service...');
     isInitializedRef.current = true;
     
     // Initial fetch
     fetchMarketData();
 
-    // Periodic updates every 2 minutes (menos frecuente para evitar conflictos)
+    // Set up periodic updates every 2 minutes
     intervalRef.current = setInterval(() => {
       console.log('🔄 Periodic market data refresh...');
       fetchMarketData();
-    }, 120000); // 2 minutos en lugar de 1
+    }, 120000);
+
+    // Set up real-time subscription for cache updates
+    const subscription = supabase
+      .channel('market_data_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'market_data_cache' 
+        }, 
+        (payload) => {
+          console.log('📊 Real-time market data update:', payload);
+          // Debounce the refresh to avoid too many updates
+          setTimeout(() => {
+            fetchMarketData();
+          }, 1000);
+        }
+      )
+      .subscribe();
+
+    channelsRef.current.push(subscription);
 
     return () => {
       console.log('🧹 useMarketData cleanup initiated...');
-      cleanupChannels();
-      clearInterval();
+      
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      
+      channelsRef.current.forEach(channel => {
+        try {
+          channel.unsubscribe();
+          supabase.removeChannel(channel);
+        } catch (error) {
+          console.error('Error cleaning up channel:', error);
+        }
+      });
+      channelsRef.current = [];
+      
       isInitializedRef.current = false;
       console.log('✅ useMarketData cleanup completed');
     };
@@ -138,6 +179,7 @@ export const useMarketData = () => {
     isLoading,
     isConnected,
     lastUpdate,
-    refetch: fetchMarketData
+    refetch: fetchMarketData,
+    triggerRefresh: triggerDataRefresh
   };
 };

@@ -1,9 +1,8 @@
-
 import { useWallet } from "@/contexts/ModernWalletContext";
 import { usePortfolioCalculations } from "@/hooks/usePortfolioCalculations";
 import { useConnectionHealth } from "@/hooks/useConnectionHealth";
 import { MarketData } from "@/types/trading";
-import { WifiOff, CheckCircle, AlertCircle } from "lucide-react";
+import { WifiOff, CheckCircle, AlertCircle, Clock, Database } from "lucide-react";
 
 interface HeroSectionProps {
   marketData: MarketData[];
@@ -16,7 +15,16 @@ interface HeroSectionProps {
 export const HeroSection = ({ marketData, isConnected, stats }: HeroSectionProps) => {
   const { balance } = useWallet();
   const portfolioCalculations = usePortfolioCalculations(marketData, balance);
-  const { connectedSources, connectionHealth, isFullyConnected, isPartiallyConnected, isDisconnected } = useConnectionHealth();
+  const { 
+    connectedSources, 
+    connectionHealth, 
+    isFullyConnected, 
+    isPartiallyConnected, 
+    isDisconnected,
+    hasRecentData,
+    getDataAge,
+    lastDataUpdate
+  } = useConnectionHealth();
 
   // Determinar mensaje de estado según las conexiones
   let statusMessage = "Verificando conexiones...";
@@ -39,7 +47,19 @@ export const HeroSection = ({ marketData, isConnected, stats }: HeroSectionProps
 
   // Obtener el precio más reciente de ADA para mostrar información relevante
   const adaData = marketData.find(data => data.symbol === 'ADA');
-  const hasRecentData = adaData && new Date(adaData.lastUpdate).getTime() > Date.now() - 15 * 60 * 1000; // 15 minutos
+  const dataAge = getDataAge();
+  const isDataFresh = hasRecentData();
+
+  // Format data age
+  const formatDataAge = (ageMs: number) => {
+    if (ageMs < 0) return 'Sin datos';
+    const minutes = Math.floor(ageMs / (1000 * 60));
+    if (minutes < 1) return 'Ahora mismo';
+    if (minutes === 1) return '1 minuto';
+    if (minutes < 60) return `${minutes} minutos`;
+    const hours = Math.floor(minutes / 60);
+    return hours === 1 ? '1 hora' : `${hours} horas`;
+  };
 
   return (
     <div className="glass rounded-2xl p-8 border border-white/10">
@@ -84,17 +104,40 @@ export const HeroSection = ({ marketData, isConnected, stats }: HeroSectionProps
               </span>
             </div>
             
-            {/* Información adicional */}
+            {/* Información detallada de diagnóstico */}
             <div className="text-sm text-gray-400 space-y-1">
-              <div>Último escaneo: {stats.lastScanTime?.toLocaleTimeString() || 'Nunca'}</div>
-              {adaData && (
+              <div className="flex items-center gap-2">
+                <Clock className="w-3 h-3" />
+                <span>Último escaneo: {stats.lastScanTime?.toLocaleTimeString() || 'Nunca'}</span>
+              </div>
+              
+              {lastDataUpdate && (
                 <div className="flex items-center gap-2">
-                  <span>ADA: ${adaData.price.toFixed(4)}</span>
-                  <span className={hasRecentData ? 'text-green-400' : 'text-yellow-400'}>
-                    {hasRecentData ? '(Actualizado)' : '(Datos antiguos)'}
+                  <Database className="w-3 h-3" />
+                  <span>Datos más recientes: {formatDataAge(dataAge)} atrás</span>
+                  <span className={`text-xs px-2 py-0.5 rounded ${
+                    isDataFresh ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {isDataFresh ? 'Frescos' : 'Antiguos'}
                   </span>
                 </div>
               )}
+              
+              {adaData && (
+                <div className="flex items-center gap-2">
+                  <span>ADA: ${adaData.price.toFixed(4)}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded ${
+                    isDataFresh ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {isDataFresh ? 'Actualizado' : 'Datos antiguos'}
+                  </span>
+                </div>
+              )}
+              
+              {/* Debug info */}
+              <div className="text-xs text-gray-500">
+                Debug: {connectedSources} fuentes activas, datos de hace {formatDataAge(dataAge)}
+              </div>
             </div>
           </div>
         </div>
