@@ -1,6 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Lucid, Blockfrost } from '@lucid-evolution/lucid';
+import { Lucid, Blockfrost, LucidEvolution } from '@lucid-evolution/lucid';
 import { BlockfrostApi } from 'blockfrost-js';
 
 // Environment configuration
@@ -16,7 +15,7 @@ export interface WalletState {
   isConnecting: boolean;
   walletName: string | null;
   walletApi: any | null;
-  lucid: Lucid | null;
+  lucid: LucidEvolution | null;
   address: string | null;
   balance: number;
   network: string;
@@ -64,7 +63,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [walletState, setWalletState] = useState<WalletState>(initialState);
 
   // Initialize Lucid Evolution with Blockfrost
-  const initializeLucid = async (): Promise<Lucid> => {
+  const initializeLucid = async (): Promise<LucidEvolution> => {
     console.log('Initializing Lucid Evolution with Blockfrost...');
     
     try {
@@ -73,7 +72,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         BLOCKFROST_PROJECT_ID
       );
 
-      const lucid = await Lucid.new(blockfrost, CARDANO_NETWORK);
+      const lucid = await Lucid(blockfrost, CARDANO_NETWORK);
       console.log('Lucid Evolution initialized successfully');
       
       return lucid;
