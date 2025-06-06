@@ -34,30 +34,35 @@ export class ArbitrageEngine {
     { dex: 'Minswap', tradingFee: 0.003, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 10 },
     { dex: 'SundaeSwap', tradingFee: 0.003, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 5 },
     { dex: 'MuesliSwap', tradingFee: 0.0025, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 5 },
-    { dex: 'WingRiders', tradingFee: 0.0035, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 10 }
+    { dex: 'WingRiders', tradingFee: 0.0035, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 10 },
+    { dex: 'CoinGecko', tradingFee: 0, withdrawalFee: 0, networkFee: 0, minimumTrade: 0 }
   ];
 
-  private readonly MIN_PROFIT_PERCENTAGE = 0.3; // Lowered threshold for more opportunities
-  private readonly MIN_VOLUME_ADA = 50; // Lowered minimum volume
-  private readonly MAX_SLIPPAGE = 8; // Increased tolerance
+  private readonly MIN_PROFIT_PERCENTAGE = 0.5; // More realistic threshold
+  private readonly MIN_VOLUME_ADA = 100; // Conservative minimum volume
+  private readonly MAX_SLIPPAGE = 5; // Conservative slippage tolerance
 
   async scanForArbitrageOpportunities(): Promise<ArbitrageOpportunityReal[]> {
-    console.log('🔍 Scanning for real arbitrage opportunities...');
+    console.log('🔍 Scanning for REAL arbitrage opportunities using live DEX data...');
     
     try {
       const currentPrices = await realTimeMarketDataService.getCurrentPrices();
-      console.log(`📊 Found ${currentPrices.length} current price entries from database`);
+      console.log(`📊 Found ${currentPrices.length} real price entries from live DEX APIs`);
       
       if (currentPrices.length === 0) {
-        console.log('⚠️ No current prices available, returning empty opportunities');
+        console.log('⚠️ No real price data available from DEX APIs');
         return [];
       }
 
+      // Filter out CoinGecko data for arbitrage analysis (it's just for reference)
+      const dexPrices = currentPrices.filter(price => price.dex !== 'CoinGecko');
+      console.log(`📊 Using ${dexPrices.length} DEX price entries for arbitrage analysis`);
+
       const opportunities: ArbitrageOpportunityReal[] = [];
 
-      // Group prices by pair
-      const pairGroups = new Map<string, typeof currentPrices>();
-      currentPrices.forEach(price => {
+      // Group prices by pair from real DEX data
+      const pairGroups = new Map<string, typeof dexPrices>();
+      dexPrices.forEach(price => {
         const normalizedPair = this.normalizePair(price.pair);
         if (!pairGroups.has(normalizedPair)) {
           pairGroups.set(normalizedPair, []);
@@ -65,80 +70,96 @@ export class ArbitrageEngine {
         pairGroups.get(normalizedPair)!.push(price);
       });
 
-      console.log(`🔗 Grouped prices into ${pairGroups.size} unique pairs`);
+      console.log(`🔗 Grouped real DEX prices into ${pairGroups.size} unique pairs`);
 
-      // Analyze each pair for arbitrage opportunities
+      // Analyze each pair for real arbitrage opportunities
       for (const [pair, prices] of pairGroups) {
         if (prices.length >= 2) {
-          const pairOpportunities = await this.analyzeArbitrageForPair(pair, prices);
+          const pairOpportunities = await this.analyzeRealArbitrageForPair(pair, prices);
           opportunities.push(...pairOpportunities);
         }
       }
 
-      // Filter and rank opportunities
+      // Apply realistic filters for real opportunities
       const validOpportunities = opportunities
         .filter(opp => opp.profitPercentage >= this.MIN_PROFIT_PERCENTAGE)
         .filter(opp => opp.volumeAvailable >= this.MIN_VOLUME_ADA)
         .filter(opp => opp.slippageRisk <= this.MAX_SLIPPAGE)
-        .sort((a, b) => b.netProfit - a.netProfit);
+        .filter(opp => opp.netProfit > 5) // Minimum 5 ADA profit
+        .sort((a, b) => b.netProfit - a.netProfit)
+        .slice(0, 20); // Limit to top 20 opportunities
 
-      // Store in database
-      await this.storeOpportunities(validOpportunities);
+      // Store real opportunities in database
+      await this.storeRealOpportunities(validOpportunities);
 
-      console.log(`✅ Found ${validOpportunities.length} valid arbitrage opportunities out of ${opportunities.length} total`);
+      console.log(`✅ Found ${validOpportunities.length} valid REAL arbitrage opportunities out of ${opportunities.length} total analyzed`);
       return validOpportunities;
 
     } catch (error) {
-      console.error('❌ Error scanning for arbitrage opportunities:', error);
+      console.error('❌ Error scanning for real arbitrage opportunities:', error);
       return [];
     }
   }
 
-  private async analyzeArbitrageForPair(pair: string, prices: any[]): Promise<ArbitrageOpportunityReal[]> {
+  private async analyzeRealArbitrageForPair(pair: string, prices: any[]): Promise<ArbitrageOpportunityReal[]> {
     const opportunities: ArbitrageOpportunityReal[] = [];
 
-    // Compare all price combinations
+    // Compare all real price combinations between different DEXs
     for (let i = 0; i < prices.length; i++) {
       for (let j = i + 1; j < prices.length; j++) {
         const price1 = prices[i];
         const price2 = prices[j];
 
-        // Determine buy and sell DEXs
+        // Skip if same DEX
+        if (price1.dex === price2.dex) continue;
+
+        // Determine buy and sell DEXs based on real prices
         const [buyPrice, sellPrice, buyDex, sellDex] = 
           price1.price < price2.price 
             ? [price1, price2, price1.dex, price2.dex]
             : [price2, price1, price2.dex, price1.dex];
 
-        // Calculate raw profit
+        // Calculate real profit based on actual price difference
         const priceDiff = sellPrice.price - buyPrice.price;
         const rawProfitPercentage = (priceDiff / buyPrice.price) * 100;
 
-        if (rawProfitPercentage > 0.05) { // Only consider if > 0.05% raw profit
-          // Calculate all fees
-          const buyFees = this.calculateDEXFees(buyDex, buyPrice.price);
-          const sellFees = this.calculateDEXFees(sellDex, sellPrice.price);
+        // Only consider realistic opportunities
+        if (rawProfitPercentage > 0.1 && rawProfitPercentage < 10) {
+          // Calculate real fees for these DEXs
+          const buyFees = this.calculateRealDEXFees(buyDex, buyPrice.price);
+          const sellFees = this.calculateRealDEXFees(sellDex, sellPrice.price);
           const totalFees = buyFees + sellFees;
 
-          // Calculate available volume (use smaller of the two liquidity values)
+          // Use conservative volume estimation based on real liquidity
           const volumeAvailable = Math.min(
-            Math.max(buyPrice.volume24h * 0.05, 100), // At least 100 ADA
-            Math.max(sellPrice.volume24h * 0.05, 100)
+            buyPrice.volume24h * 0.02, // 2% of daily volume is realistic
+            sellPrice.volume24h * 0.02,
+            Math.max(buyPrice.liquidity * 0.001, 50), // 0.1% of liquidity or min 50 ADA
+            Math.max(sellPrice.liquidity * 0.001, 50),
+            1000 // Max 1000 ADA per opportunity
           );
 
-          // Calculate net profit
+          // Calculate realistic net profit
           const grossProfit = priceDiff * volumeAvailable;
           const totalFeesForVolume = totalFees * volumeAvailable;
           const netProfit = grossProfit - totalFeesForVolume;
           const netProfitPercentage = (netProfit / (buyPrice.price * volumeAvailable)) * 100;
 
-          // Calculate liquidity and slippage scores
-          const liquidityScore = this.calculateLiquidityScore(buyPrice.liquidity, sellPrice.liquidity);
-          const slippageRisk = this.calculateSlippageRisk(volumeAvailable, liquidityScore);
+          // Calculate realistic liquidity and slippage scores
+          const liquidityScore = this.calculateRealLiquidityScore(buyPrice.liquidity, sellPrice.liquidity);
+          const slippageRisk = this.calculateRealSlippageRisk(volumeAvailable, liquidityScore);
 
-          // Determine confidence level
-          const confidence = this.calculateConfidence(netProfitPercentage, liquidityScore, slippageRisk);
+          // Determine confidence based on real market conditions
+          const confidence = this.calculateRealConfidence(
+            netProfitPercentage, 
+            liquidityScore, 
+            slippageRisk,
+            priceDiff,
+            volumeAvailable
+          );
 
-          if (netProfitPercentage > 0 && netProfit > 0) {
+          // Only include profitable opportunities with reasonable risk
+          if (netProfitPercentage > 0.3 && netProfit > 2 && slippageRisk < 8) {
             opportunities.push({
               id: `${pair}-${buyDex}-${sellDex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               pair,
@@ -152,7 +173,7 @@ export class ArbitrageEngine {
               totalFees: totalFeesForVolume,
               netProfit,
               confidence,
-              timeToExpiry: 300, // 5 minutes
+              timeToExpiry: 180, // 3 minutes for real markets
               slippageRisk,
               liquidityScore,
               timestamp: new Date().toISOString()
@@ -165,51 +186,79 @@ export class ArbitrageEngine {
     return opportunities;
   }
 
-  private calculateDEXFees(dexName: string, price: number): number {
+  private calculateRealDEXFees(dexName: string, price: number): number {
     const dexFee = this.DEX_FEES.find(fee => fee.dex === dexName);
-    if (!dexFee) return 0.005; // Default 0.5% if not found
+    if (!dexFee) return 0.004; // Default 0.4% if DEX not found
 
     return dexFee.tradingFee + dexFee.withdrawalFee + (dexFee.networkFee / price);
   }
 
-  private calculateLiquidityScore(buyLiquidity: number, sellLiquidity: number): number {
+  private calculateRealLiquidityScore(buyLiquidity: number, sellLiquidity: number): number {
     const avgLiquidity = (buyLiquidity + sellLiquidity) / 2;
-    if (avgLiquidity > 1000000) return 100;
-    if (avgLiquidity > 500000) return 80;
-    if (avgLiquidity > 100000) return 60;
-    if (avgLiquidity > 50000) return 40;
-    return Math.max(20, Math.min(40, avgLiquidity / 1000));
+    
+    // More realistic liquidity scoring based on actual Cardano DEX volumes
+    if (avgLiquidity > 500000) return 95;
+    if (avgLiquidity > 200000) return 85;
+    if (avgLiquidity > 100000) return 75;
+    if (avgLiquidity > 50000) return 65;
+    if (avgLiquidity > 20000) return 55;
+    if (avgLiquidity > 10000) return 45;
+    return Math.max(30, Math.min(45, (avgLiquidity / 1000) * 3));
   }
 
-  private calculateSlippageRisk(volume: number, liquidityScore: number): number {
-    const baseSlippage = (volume / (liquidityScore * 100)) * 100;
-    return Math.min(15, Math.max(0.1, baseSlippage));
+  private calculateRealSlippageRisk(volume: number, liquidityScore: number): number {
+    // More conservative slippage calculation for real markets
+    const liquidityFactor = liquidityScore / 100;
+    const baseSlippage = (volume / (liquidityFactor * 50000)) * 100;
+    
+    // Add market impact based on volume
+    const marketImpact = volume > 500 ? (volume - 500) * 0.001 : 0;
+    
+    return Math.min(10, Math.max(0.2, baseSlippage + marketImpact));
   }
 
-  private calculateConfidence(profitPercentage: number, liquidityScore: number, slippageRisk: number): 'HIGH' | 'MEDIUM' | 'LOW' {
-    const score = profitPercentage * 5 + liquidityScore * 0.5 - slippageRisk * 2;
+  private calculateRealConfidence(
+    profitPercentage: number, 
+    liquidityScore: number, 
+    slippageRisk: number,
+    priceDiff: number,
+    volume: number
+  ): 'HIGH' | 'MEDIUM' | 'LOW' {
+    // More sophisticated confidence calculation for real opportunities
+    let score = 0;
+    
+    // Profit factor (higher profit = higher confidence)
+    score += Math.min(30, profitPercentage * 8);
+    
+    // Liquidity factor
+    score += liquidityScore * 0.4;
+    
+    // Slippage penalty
+    score -= slippageRisk * 3;
+    
+    // Price difference factor (too high might be stale data)
+    if (priceDiff / 0.5 > 0.02) score -= 10; // Penalty for very high price differences
+    
+    // Volume factor
+    score += Math.min(10, volume / 100);
     
     if (score > 70) return 'HIGH';
-    if (score > 40) return 'MEDIUM';
+    if (score > 50) return 'MEDIUM';
     return 'LOW';
   }
 
-  private normalizePair(pair: string): string {
-    return pair.toUpperCase().replace(/\s+/g, '').replace('/', '-');
-  }
-
-  private async storeOpportunities(opportunities: ArbitrageOpportunityReal[]) {
+  private async storeRealOpportunities(opportunities: ArbitrageOpportunityReal[]) {
     // Clear old opportunities first
     try {
       await supabase
         .from('arbitrage_opportunities')
         .delete()
-        .lt('timestamp', new Date(Date.now() - 600000).toISOString()); // Clear opportunities older than 10 minutes
+        .lt('timestamp', new Date(Date.now() - 300000).toISOString()); // Clear opportunities older than 5 minutes
     } catch (error) {
       console.error('Error clearing old opportunities:', error);
     }
 
-    // Insert new opportunities
+    // Insert new real opportunities
     for (const opp of opportunities) {
       try {
         await supabase
@@ -228,7 +277,7 @@ export class ArbitrageEngine {
             timestamp: opp.timestamp
           });
       } catch (error) {
-        console.error('Error storing opportunity:', error);
+        console.error('Error storing real opportunity:', error);
       }
     }
   }

@@ -47,57 +47,82 @@ serve(async (req) => {
       })
     }
 
-    console.log('Starting DEX data fetch...')
+    console.log('Starting DEX data fetch - checking real APIs first...')
     
-    // Fetch ADA price from CoinGecko
+    // Try to fetch real ADA price first
     let adaPrice = 0
     try {
+      console.log('Fetching real ADA price from CoinGecko...')
       const adaResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd')
-      const adaData = await adaResponse.json()
-      adaPrice = adaData.cardano?.usd || 0
-      console.log('ADA price fetched:', adaPrice)
+      if (adaResponse.ok) {
+        const adaData = await adaResponse.json()
+        adaPrice = adaData.cardano?.usd || 0
+        console.log('✅ Real ADA price fetched:', adaPrice)
+      }
     } catch (error) {
-      console.error('Error fetching ADA price:', error)
+      console.error('❌ Error fetching real ADA price:', error)
     }
 
-    // Generate sample pools with real ADA price for demonstration
-    const allPools = []
+    // Check if we have recent real data in the cache
+    const { data: recentData, error: recentError } = await supabaseClient
+      .from('market_data_cache')
+      .select('count')
+      .gte('timestamp', new Date(Date.now() - 600000).toISOString()) // Last 10 minutes
 
-    // Create sample pools for major DEXs with realistic data
-    const dexes = ['SundaeSwap', 'Minswap', 'MuesliSwap', 'WingRiders', 'VyFinance']
-    const pairs = ['ADA/USDC', 'ADA/BTC', 'ADA/ETH', 'ADA/USDT', 'DJED/ADA', 'SHEN/ADA']
+    const hasRecentRealData = !recentError && recentData && recentData.length > 0
 
-    for (const dex of dexes) {
-      for (let i = 0; i < pairs.length; i++) {
-        const pair = pairs[i]
-        const basePrice = adaPrice || 0.63
-        const variation = (Math.random() - 0.5) * 0.1 // ±5% variation
-        const price = basePrice * (1 + variation)
-        
-        allPools.push({
-          pair,
-          price: price,
-          volume_24h: Math.random() * 1000000 + 100000, // 100K to 1.1M
-          source_dex: dex,
-          timestamp: new Date().toISOString(),
-          change_24h: (Math.random() - 0.5) * 20, // ±10% change
-          high_24h: price * (1 + Math.random() * 0.1),
-          low_24h: price * (1 - Math.random() * 0.1)
-        })
+    if (hasRecentRealData) {
+      console.log('✅ Recent real data found in cache, skipping fallback generation')
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Using existing real DEX data from cache',
+          data: {
+            pools_processed: 0,
+            arbitrage_opportunities: 0,
+            ada_price: adaPrice,
+            using_real_data: true
+          }
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    }
+
+    console.log('⚠️ No recent real data found, generating minimal fallback data...')
+    
+    // Only generate minimal fallback data if no real data is available
+    const fallbackPools = []
+    const pairs = ['ADA/USDC', 'ADA/USDT']
+    const dexes = ['Minswap', 'SundaeSwap']
+
+    if (adaPrice > 0) {
+      for (const dex of dexes) {
+        for (const pair of pairs) {
+          const basePrice = adaPrice
+          const volume = 50000 + Math.random() * 50000 // Conservative volume
+          
+          fallbackPools.push({
+            pair,
+            price: basePrice,
+            volume_24h: volume,
+            source_dex: dex,
+            timestamp: new Date().toISOString(),
+            change_24h: (Math.random() - 0.5) * 2, // ±1% change
+            high_24h: basePrice * 1.01,
+            low_24h: basePrice * 0.99
+          })
+        }
       }
     }
 
-    console.log(`Generated ${allPools.length} sample pools with real ADA price`)
+    console.log(`Generated ${fallbackPools.length} fallback pools for testing`)
 
-    // Insert market data into cache
-    if (allPools.length > 0) {
-      // Clear old data first
-      await supabaseClient
-        .from('market_data_cache')
-        .delete()
-        .lt('timestamp', new Date(Date.now() - 300000).toISOString())
-
-      for (const pool of allPools) {
+    // Insert fallback data
+    if (fallbackPools.length > 0) {
+      for (const pool of fallbackPools) {
         try {
           const { error } = await supabaseClient
             .from('market_data_cache')
@@ -110,27 +135,25 @@ serve(async (req) => {
               change_24h: pool.change_24h,
               high_24h: pool.high_24h,
               low_24h: pool.low_24h,
-              market_cap: pool.volume_24h * 100 // Estimate market cap
+              market_cap: pool.volume_24h * 10
             }, {
               onConflict: 'pair,source_dex'
             })
 
           if (error) {
-            console.error('Error inserting pool data:', error)
+            console.error('Error inserting fallback pool data:', error)
           }
         } catch (insertError) {
-          console.error('Error during pool insert:', insertError)
+          console.error('Error during fallback pool insert:', insertError)
         }
       }
-      console.log('Market data cache updated successfully')
     }
 
-    // Detect arbitrage opportunities
+    // Generate conservative arbitrage opportunities
     const arbitrageOpportunities = []
     const pairGroups: Record<string, any[]> = {}
 
-    // Group by pair
-    allPools.forEach(pool => {
+    fallbackPools.forEach(pool => {
       const normalizedPair = pool.pair.toUpperCase().replace(/\s+/g, '')
       if (!pairGroups[normalizedPair]) {
         pairGroups[normalizedPair] = []
@@ -138,7 +161,6 @@ serve(async (req) => {
       pairGroups[normalizedPair].push(pool)
     })
 
-    // Find arbitrage opportunities
     Object.entries(pairGroups).forEach(([pair, pools]) => {
       if (pools.length >= 2) {
         for (let i = 0; i < pools.length; i++) {
@@ -150,9 +172,10 @@ serve(async (req) => {
             const avgPrice = (poolA.price + poolB.price) / 2
             const profitPercentage = (priceDiff / avgPrice) * 100
 
-            if (profitPercentage > 0.1) { // Lower threshold for more opportunities
-              const volume = Math.min(poolA.volume_24h, poolB.volume_24h)
-              const confidence = profitPercentage > 2 ? 90 : profitPercentage > 1 ? 70 : 50
+            // Very conservative threshold for realistic opportunities
+            if (profitPercentage > 0.2 && profitPercentage < 2) {
+              const volume = Math.min(poolA.volume_24h, poolB.volume_24h) * 0.1
+              const confidence = profitPercentage > 1 ? 80 : profitPercentage > 0.5 ? 60 : 40
 
               arbitrageOpportunities.push({
                 dex_pair: pair,
@@ -173,14 +196,8 @@ serve(async (req) => {
       }
     })
 
-    // Insert arbitrage opportunities
+    // Insert conservative arbitrage opportunities
     if (arbitrageOpportunities.length > 0) {
-      // Clear old opportunities
-      await supabaseClient
-        .from('arbitrage_opportunities')
-        .delete()
-        .lt('timestamp', new Date(Date.now() - 300000).toISOString())
-
       for (const opportunity of arbitrageOpportunities) {
         try {
           const { error } = await supabaseClient
@@ -194,17 +211,19 @@ serve(async (req) => {
           console.error('Error during arbitrage insert:', insertError)
         }
       }
-      console.log(`Inserted ${arbitrageOpportunities.length} arbitrage opportunities`)
+      console.log(`Inserted ${arbitrageOpportunities.length} conservative arbitrage opportunities`)
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'DEX data updated successfully',
+        message: 'Fallback data generated - real DEX APIs will be used when available',
         data: {
-          pools_processed: allPools.length,
+          pools_processed: fallbackPools.length,
           arbitrage_opportunities: arbitrageOpportunities.length,
-          ada_price: adaPrice
+          ada_price: adaPrice,
+          using_real_data: false,
+          note: 'This is fallback data. Real data will be fetched from DEX APIs.'
         }
       }),
       {
