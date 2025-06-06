@@ -72,7 +72,12 @@ export const useTechnicalIndicators = (symbol: string = 'ADA') => {
         SimpleMAOscillator: false,
         SimpleMASignal: false
       });
-      const currentMACD = macdValues[macdValues.length - 1] || { MACD: 0, signal: 0, histogram: 0 };
+      const currentMACDRaw = macdValues[macdValues.length - 1];
+      const currentMACD = {
+        MACD: currentMACDRaw?.MACD || 0,
+        signal: currentMACDRaw?.signal || 0,
+        histogram: currentMACDRaw?.histogram || 0
+      };
 
       // Bollinger Bands
       const bbValues = BollingerBands.calculate({
