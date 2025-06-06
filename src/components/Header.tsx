@@ -16,8 +16,8 @@ export function Header() {
   const { connectedSources } = useConnectionHealth()
   const { isConnected: walletConnected } = useWallet()
   
-  // Sample notifications data
-  const [notifications] = useState([
+  // Sample notifications data with read state
+  const [notifications, setNotifications] = useState([
     {
       id: "1",
       title: "Nueva oportunidad de arbitraje detectada",
@@ -37,6 +37,8 @@ export function Header() {
       time: "Hace 15 minutos"
     }
   ]);
+
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
   
   // Use the optimized market data hook for DeFiLlama data
   const { 
@@ -64,6 +66,13 @@ export function Header() {
       return `$${volume.toFixed(0)}`;
     }
   };
+
+  const handleMarkNotificationsAsRead = () => {
+    setHasUnreadNotifications(false);
+  };
+
+  // Show notifications only if there are unread ones
+  const displayNotifications = hasUnreadNotifications ? notifications : [];
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
@@ -107,7 +116,10 @@ export function Header() {
         </div>
 
         {/* Notifications Dropdown */}
-        <NotificationsDropdown notifications={notifications} />
+        <NotificationsDropdown 
+          notifications={displayNotifications} 
+          onMarkAsRead={handleMarkNotificationsAsRead}
+        />
 
         {/* Modern Wallet Connection */}
         {walletConnected ? <ModernWalletInfo /> : <ModernWalletConnector />}

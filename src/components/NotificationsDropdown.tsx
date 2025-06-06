@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import {
   Popover,
   PopoverContent,
@@ -19,14 +19,27 @@ interface Notification {
 interface NotificationsDropdownProps {
   notifications: Notification[];
   onClose?: () => void;
+  onMarkAsRead?: () => void;
 }
 
 export function NotificationsDropdown({ 
   notifications,
-  onClose
+  onClose,
+  onMarkAsRead
 }: NotificationsDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    
+    // When opening the dropdown, mark notifications as read
+    if (open && onMarkAsRead) {
+      onMarkAsRead();
+    }
+  };
+
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button 
           variant="ghost" 
@@ -34,7 +47,7 @@ export function NotificationsDropdown({
           className="relative text-gray-400 hover:text-white hover:bg-white/10"
         >
           <Bell className="h-4 w-4" />
-          {notifications.length > 0 && (
+          {notifications.length > 0 && !isOpen && (
             <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
               {notifications.length}
             </span>
