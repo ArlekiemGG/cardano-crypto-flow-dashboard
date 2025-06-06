@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { arbitrageEngine } from '@/services/arbitrageEngine';
 import { realTimeMarketDataService } from '@/services/realTimeMarketDataService';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,7 +46,7 @@ export const useRealTimeArbitrage = () => {
     totalVolume: 0
   });
   const [isScanning, setIsScanning] = useState(false);
-  const [scanInterval, setScanInterval] = useState(30); // Increased to 30 seconds
+  const [scanInterval, setScanInterval] = useState(60); // Aumentado a 60 segundos
   const [executingTrades, setExecutingTrades] = useState<Set<string>>(new Set());
   const [lastScan, setLastScan] = useState(new Date());
   
@@ -53,7 +54,7 @@ export const useRealTimeArbitrage = () => {
   const isInitializedRef = useRef(false);
   const lastScanRef = useRef<Date>(new Date());
 
-  // Memoize scan function to prevent infinite loops
+  // Memoized scan function para evitar recreación constante
   const performRealScan = useCallback(async () => {
     if (isScanning) {
       console.log('⏳ Scan already in progress, skipping...');
@@ -63,8 +64,8 @@ export const useRealTimeArbitrage = () => {
     const now = new Date();
     const timeSinceLastScan = now.getTime() - lastScanRef.current.getTime();
     
-    // Prevent scans more frequent than 15 seconds
-    if (timeSinceLastScan < 15000) {
+    // Prevenir scans más frecuentes que 30 segundos
+    if (timeSinceLastScan < 30000) {
       console.log('⏳ Too soon since last scan, waiting...');
       return;
     }
@@ -73,13 +74,11 @@ export const useRealTimeArbitrage = () => {
     lastScanRef.current = now;
     setLastScan(now);
     
-    console.log('🔍 Starting REAL arbitrage scan with live DEX data...');
+    console.log('🔍 Starting OPTIMIZED arbitrage scan with backend data...');
     
     try {
-      // Get real opportunities from the arbitrage engine
       const realOpportunities = await arbitrageEngine.scanForArbitrageOpportunities();
       
-      // Convert to our interface format
       const formattedOpportunities: RealArbitrageOpportunity[] = realOpportunities.map(opp => ({
         ...opp,
         executionReady: opp.confidence === 'HIGH' && opp.profitPercentage > 1.5 && opp.slippageRisk < 3
@@ -87,7 +86,7 @@ export const useRealTimeArbitrage = () => {
 
       setOpportunities(formattedOpportunities);
       
-      // Update stats
+      // Memoized stats calculation
       const totalVolume = formattedOpportunities.reduce((sum, opp) => sum + opp.volumeAvailable, 0);
       const newStats: ArbitrageStats = {
         totalOpportunities: formattedOpportunities.length,
@@ -102,33 +101,24 @@ export const useRealTimeArbitrage = () => {
       };
       setStats(newStats);
       
-      console.log(`✅ Real arbitrage scan completed: ${formattedOpportunities.length} opportunities found`);
-      console.log(`💰 Total potential profit: ${newStats.totalPotentialProfit.toFixed(2)} ADA`);
+      console.log(`✅ Optimized arbitrage scan completed: ${formattedOpportunities.length} opportunities found`);
       
     } catch (error) {
-      console.error('❌ Error during real arbitrage scan:', error);
+      console.error('❌ Error during optimized arbitrage scan:', error);
     } finally {
       setIsScanning(false);
     }
-  }, [isScanning]);
+  }, [isScanning]); // Solo depende de isScanning
 
-  const executeArbitrage = useCallback(async (opportunityId: string): Promise<{
-    success: boolean;
-    txHash?: string;
-    error?: string;
-    actualProfit?: number;
-  }> => {
+  // Memoized execute function
+  const executeArbitrage = useCallback(async (opportunityId: string) => {
     const opportunity = opportunities.find(opp => opp.id === opportunityId);
-    if (!opportunity) {
-      return { success: false, error: 'Opportunity not found' };
-    }
-
-    if (executingTrades.has(opportunityId)) {
-      return { success: false, error: 'Trade already executing' };
+    if (!opportunity || executingTrades.has(opportunityId)) {
+      return { success: false, error: 'Opportunity not found or already executing' };
     }
 
     setExecutingTrades(prev => new Set([...prev, opportunityId]));
-    console.log(`🚀 Executing REAL arbitrage trade for ${opportunity.pair}...`);
+    console.log(`🚀 Executing OPTIMIZED arbitrage trade for ${opportunity.pair}...`);
 
     try {
       const simulationResult = await arbitrageEngine.simulateTradeExecution(opportunity);
@@ -154,8 +144,6 @@ export const useRealTimeArbitrage = () => {
           }
         });
 
-        console.log(`✅ Arbitrage executed successfully! Profit: ${simulationResult.estimatedProfit.toFixed(4)} ADA`);
-        
         return {
           success: true,
           txHash: `sim_${Date.now()}`,
@@ -183,8 +171,9 @@ export const useRealTimeArbitrage = () => {
     }
   }, [opportunities, executingTrades]);
 
-  const startAutoScanning = useCallback((intervalSeconds: number = 30) => {
-    console.log(`🤖 Starting automatic REAL arbitrage scanning every ${intervalSeconds} seconds`);
+  // Memoized auto scanning function
+  const startAutoScanning = useCallback((intervalSeconds: number = 60) => {
+    console.log(`🤖 Starting OPTIMIZED automatic arbitrage scanning every ${intervalSeconds} seconds`);
     setScanInterval(intervalSeconds);
     
     if (scanIntervalRef.current) {
@@ -194,43 +183,83 @@ export const useRealTimeArbitrage = () => {
     // Initial scan
     performRealScan();
     
-    // Set up recurring scans with minimum 30 seconds
-    const actualInterval = Math.max(intervalSeconds * 1000, 30000);
+    // Set up recurring scans with minimum 60 seconds
+    const actualInterval = Math.max(intervalSeconds * 1000, 60000);
     scanIntervalRef.current = setInterval(performRealScan, actualInterval);
   }, [performRealScan]);
 
   const stopAutoScanning = useCallback(() => {
-    console.log('🛑 Stopping automatic arbitrage scanning');
+    console.log('🛑 Stopping optimized automatic arbitrage scanning');
     if (scanIntervalRef.current) {
       clearInterval(scanIntervalRef.current);
       scanIntervalRef.current = null;
     }
   }, []);
 
-  // Other functions remain the same...
-  const simulateExecution = async (opportunityId: string) => {
-    const opportunity = opportunities.find(opp => opp.id === opportunityId);
-    if (!opportunity) {
-      return { success: false, error: 'Opportunity not found' };
-    }
-    return await arbitrageEngine.simulateTradeExecution(opportunity);
-  };
+  // Memoized derived values para evitar recálculos innecesarios
+  const derivedValues = useMemo(() => ({
+    totalOpportunities: opportunities.length,
+    highConfidenceOpportunities: opportunities.filter(opp => opp.confidence === 'HIGH').length,
+    executableOpportunities: opportunities.filter(opp => opp.executionReady).length,
+    avgProfitPercentage: stats.avgProfitPercentage,
+    totalPotentialProfit: stats.totalPotentialProfit
+  }), [opportunities, stats.avgProfitPercentage, stats.totalPotentialProfit]);
 
-  const autoExecuteHighConfidence = async () => {
-    const highConfidenceOpps = opportunities.filter(opp => 
-      opp.confidence === 'HIGH' && 
-      opp.executionReady && 
-      !executingTrades.has(opp.id)
-    );
+  // Optimized useEffect con dependencias estables
+  useEffect(() => {
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
 
-    console.log(`🤖 Auto-executing ${highConfidenceOpps.length} high-confidence opportunities...`);
+    console.log('🚀 Initializing OPTIMIZED real-time arbitrage monitoring...');
+    
+    const initializeServices = async () => {
+      try {
+        // Start optimized market data service
+        await realTimeMarketDataService.startRealTimeUpdates(60);
+        
+        // Subscribe to market data updates con callback estable
+        const unsubscribe = realTimeMarketDataService.subscribe((data) => {
+          if (data.length > 0) {
+            console.log('📊 Optimized market data updated, scheduling arbitrage rescan...');
+            // Debounced rescan
+            setTimeout(() => {
+              if (!isScanning) {
+                performRealScan();
+              }
+            }, 10000); // Aumentado a 10 segundos
+          }
+        });
 
-    for (const opp of highConfidenceOpps.slice(0, 3)) {
-      executeArbitrage(opp.id);
-    }
-  };
+        // Start auto-scanning after initialization
+        setTimeout(() => {
+          startAutoScanning(scanInterval);
+        }, 15000); // Aumentado a 15 segundos
 
-  const getFilteredOpportunities = (
+        return unsubscribe;
+      } catch (error) {
+        console.error('❌ Error initializing optimized services:', error);
+        return () => {};
+      }
+    };
+
+    let unsubscribe: (() => void) | null = null;
+    
+    initializeServices().then(unsub => {
+      unsubscribe = unsub;
+    });
+
+    return () => {
+      console.log('🧹 Cleaning up optimized real-time arbitrage monitoring...');
+      stopAutoScanning();
+      if (unsubscribe) {
+        unsubscribe();
+      }
+      isInitializedRef.current = false;
+    };
+  }, []); // Empty dependency array
+
+  // Memoized utility functions
+  const getFilteredOpportunities = useCallback((
     minProfit: number = 1.0,
     maxSlippage: number = 5.0,
     minConfidence: 'HIGH' | 'MEDIUM' | 'LOW' = 'MEDIUM'
@@ -243,70 +272,17 @@ export const useRealTimeArbitrage = () => {
       opp.slippageRisk <= maxSlippage &&
       confidenceScores[opp.confidence] >= minConfidenceScore
     );
-  };
+  }, [opportunities]);
 
-  const getExecutableOpportunities = () => {
+  const getExecutableOpportunities = useCallback(() => {
     return opportunities.filter(opp => opp.executionReady);
-  };
+  }, [opportunities]);
 
-  const getTopOpportunities = (limit: number = 10) => {
+  const getTopOpportunities = useCallback((limit: number = 10) => {
     return opportunities
       .sort((a, b) => b.profitADA - a.profitADA)
       .slice(0, limit);
-  };
-
-  // Fixed useEffect with proper dependencies
-  useEffect(() => {
-    if (isInitializedRef.current) return;
-    isInitializedRef.current = true;
-
-    console.log('🚀 Initializing REAL-TIME arbitrage monitoring...');
-    
-    const initializeServices = async () => {
-      try {
-        // Start real-time market data service with longer interval
-        await realTimeMarketDataService.startRealTimeUpdates(30);
-        
-        // Subscribe to market data updates
-        const unsubscribe = realTimeMarketDataService.subscribe((data) => {
-          if (data.length > 0) {
-            console.log('📊 Real market data updated, scheduling arbitrage rescan...');
-            // Debounced rescan
-            setTimeout(() => {
-              if (!isScanning) {
-                performRealScan();
-              }
-            }, 5000);
-          }
-        });
-
-        // Start auto-scanning after initialization
-        setTimeout(() => {
-          startAutoScanning(scanInterval);
-        }, 10000); // Wait 10 seconds before starting
-
-        return unsubscribe;
-      } catch (error) {
-        console.error('❌ Error initializing services:', error);
-        return () => {};
-      }
-    };
-
-    let unsubscribe: (() => void) | null = null;
-    
-    initializeServices().then(unsub => {
-      unsubscribe = unsub;
-    });
-
-    return () => {
-      console.log('🧹 Cleaning up real-time arbitrage monitoring...');
-      stopAutoScanning();
-      if (unsubscribe) {
-        unsubscribe();
-      }
-      isInitializedRef.current = false;
-    };
-  }, []); // Empty dependency array to prevent infinite loops
+  }, [opportunities]);
 
   return {
     // State
@@ -321,8 +297,6 @@ export const useRealTimeArbitrage = () => {
     performRealScan,
     performScan: performRealScan,
     executeArbitrage,
-    simulateExecution,
-    autoExecuteHighConfidence,
     startAutoScanning,
     startAutoScan: startAutoScanning,
     stopAutoScanning,
@@ -333,11 +307,7 @@ export const useRealTimeArbitrage = () => {
     getExecutableOpportunities,
     getTopOpportunities,
     
-    // Quick access
-    totalOpportunities: opportunities.length,
-    highConfidenceOpportunities: opportunities.filter(opp => opp.confidence === 'HIGH').length,
-    executableOpportunities: opportunities.filter(opp => opp.executionReady).length,
-    avgProfitPercentage: stats.avgProfitPercentage,
-    totalPotentialProfit: stats.totalPotentialProfit
+    // Quick access (memoized)
+    ...derivedValues
   };
 };
