@@ -3,7 +3,7 @@ import { useWallet } from "@/contexts/ModernWalletContext";
 import { usePortfolioCalculations } from "@/hooks/usePortfolioCalculations";
 import { useConnectionHealth } from "@/hooks/useConnectionHealth";
 import { MarketData } from "@/types/trading";
-import { WifiOff } from "lucide-react";
+import { WifiOff, CheckCircle, AlertCircle } from "lucide-react";
 
 interface HeroSectionProps {
   marketData: MarketData[];
@@ -19,19 +19,27 @@ export const HeroSection = ({ marketData, isConnected, stats }: HeroSectionProps
   const { connectedSources, connectionHealth, isFullyConnected, isPartiallyConnected, isDisconnected } = useConnectionHealth();
 
   // Determinar mensaje de estado según las conexiones
-  let statusMessage = "Conectando a fuentes de datos...";
+  let statusMessage = "Verificando conexiones...";
   let statusClass = "text-yellow-400";
+  let StatusIcon = AlertCircle;
   
   if (isFullyConnected) {
-    statusMessage = "2/2 Fuentes Conectadas";
+    statusMessage = "Todas las fuentes conectadas";
     statusClass = "text-green-400";
+    StatusIcon = CheckCircle;
   } else if (isPartiallyConnected) {
-    statusMessage = `${connectedSources}/2 Fuentes Conectadas`;
+    statusMessage = `${connectedSources}/2 fuentes conectadas`;
     statusClass = "text-yellow-400";
+    StatusIcon = AlertCircle;
   } else if (isDisconnected) {
     statusMessage = "Sin conexión a fuentes de datos";
     statusClass = "text-red-400";
+    StatusIcon = WifiOff;
   }
+
+  // Obtener el precio más reciente de ADA para mostrar información relevante
+  const adaData = marketData.find(data => data.symbol === 'ADA');
+  const hasRecentData = adaData && new Date(adaData.lastUpdate).getTime() > Date.now() - 15 * 60 * 1000; // 15 minutos
 
   return (
     <div className="glass rounded-2xl p-8 border border-white/10">
@@ -41,42 +49,52 @@ export const HeroSection = ({ marketData, isConnected, stats }: HeroSectionProps
             Cardano Pro Trading Suite
           </h1>
           <p className="text-gray-400 text-lg max-w-2xl">
-            Simplified real-time trading with Blockfrost and DeFiLlama integration for reliable Cardano market data.
+            Trading en tiempo real simplificado con integración de Blockfrost y DeFiLlama para datos confiables del mercado de Cardano.
           </p>
-          <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+          
+          {/* Estado de conexión principal */}
+          <div className="flex flex-col space-y-3">
             <div className={`flex items-center space-x-2 ${statusClass}`}>
-              <div className={`w-3 h-3 rounded-full ${isDisconnected ? 'bg-red-400' : isFullyConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
-              <span className="text-sm font-medium">
-                {statusMessage}
+              <StatusIcon className="w-4 h-4" />
+              <span className="text-sm font-medium">{statusMessage}</span>
+            </div>
+            
+            {/* Detalle de fuentes individuales */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className={`px-3 py-1 rounded-full border ${
+                connectionHealth.blockfrost 
+                  ? 'bg-green-500/20 text-green-400 border-green-500/30' 
+                  : 'bg-red-500/20 text-red-400 border-red-500/30'
+              }`}>
+                <span className="flex items-center gap-1">
+                  {connectionHealth.blockfrost ? <CheckCircle className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                  Blockfrost
+                </span>
+              </span>
+              
+              <span className={`px-3 py-1 rounded-full border ${
+                connectionHealth.defiLlama 
+                  ? 'bg-green-500/20 text-green-400 border-green-500/30' 
+                  : 'bg-red-500/20 text-red-400 border-red-500/30'
+              }`}>
+                <span className="flex items-center gap-1">
+                  {connectionHealth.defiLlama ? <CheckCircle className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                  DeFiLlama
+                </span>
               </span>
             </div>
             
-            {isPartiallyConnected && (
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                {connectionHealth.blockfrost ? (
-                  <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                    Blockfrost ✓
+            {/* Información adicional */}
+            <div className="text-sm text-gray-400 space-y-1">
+              <div>Último escaneo: {stats.lastScanTime?.toLocaleTimeString() || 'Nunca'}</div>
+              {adaData && (
+                <div className="flex items-center gap-2">
+                  <span>ADA: ${adaData.price.toFixed(4)}</span>
+                  <span className={hasRecentData ? 'text-green-400' : 'text-yellow-400'}>
+                    {hasRecentData ? '(Actualizado)' : '(Datos antiguos)'}
                   </span>
-                ) : (
-                  <span className="px-2 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center">
-                    <WifiOff className="w-3 h-3 mr-1" /> Blockfrost
-                  </span>
-                )}
-                
-                {connectionHealth.defiLlama ? (
-                  <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                    DeFiLlama ✓
-                  </span>
-                ) : (
-                  <span className="px-2 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center">
-                    <WifiOff className="w-3 h-3 mr-1" /> DeFiLlama
-                  </span>
-                )}
-              </div>
-            )}
-            
-            <div className="text-sm text-gray-400">
-              Last scan: {stats.lastScanTime?.toLocaleTimeString() || 'Never'}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -85,7 +103,7 @@ export const HeroSection = ({ marketData, isConnected, stats }: HeroSectionProps
           <div className="p-6 rounded-xl bg-gradient-to-br from-crypto-primary/20 to-crypto-secondary/20 border border-crypto-primary/30 glow">
             <div className="text-center">
               <div className="text-2xl font-bold text-white">₳ {balance.toFixed(3)}</div>
-              <div className="text-crypto-primary text-sm">Wallet Balance</div>
+              <div className="text-crypto-primary text-sm">Saldo del Wallet</div>
               <div className="text-xs text-gray-400 mt-1">
                 ${portfolioCalculations.portfolioValue.toFixed(2)} USD
               </div>

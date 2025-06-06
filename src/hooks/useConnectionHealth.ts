@@ -1,8 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { realTimeMarketDataService } from '@/services/realTimeMarketDataService';
-import { optimizedDataService } from '@/services/optimizedDataService';
-import { CacheStats } from '@/services/optimized-data/types';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useConnectionHealth = () => {
   const [connectionHealth, setConnectionHealth] = useState({
@@ -12,39 +10,48 @@ export const useConnectionHealth = () => {
 
   useEffect(() => {
     const updateHealth = async () => {
-      // Verificar la conexión de Blockfrost usando realTimeMarketDataService
-      const blockfrostHealth = realTimeMarketDataService.isConnected();
-      
-      // Verificar la conexión de DeFiLlama usando optimizedDataService
-      // Podemos verificar mediante las estadísticas de cache para ver si hay datos
-      const cacheStats: CacheStats = optimizedDataService.getCacheStats?.() || { 
-        sources: {},
-        total: 0,
-        valid: 0,
-        expired: 0,
-        hitRate: 0
-      };
-      
-      const defiLlamaConnected = 
-        (cacheStats.sources && 'defillama' in cacheStats.sources && cacheStats.sources.defillama > 0) ||
-        false;
-      
-      setConnectionHealth({
-        blockfrost: blockfrostHealth,
-        defiLlama: defiLlamaConnected
-      });
+      try {
+        // Verificar datos recientes en cache para determinar conectividad
+        const { data: recentData, error } = await supabase
+          .from('market_data_cache')
+          .select('source_dex, timestamp')
+          .gte('timestamp', new Date(Date.now() - 10 * 60 * 1000).toISOString()) // Últimos 10 minutos
+          .order('timestamp', { ascending: false });
+
+        if (error) {
+          console.error('Error checking connection health:', error);
+          setConnectionHealth({ blockfrost: false, defiLlama: false });
+          return;
+        }
+
+        const sources = new Set(recentData?.map(item => item.source_dex.toLowerCase()) || []);
+        
+        setConnectionHealth({
+          blockfrost: sources.has('blockfrost'),
+          defiLlama: sources.has('defillama')
+        });
+
+        console.log('📊 Connection health updated:', {
+          blockfrost: sources.has('blockfrost'),
+          defiLlama: sources.has('defillama'),
+          recentDataCount: recentData?.length || 0
+        });
+
+      } catch (error) {
+        console.error('❌ Error updating connection health:', error);
+        setConnectionHealth({ blockfrost: false, defiLlama: false });
+      }
     };
 
-    // Actualizar inmediatamente al montar el componente
+    // Actualizar inmediatamente
     updateHealth();
     
-    // Establecer intervalo para actualizar periódicamente
+    // Actualizar cada 30 segundos
     const interval = setInterval(updateHealth, 30000);
 
     return () => clearInterval(interval);
   }, []);
 
-  // Calcular el número de fuentes conectadas
   const connectedSources = Object.values(connectionHealth).filter(Boolean).length;
   
   return { 
