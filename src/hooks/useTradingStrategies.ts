@@ -140,6 +140,34 @@ export const useTradingStrategies = (userWallet?: string) => {
     }
   };
 
+  const deleteStrategy = async (strategyId: string) => {
+    if (!userWallet) return;
+
+    try {
+      const { error } = await supabase
+        .from('trading_strategies')
+        .delete()
+        .eq('id', strategyId)
+        .eq('user_wallet', userWallet);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "Strategy deleted successfully"
+      });
+      
+      fetchStrategies();
+    } catch (error) {
+      console.error('Error deleting strategy:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete strategy",
+        variant: "destructive"
+      });
+    }
+  };
+
   const toggleStrategy = async (strategyId: string) => {
     if (!userWallet) return;
 
@@ -176,6 +204,7 @@ export const useTradingStrategies = (userWallet?: string) => {
     isLoading,
     createStrategy,
     updateStrategy,
+    deleteStrategy,
     toggleStrategy,
     refreshStrategies: fetchStrategies
   };

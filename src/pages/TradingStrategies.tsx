@@ -1,7 +1,18 @@
 import { useState } from "react"
 import { MetricCard } from "@/components/MetricCard"
-import { Bot, Play, Pause, Settings, Plus } from "lucide-react"
+import { Bot, Play, Pause, Settings, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from "@/components/ui/alert-dialog"
 import { useTradingStrategies } from "@/hooks/useTradingStrategies"
 import { CreateStrategyModal } from "@/components/trading/CreateStrategyModal"
 import { StrategySettingsModal } from "@/components/trading/StrategySettingsModal"
@@ -9,7 +20,7 @@ import { useWallet } from "@/contexts/ModernWalletContext"
 
 export default function TradingStrategies() {
   const { address } = useWallet();
-  const { strategies, isLoading, createStrategy, updateStrategy, toggleStrategy } = useTradingStrategies(address);
+  const { strategies, isLoading, createStrategy, updateStrategy, deleteStrategy, toggleStrategy } = useTradingStrategies(address);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
@@ -68,6 +79,10 @@ export default function TradingStrategies() {
   const formatProfit = (profit: number) => {
     const sign = profit >= 0 ? '+' : '';
     return `${sign}₳ ${profit.toFixed(2)}`;
+  };
+
+  const handleDeleteStrategy = (strategyId: string) => {
+    deleteStrategy(strategyId);
   };
 
   if (!address) {
@@ -203,6 +218,36 @@ export default function TradingStrategies() {
                       >
                         <Settings className="h-4 w-4" />
                       </Button>
+                      
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="border-red-500/20 text-red-400 hover:bg-red-500/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Strategy</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete "{strategy.name}"? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-red-500 hover:bg-red-600"
+                              onClick={() => handleDeleteStrategy(strategy.id)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      
                       <Button 
                         size="sm"
                         className={strategy.active 
