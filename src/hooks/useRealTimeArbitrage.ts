@@ -13,6 +13,8 @@ interface ArbitrageOpportunity {
   profitPercentage: number;
   profitADA: number;
   volumeAvailable: number;
+  totalFees: number;
+  netProfit: number;
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   timeToExpiry: number;
   slippageRisk: number;

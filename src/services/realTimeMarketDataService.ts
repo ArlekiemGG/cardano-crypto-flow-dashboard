@@ -18,16 +18,6 @@ interface RealTimePriceData {
   low24h: number;
 }
 
-interface PriceAggregation {
-  pair: string;
-  weightedAveragePrice: number;
-  totalVolume: number;
-  priceSpread: number;
-  sources: string[];
-  confidence: number;
-  lastUpdate: string;
-}
-
 export class RealTimeMarketDataService {
   private updateInterval: NodeJS.Timeout | null = null;
   private isUpdating = false;
@@ -154,10 +144,6 @@ export class RealTimeMarketDataService {
       // Store in database cache
       await this.updateDatabaseCache(allPriceData);
 
-      // Calculate aggregated prices
-      const aggregatedPrices = this.calculateAggregatedPrices(allPriceData);
-      await this.storeAggregatedPrices(aggregatedPrices);
-
       // Notify subscribers
       this.notifySubscribers(allPriceData);
 
@@ -190,74 +176,6 @@ export class RealTimeMarketDataService {
           });
       } catch (error) {
         console.error('Error updating cache for', data.pair, error);
-      }
-    }
-  }
-
-  private calculateAggregatedPrices(priceData: RealTimePriceData[]): PriceAggregation[] {
-    const pairGroups = new Map<string, RealTimePriceData[]>();
-    
-    // Group by normalized pair
-    priceData.forEach(data => {
-      const normalizedPair = data.pair.toUpperCase().replace(/\s+/g, '');
-      if (!pairGroups.has(normalizedPair)) {
-        pairGroups.set(normalizedPair, []);
-      }
-      pairGroups.get(normalizedPair)!.push(data);
-    });
-
-    const aggregations: PriceAggregation[] = [];
-
-    pairGroups.forEach((prices, pair) => {
-      if (prices.length >= 2) {
-        const totalVolume = prices.reduce((sum, p) => sum + p.volume24h, 0);
-        const weightedPrice = prices.reduce((sum, p) => {
-          const weight = p.volume24h / totalVolume;
-          return sum + (p.price * weight);
-        }, 0);
-
-        const priceArray = prices.map(p => p.price);
-        const maxPrice = Math.max(...priceArray);
-        const minPrice = Math.min(...priceArray);
-        const spread = ((maxPrice - minPrice) / minPrice) * 100;
-
-        // Calculate confidence based on volume and spread
-        const confidence = Math.min(100, Math.max(0, 100 - (spread * 10)));
-
-        aggregations.push({
-          pair,
-          weightedAveragePrice: weightedPrice,
-          totalVolume,
-          priceSpread: spread,
-          sources: prices.map(p => p.dex),
-          confidence,
-          lastUpdate: new Date().toISOString()
-        });
-      }
-    });
-
-    return aggregations;
-  }
-
-  private async storeAggregatedPrices(aggregations: PriceAggregation[]) {
-    // Store aggregated prices in a separate table for better performance
-    for (const agg of aggregations) {
-      try {
-        await supabase
-          .from('price_aggregations')
-          .upsert({
-            pair: agg.pair,
-            weighted_price: agg.weightedAveragePrice,
-            total_volume: agg.totalVolume,
-            price_spread: agg.priceSpread,
-            source_count: agg.sources.length,
-            confidence_score: agg.confidence,
-            timestamp: agg.lastUpdate
-          }, {
-            onConflict: 'pair'
-          });
-      } catch (error) {
-        console.error('Error storing aggregated price for', agg.pair, error);
       }
     }
   }
@@ -322,28 +240,6 @@ export class RealTimeMarketDataService {
       liquidity: Number(item.market_cap) || 0,
       high24h: Number(item.high_24h) || 0,
       low24h: Number(item.low_24h) || 0
-    })) || [];
-  }
-
-  async getAggregatedPrices(): Promise<PriceAggregation[]> {
-    const { data, error } = await supabase
-      .from('price_aggregations')
-      .select('*')
-      .order('timestamp', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching aggregated prices:', error);
-      return [];
-    }
-
-    return data?.map(item => ({
-      pair: item.pair,
-      weightedAveragePrice: Number(item.weighted_price),
-      totalVolume: Number(item.total_volume),
-      priceSpread: Number(item.price_spread),
-      sources: [`${item.source_count} DEXs`],
-      confidence: Number(item.confidence_score),
-      lastUpdate: item.timestamp
     })) || [];
   }
 }
