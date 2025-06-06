@@ -11,7 +11,7 @@ interface TradingStrategy {
   profit_loss: number;
   total_trades: number;
   created_at: string;
-  config_json: any; // Changed from Record<string, any> to any to be compatible with Supabase Json type
+  config_json: any;
 }
 
 export const useTradingStrategies = (userWallet?: string) => {
@@ -22,30 +22,17 @@ export const useTradingStrategies = (userWallet?: string) => {
   // Function to ensure user exists in the users table
   const ensureUserExists = async (walletAddress: string) => {
     try {
-      // Check if user exists
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('wallet_address')
-        .eq('wallet_address', walletAddress)
-        .single();
+      // Use the RPC function to handle user creation safely
+      const { error } = await supabase.rpc('ensure_user_exists', {
+        p_wallet_address: walletAddress
+      });
 
-      if (!existingUser) {
-        // Create user if doesn't exist
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            wallet_address: walletAddress,
-            is_active: true,
-            settings_json: {}
-          });
-
-        if (insertError) {
-          console.error('Error creating user:', insertError);
-          throw new Error('Failed to create user record');
-        }
-        
-        console.log('User created successfully:', walletAddress);
+      if (error) {
+        console.error('Error ensuring user exists:', error);
+        throw new Error('Failed to ensure user exists');
       }
+      
+      console.log('User ensured to exist:', walletAddress);
     } catch (error) {
       console.error('Error ensuring user exists:', error);
       throw error;
