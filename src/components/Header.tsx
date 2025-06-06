@@ -1,4 +1,3 @@
-
 import { Bell, Wifi, WifiOff } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
@@ -16,8 +15,8 @@ export function Header() {
   const { connectedSources } = useConnectionHealth()
   const { isConnected: walletConnected } = useWallet()
   
-  // Sample notifications data with read state
-  const [notifications, setNotifications] = useState([
+  // Sample notifications data
+  const [notifications] = useState([
     {
       id: "1",
       title: "Nueva oportunidad de arbitraje detectada",
@@ -66,13 +65,10 @@ export function Header() {
       return `$${volume.toFixed(0)}`;
     }
   };
-
+  
   const handleMarkNotificationsAsRead = () => {
     setHasUnreadNotifications(false);
   };
-
-  // Show notifications only if there are unread ones
-  const displayNotifications = hasUnreadNotifications ? notifications : [];
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
@@ -117,7 +113,8 @@ export function Header() {
 
         {/* Notifications Dropdown */}
         <NotificationsDropdown 
-          notifications={displayNotifications} 
+          notifications={notifications} 
+          hasUnreadNotifications={hasUnreadNotifications}
           onMarkAsRead={handleMarkNotificationsAsRead}
         />
 

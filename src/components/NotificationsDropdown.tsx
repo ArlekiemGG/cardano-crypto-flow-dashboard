@@ -18,12 +18,14 @@ interface Notification {
 
 interface NotificationsDropdownProps {
   notifications: Notification[];
+  hasUnreadNotifications: boolean;
   onClose?: () => void;
   onMarkAsRead?: () => void;
 }
 
 export function NotificationsDropdown({ 
   notifications,
+  hasUnreadNotifications,
   onClose,
   onMarkAsRead
 }: NotificationsDropdownProps) {
@@ -47,7 +49,7 @@ export function NotificationsDropdown({
           className="relative text-gray-400 hover:text-white hover:bg-white/10"
         >
           <Bell className="h-4 w-4" />
-          {notifications.length > 0 && !isOpen && (
+          {hasUnreadNotifications && notifications.length > 0 && (
             <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
               {notifications.length}
             </span>
