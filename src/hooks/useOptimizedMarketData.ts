@@ -143,6 +143,14 @@ export const useOptimizedMarketData = () => {
       return data.dexVolumes?.protocols?.find((dex: any) => 
         dex.name?.toLowerCase().includes(dexName.toLowerCase())
       );
+    },
+
+    // Nuevo método para obtener volumen total de DEXs desde DeFiLlama
+    getTotalDexVolume24h: () => {
+      if (!data.dexVolumes?.protocols) return 0;
+      return data.dexVolumes.protocols.reduce((sum: number, dex: any) => 
+        sum + (dex.total24h || 0), 0
+      );
     }
   };
 };

@@ -17,12 +17,14 @@ export const OptimizedDataDashboard = () => {
     forceRefresh,
     getADAPrice,
     getTopProtocolsByTVL,
-    getTotalCardanoTVL
+    getTotalCardanoTVL,
+    getTotalDexVolume24h
   } = useOptimizedMarketData();
 
   const adaPrice = getADAPrice();
   const topProtocols = getTopProtocolsByTVL(5);
   const totalTVL = getTotalCardanoTVL();
+  const totalDexVolume = getTotalDexVolume24h();
 
   const getSourceBadgeColor = () => {
     switch (dataSource) {
@@ -72,11 +74,12 @@ export const OptimizedDataDashboard = () => {
             <div className="p-4 rounded-lg bg-white/5 border border-white/10">
               <div className="flex items-center space-x-2">
                 <Activity className="h-4 w-4 text-blue-400" />
-                <span className="text-sm text-gray-400">Entradas Válidas</span>
+                <span className="text-sm text-gray-400">Volumen DEX 24h</span>
               </div>
               <div className="text-2xl font-bold text-blue-400">
-                {cacheStats.valid || 0}
+                ${totalDexVolume > 1000000 ? (totalDexVolume / 1000000).toFixed(1) + 'M' : (totalDexVolume / 1000).toFixed(0) + 'K'}
               </div>
+              <div className="text-xs text-gray-400">Datos de DeFiLlama</div>
             </div>
             
             <div className="p-4 rounded-lg bg-white/5 border border-white/10">
@@ -152,11 +155,16 @@ export const OptimizedDataDashboard = () => {
         </CardContent>
       </Card>
 
-      {/* DEX Volumes */}
+      {/* DEX Volumes - Solo datos de DeFiLlama */}
       {dexVolumes?.protocols && (
         <Card className="glass">
           <CardHeader>
-            <CardTitle>Volúmenes DEX (24h)</CardTitle>
+            <CardTitle className="flex items-center justify-between">
+              <span>Volúmenes DEX Cardano (24h)</span>
+              <Badge variant="outline" className="text-xs">
+                DeFiLlama: ${totalDexVolume > 1000000 ? (totalDexVolume / 1000000).toFixed(2) + 'M' : (totalDexVolume / 1000).toFixed(0) + 'K'}
+              </Badge>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -164,10 +172,13 @@ export const OptimizedDataDashboard = () => {
                 <div key={dex.name} className="p-4 rounded-lg bg-white/5 border border-white/10">
                   <div className="text-white font-medium">{dex.name}</div>
                   <div className="text-crypto-primary font-mono text-lg">
-                    ${(dex.total24h / 1000000).toFixed(2)}M
+                    ${dex.total24h > 1000000 ? (dex.total24h / 1000000).toFixed(2) + 'M' : (dex.total24h / 1000).toFixed(0) + 'K'}
                   </div>
                   <div className={`text-xs ${dex.change_1d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {dex.change_1d >= 0 ? '+' : ''}{dex.change_1d?.toFixed(2)}% (24h)
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    Fuente: DeFiLlama
                   </div>
                 </div>
               ))}

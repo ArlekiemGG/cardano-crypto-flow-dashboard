@@ -1,6 +1,6 @@
 
 import { MetricCard } from "@/components/MetricCard";
-import { BarChart3, TrendingUp, Bot, DollarSign, Activity, Zap } from "lucide-react";
+import { TrendingUp, DollarSign, Activity, Database, Zap, Globe } from "lucide-react";
 
 interface MetricsGridProps {
   portfolioValue: number;
@@ -25,66 +25,59 @@ export const MetricsGrid = ({
   totalVolume24h,
   connectedSources
 }: MetricsGridProps) => {
+  // Formatear volumen para mostrar en formato legible
+  const formatVolume = (volume: number) => {
+    if (volume >= 1000000) {
+      return `$${(volume / 1000000).toFixed(2)}M`;
+    } else if (volume >= 1000) {
+      return `$${(volume / 1000).toFixed(1)}K`;
+    } else {
+      return `$${volume.toFixed(0)}`;
+    }
+  };
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <MetricCard
         title="Portfolio Value"
         value={`$${portfolioValue.toFixed(2)}`}
-        change={`${dailyPnL >= 0 ? '+' : ''}$${Math.abs(dailyPnL).toFixed(2)}`}
-        changeType={dailyPnL >= 0 ? "positive" : "negative"}
-        icon={DollarSign}
-        description="Live USD value of your ADA"
-        gradient="gradient-primary"
+        change={dailyPnL}
+        icon={<DollarSign className="h-5 w-5" />}
       />
       
       <MetricCard
-        title="Live Arbitrage Ops"
+        title="Arbitrage Opportunities"
         value={totalOpportunities.toString()}
-        change={`${highConfidenceOpportunities} high confidence`}
-        changeType="positive"
-        icon={Zap}
-        description="Real-time arbitrage detection"
-        gradient="gradient-success"
+        subValue={`${highConfidenceOpportunities} high confidence`}
+        icon={<TrendingUp className="h-5 w-5" />}
       />
       
       <MetricCard
         title="Potential Profit"
-        value={`₳ ${totalPotentialProfit.toFixed(1)}`}
-        change={`${avgProfitPercentage.toFixed(1)}% avg profit`}
-        changeType="positive"
-        icon={TrendingUp}
-        description="Total available profit"
-        gradient="gradient-profit"
+        value={`₳${totalPotentialProfit.toFixed(1)}`}
+        subValue={`${avgProfitPercentage.toFixed(1)}% avg`}
+        icon={<Activity className="h-5 w-5" />}
       />
       
       <MetricCard
-        title="Active Data Pairs"
+        title="DEX Volume 24h"
+        value={formatVolume(totalVolume24h)}
+        subValue="DeFiLlama data"
+        icon={<Database className="h-5 w-5" />}
+      />
+      
+      <MetricCard
+        title="Active Pairs"
         value={activePairs.toString()}
-        change="Live DeFi data"
-        changeType="positive"
-        icon={Activity}
-        description="Live pairs from Blockfrost + DeFiLlama"
-        gradient="gradient-secondary"
-      />
-      
-      <MetricCard
-        title="24h DeFi Volume"
-        value={`$${(totalVolume24h / 1000000).toFixed(1)}M`}
-        change="All Cardano DeFi"
-        changeType="positive"
-        icon={BarChart3}
-        description="Total volume across Cardano protocols"
-        gradient="gradient-profit"
+        subValue="Trading pairs"
+        icon={<Zap className="h-5 w-5" />}
       />
       
       <MetricCard
         title="Data Sources"
         value={`${connectedSources}/2`}
-        change="Blockfrost + DeFiLlama"
-        changeType={connectedSources > 1 ? "positive" : "negative"}
-        icon={Bot}
-        description="Simplified, reliable data architecture"
-        gradient="gradient-primary"
+        subValue="Connected"
+        icon={<Globe className="h-5 w-5" />}
       />
     </div>
   );
