@@ -4,6 +4,7 @@ import type { WalletApi as CardanoWalletApi } from '@/types/cardano';
 import { getAvailableWallets } from '@/utils/walletUtils';
 import { useWalletConnection } from '@/hooks/useWalletConnection';
 import { useBalanceManager } from '@/hooks/useBalanceManager';
+import { walletService } from '@/services/walletService';
 
 export interface WalletState {
   isConnected: boolean;
@@ -56,12 +57,15 @@ interface WalletProviderProps {
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [walletState, setWalletState] = useState<WalletState>(initialState);
   const { isConnecting, error, connectWallet: connectWalletHook } = useWalletConnection();
+  
+  // Pass address to balance manager to fetch real data
   const { balance, utxos, refreshBalance, checkMinimumBalance } = useBalanceManager(
     walletState.walletApi,
-    walletState.isConnected
+    walletState.isConnected,
+    walletState.address
   );
 
-  // Update wallet state with balance and utxos from the balance manager
+  // Update wallet state with balance and utxos from the balance manager (real Blockfrost data)
   useEffect(() => {
     if (walletState.isConnected) {
       setWalletState(prev => ({
@@ -86,17 +90,28 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       const connectionResult = await connectWalletHook(walletName);
       
+      console.log('Connected to wallet, real address:', connectionResult.address);
+      
       setWalletState(prev => ({
         ...prev,
         isConnected: true,
         walletName,
         walletApi: connectionResult.walletApi,
         address: connectionResult.address,
-        balance: connectionResult.balance,
+        balance: 0, // Will be updated by useBalanceManager with real Blockfrost data
         network: connectionResult.network,
-        utxos: connectionResult.utxos,
+        utxos: [],
         stakeAddress: connectionResult.stakeAddress,
       }));
+
+      // Save wallet session to database with real data
+      await walletService.saveWalletSession({
+        address: connectionResult.address,
+        walletName,
+        stakeAddress: connectionResult.stakeAddress,
+        network: connectionResult.network,
+      });
+      
     } catch (error) {
       // Error is already handled in the hook
       throw error;

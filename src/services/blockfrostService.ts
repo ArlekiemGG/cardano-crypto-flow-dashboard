@@ -1,4 +1,5 @@
 
+const BLOCKFROST_API_KEY = 'mainnetqDbcAxZGzm4fvd6efh43cp81lL1VK6TT';
 const BLOCKFROST_BASE_URL = 'https://cardano-mainnet.blockfrost.io/api/v0';
 
 interface BlockfrostAsset {
@@ -25,6 +26,17 @@ interface BlockfrostUtxo {
   data_hash?: string;
 }
 
+interface BlockfrostAddressInfo {
+  address: string;
+  amount: Array<{
+    unit: string;
+    quantity: string;
+  }>;
+  stake_address: string | null;
+  type: string;
+  script: boolean;
+}
+
 interface BlockfrostPool {
   pool_id: string;
   hex: string;
@@ -48,6 +60,36 @@ interface BlockfrostPool {
 }
 
 export class BlockfrostService {
+  private async makeBlockfrostRequest(endpoint: string) {
+    try {
+      const response = await fetch(`${BLOCKFROST_BASE_URL}${endpoint}`, {
+        headers: {
+          'project_id': BLOCKFROST_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Blockfrost API error: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error making Blockfrost request:', error);
+      throw error;
+    }
+  }
+
+  async getAddressInfo(address: string): Promise<BlockfrostAddressInfo> {
+    console.log('Fetching real address info from Blockfrost for:', address);
+    return await this.makeBlockfrostRequest(`/addresses/${address}`);
+  }
+
+  async getAddressUtxos(address: string): Promise<BlockfrostUtxo[]> {
+    console.log('Fetching real UTXOs from Blockfrost for:', address);
+    return await this.makeBlockfrostRequest(`/addresses/${address}/utxos`);
+  }
+
   async getADAPrice(): Promise<number> {
     try {
       // Use CoinGecko for USD price as it's public and doesn't require API key
@@ -60,68 +102,51 @@ export class BlockfrostService {
     }
   }
 
-  // For Blockfrost-specific methods that require API key, we'll use the edge function
-  private async callBlockfrostViaEdgeFunction(endpoint: string) {
-    try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      
-      const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
-        body: JSON.stringify({ 
-          action: 'blockfrost_request',
-          endpoint: endpoint
-        })
-      });
-
-      if (error) {
-        console.error('Error calling Blockfrost via edge function:', error);
-        throw error;
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error in Blockfrost edge function call:', error);
-      throw error;
-    }
-  }
-
   async getPoolInfo(poolId: string): Promise<BlockfrostPool> {
-    return await this.callBlockfrostViaEdgeFunction(`/pools/${poolId}`);
+    return await this.makeBlockfrostRequest(`/pools/${poolId}`);
   }
 
   async getAllPools(): Promise<string[]> {
-    return await this.callBlockfrostViaEdgeFunction('/pools');
+    return await this.makeBlockfrostRequest('/pools');
   }
 
   async getPoolsExtended(page: number = 1): Promise<BlockfrostPool[]> {
-    return await this.callBlockfrostViaEdgeFunction(`/pools/extended?page=${page}&count=100`);
-  }
-
-  async getAddressUtxos(address: string): Promise<BlockfrostUtxo[]> {
-    return await this.callBlockfrostViaEdgeFunction(`/addresses/${address}/utxos`);
+    return await this.makeBlockfrostRequest(`/pools/extended?page=${page}&count=100`);
   }
 
   async getLatestBlock() {
-    return await this.callBlockfrostViaEdgeFunction('/blocks/latest');
+    return await this.makeBlockfrostRequest('/blocks/latest');
   }
 
   async getNetworkInfo() {
-    return await this.callBlockfrostViaEdgeFunction('/network');
+    return await this.makeBlockfrostRequest('/network');
   }
 
   async getAssetInfo(asset: string): Promise<BlockfrostAsset> {
-    return await this.callBlockfrostViaEdgeFunction(`/assets/${asset}`);
+    return await this.makeBlockfrostRequest(`/assets/${asset}`);
   }
 
   async getTransaction(txHash: string) {
-    return await this.callBlockfrostViaEdgeFunction(`/txs/${txHash}`);
+    return await this.makeBlockfrostRequest(`/txs/${txHash}`);
   }
 
   async getTransactionUtxos(txHash: string) {
-    return await this.callBlockfrostViaEdgeFunction(`/txs/${txHash}/utxos`);
+    return await this.makeBlockfrostRequest(`/txs/${txHash}/utxos`);
   }
 
   async getAddressTransactions(address: string, page: number = 1) {
-    return await this.callBlockfrostViaEdgeFunction(`/addresses/${address}/transactions?page=${page}&count=50&order=desc`);
+    return await this.makeBlockfrostRequest(`/addresses/${address}/transactions?page=${page}&count=50&order=desc`);
+  }
+
+  // Convert lovelace string to ADA
+  lovelaceToAda(lovelace: string): number {
+    return parseInt(lovelace) / 1000000;
+  }
+
+  // Get ADA balance from address info
+  getAdaBalance(addressInfo: BlockfrostAddressInfo): number {
+    const adaAmount = addressInfo.amount.find(amount => amount.unit === 'lovelace');
+    return adaAmount ? this.lovelaceToAda(adaAmount.quantity) : 0;
   }
 }
 

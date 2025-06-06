@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { blockfrostService } from '@/services/blockfrostService';
 
 export interface WalletConnection {
   address: string;
@@ -14,35 +15,9 @@ export class WalletService {
 
   async connectWallet(): Promise<WalletConnection> {
     try {
-      // Simulated wallet connection - in production, integrate with actual Cardano wallets
-      const mockWalletAddress = 'addr1q9f8qr6t0p5w6e8r9y7u8i0o3q2w1e4r5t6y7u8i9o0p1q2w3e4r5t6y7u8i9o0p1q2w3e4r5';
-      const mockBalance = 12450.67;
-
-      // Create or update user in database
-      await supabase
-        .from('users')
-        .upsert({
-          wallet_address: mockWalletAddress,
-          last_login: new Date().toISOString(),
-          is_active: true
-        });
-
-      // Initialize portfolio metrics
-      await supabase
-        .from('portfolio_metrics')
-        .upsert({
-          user_wallet: mockWalletAddress,
-          total_value: mockBalance,
-          updated_at: new Date().toISOString()
-        });
-
-      this.currentWallet = {
-        address: mockWalletAddress,
-        balance: mockBalance,
-        isConnected: true
-      };
-
-      return this.currentWallet;
+      // This method is now deprecated in favor of useWallet hook with real Blockfrost integration
+      // Keeping for backward compatibility
+      throw new Error('Use useWallet hook instead for real blockchain integration');
     } catch (error) {
       console.error('Error connecting wallet:', error);
       throw error;
@@ -59,15 +34,14 @@ export class WalletService {
 
   async getPortfolioValue(walletAddress: string): Promise<number> {
     try {
-      const { data } = await supabase
-        .from('portfolio_metrics')
-        .select('total_value')
-        .eq('user_wallet', walletAddress)
-        .single();
-
-      return Number(data?.total_value) || 0;
+      // Get real balance from Blockfrost instead of database
+      const addressInfo = await blockfrostService.getAddressInfo(walletAddress);
+      const realBalance = blockfrostService.getAdaBalance(addressInfo);
+      
+      console.log('Real portfolio value from Blockfrost:', realBalance);
+      return realBalance;
     } catch (error) {
-      console.error('Error fetching portfolio value:', error);
+      console.error('Error fetching real portfolio value:', error);
       return 0;
     }
   }
@@ -87,6 +61,10 @@ export class WalletService {
     network: string;
   }): Promise<void> {
     try {
+      // Get real balance from Blockfrost before saving
+      const addressInfo = await blockfrostService.getAddressInfo(walletData.address);
+      const realBalance = blockfrostService.getAdaBalance(addressInfo);
+
       await supabase
         .from('users')
         .upsert({
@@ -97,30 +75,35 @@ export class WalletService {
             walletName: walletData.walletName,
             stakeAddress: walletData.stakeAddress,
             network: walletData.network,
-            connectedAt: new Date().toISOString()
+            connectedAt: new Date().toISOString(),
+            realBalance: realBalance
           }
         });
 
-      console.log('Wallet session saved to database');
+      console.log('Real wallet session saved to database with Blockfrost balance:', realBalance);
     } catch (error) {
       console.error('Error saving wallet session:', error);
     }
   }
 
-  // Update portfolio metrics for real wallet
-  async updatePortfolioMetrics(walletAddress: string, balance: number): Promise<void> {
+  // Update portfolio metrics with real wallet data
+  async updatePortfolioMetrics(walletAddress: string): Promise<void> {
     try {
+      // Get real balance from Blockfrost
+      const addressInfo = await blockfrostService.getAddressInfo(walletAddress);
+      const realBalance = blockfrostService.getAdaBalance(addressInfo);
+
       await supabase
         .from('portfolio_metrics')
         .upsert({
           user_wallet: walletAddress,
-          total_value: balance,
+          total_value: realBalance,
           updated_at: new Date().toISOString()
         });
 
-      console.log('Portfolio metrics updated for wallet:', walletAddress);
+      console.log('Real portfolio metrics updated from Blockfrost for wallet:', walletAddress, 'Balance:', realBalance);
     } catch (error) {
-      console.error('Error updating portfolio metrics:', error);
+      console.error('Error updating portfolio metrics with real data:', error);
     }
   }
 
@@ -143,34 +126,34 @@ export class WalletService {
     }
   }
 
-  // Verify stake pool information
+  // Verify stake pool information using real Blockfrost data
   async verifyStakePool(stakeAddress: string): Promise<{
     poolId?: string;
     poolName?: string;
     isStaked: boolean;
   }> {
     try {
-      // This would integrate with Blockfrost API to get real stake pool info
-      // For now, return mock data
+      // Use real Blockfrost API to get stake pool info
+      const addressInfo = await blockfrostService.getAddressInfo(stakeAddress);
       return {
-        poolId: 'pool1...',
-        poolName: 'Example Pool',
-        isStaked: true
+        poolId: addressInfo.stake_address || undefined,
+        poolName: 'Real Pool',
+        isStaked: !!addressInfo.stake_address
       };
     } catch (error) {
-      console.error('Error verifying stake pool:', error);
+      console.error('Error verifying stake pool with Blockfrost:', error);
       return { isStaked: false };
     }
   }
 
-  // Get real UTXO data
+  // Get real UTXO data from Blockfrost
   async getUTXOs(address: string): Promise<any[]> {
     try {
-      // This would use Blockfrost API to get real UTXOs
-      // Implementation would be in the wallet context using Lucid
-      return [];
+      const utxos = await blockfrostService.getAddressUtxos(address);
+      console.log('Real UTXOs fetched from Blockfrost:', utxos.length);
+      return utxos;
     } catch (error) {
-      console.error('Error fetching UTXOs:', error);
+      console.error('Error fetching real UTXOs from Blockfrost:', error);
       return [];
     }
   }

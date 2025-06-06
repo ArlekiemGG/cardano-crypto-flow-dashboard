@@ -1,37 +1,46 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { WalletApi as CardanoWalletApi } from '@/types/cardano';
-import { lovelaceToAda } from '@/utils/walletUtils';
+import { blockfrostService } from '@/services/blockfrostService';
 
 interface BalanceState {
   balance: number;
   utxos: any[];
 }
 
-export const useBalanceManager = (walletApi: CardanoWalletApi | null, isConnected: boolean) => {
+export const useBalanceManager = (walletApi: CardanoWalletApi | null, isConnected: boolean, address: string | null) => {
   const [balanceState, setBalanceState] = useState<BalanceState>({
     balance: 0,
     utxos: [],
   });
 
-  // Refresh balance
+  // Refresh balance using real Blockfrost data
   const refreshBalance = useCallback(async (): Promise<void> => {
-    if (!walletApi || !isConnected) return;
+    if (!address || !isConnected) {
+      console.log('No address or not connected, skipping balance refresh');
+      return;
+    }
 
     try {
-      const balanceHex = await walletApi.getBalance();
-      const balance = lovelaceToAda(balanceHex);
+      console.log('Refreshing balance for address:', address);
+      
+      // Get real address info from Blockfrost
+      const addressInfo = await blockfrostService.getAddressInfo(address);
+      const balance = blockfrostService.getAdaBalance(addressInfo);
 
-      const utxosHex = await walletApi.getUtxos();
-      const utxos = utxosHex || [];
+      // Get real UTXOs from Blockfrost
+      const utxos = await blockfrostService.getAddressUtxos(address);
 
       setBalanceState({ balance, utxos });
 
-      console.log('Balance refreshed:', balance, 'ADA');
+      console.log('Real balance from Blockfrost:', balance, 'ADA');
+      console.log('Real UTXOs count:', utxos.length);
     } catch (error) {
-      console.error('Failed to refresh balance:', error);
+      console.error('Failed to refresh balance from Blockfrost:', error);
+      // Set balance to 0 on error to avoid showing fake data
+      setBalanceState({ balance: 0, utxos: [] });
     }
-  }, [walletApi, isConnected]);
+  }, [address, isConnected]);
 
   // Check minimum balance for premium access
   const checkMinimumBalance = useCallback((minAda: number): boolean => {
@@ -40,18 +49,18 @@ export const useBalanceManager = (walletApi: CardanoWalletApi | null, isConnecte
 
   // Refresh balance periodically
   useEffect(() => {
-    if (isConnected && walletApi) {
+    if (isConnected && address) {
       const interval = setInterval(refreshBalance, 30000); // Every 30 seconds
       return () => clearInterval(interval);
     }
-  }, [isConnected, walletApi, refreshBalance]);
+  }, [isConnected, address, refreshBalance]);
 
-  // Update balance when wallet API changes
+  // Update balance when address changes
   useEffect(() => {
-    if (walletApi && isConnected) {
+    if (address && isConnected) {
       refreshBalance();
     }
-  }, [walletApi, isConnected, refreshBalance]);
+  }, [address, isConnected, refreshBalance]);
 
   return {
     ...balanceState,

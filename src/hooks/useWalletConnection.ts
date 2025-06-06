@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import type { WalletApi as CardanoWalletApi } from '@/types/cardano';
-import { hexToAddress, lovelaceToAda } from '@/utils/walletUtils';
+import { hexToAddress } from '@/utils/walletUtils';
 
 interface WalletConnectionState {
   isConnecting: boolean;
@@ -53,18 +53,7 @@ export const useWalletConnection = () => {
         address = hexToAddress(address);
       }
 
-      // Get wallet balance
-      const balanceHex = await walletApi.getBalance();
-      const balance = lovelaceToAda(balanceHex);
-
-      // Get UTXOs
-      let utxos: any[] = [];
-      try {
-        const utxosHex = await walletApi.getUtxos();
-        utxos = utxosHex || [];
-      } catch (error) {
-        console.warn('Could not fetch UTXOs:', error);
-      }
+      console.log('Real wallet address obtained:', address);
 
       // Get stake address
       let stakeAddress: string | null = null;
@@ -84,16 +73,16 @@ export const useWalletConnection = () => {
       setConnectionState({ isConnecting: false, error: null });
 
       console.log(`Successfully connected to ${walletName} wallet`);
-      console.log('Address:', address);
-      console.log('Balance:', balance, 'ADA');
+      console.log('Real address:', address);
       console.log('Network:', network);
+      console.log('Balance will be fetched from Blockfrost...');
 
       return {
         walletApi,
         address,
-        balance,
+        balance: 0, // Will be fetched from Blockfrost
         network,
-        utxos,
+        utxos: [],
         stakeAddress,
       };
       
