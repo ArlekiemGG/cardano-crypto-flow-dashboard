@@ -6,7 +6,7 @@ import { useRealMarketMakingStats } from './useRealMarketMakingStats';
 import { useMarketMakingStrategies } from './useMarketMakingStrategies';
 
 // Re-export types for backward compatibility
-export type { RealMarketMakingPosition as MarketMakingPosition } from '@/types/marketMakingTypes';
+export type { RealMarketMakingPosition as MarketMakingPosition } from './useRealMarketMakingPositions';
 export type { SpreadCalculation } from './useSpreadCalculations';
 export type { MarketMakingStrategy } from './useMarketMakingStrategies';
 

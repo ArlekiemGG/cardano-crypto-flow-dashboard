@@ -6,7 +6,8 @@ import {
   Bot, 
   Layers, 
   PieChart, 
-  Settings 
+  Settings,
+  LineChart
 } from "lucide-react"
 import {
   Sidebar,
@@ -44,6 +45,12 @@ const navigationItems = [
     url: "/market-making", 
     icon: Layers,
     description: "Liquidity Tools"
+  },
+  { 
+    title: "Advanced Analytics", 
+    url: "/advanced-analytics", 
+    icon: LineChart,
+    description: "Professional Analysis"
   },
   { 
     title: "Portfolio", 

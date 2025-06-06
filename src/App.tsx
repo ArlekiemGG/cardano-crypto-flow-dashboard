@@ -14,6 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import Arbitrage from "./pages/Arbitrage";
 import TradingStrategies from "./pages/TradingStrategies";
 import MarketMaking from "./pages/MarketMaking";
+import AdvancedAnalytics from "./pages/AdvancedAnalytics";
 import Portfolio from "./pages/Portfolio";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -103,6 +104,21 @@ const App = () => (
                       <Header />
                       <main className="flex-1 p-6 overflow-y-auto">
                         <MarketMaking />
+                      </main>
+                    </div>
+                  </div>
+                </SidebarProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="/advanced-analytics" element={
+              <ProtectedRoute>
+                <SidebarProvider>
+                  <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col">
+                      <Header />
+                      <main className="flex-1 p-6 overflow-y-auto">
+                        <AdvancedAnalytics />
                       </main>
                     </div>
                   </div>
