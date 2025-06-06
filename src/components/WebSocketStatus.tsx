@@ -1,10 +1,10 @@
 
 import { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Activity, Clock } from 'lucide-react';
-import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData';
+import { useUnifiedMarketData } from '@/hooks/useUnifiedMarketData';
 
 export const WebSocketStatus = () => {
-  const { isLoading, lastUpdate, dataSource, cacheStats } = useOptimizedMarketData();
+  const { isLoading, lastUpdate, dataSource, cacheStats } = useUnifiedMarketData();
   const [overallStatus, setOverallStatus] = useState<'connected' | 'partial' | 'disconnected'>('disconnected');
 
   useEffect(() => {
@@ -13,13 +13,11 @@ export const WebSocketStatus = () => {
       return;
     }
 
-    // Calculate data freshness from real sources
     const now = new Date();
     const dataAge = now.getTime() - lastUpdate.getTime();
-    const isFresh = dataAge < 300000; // 5 minutes for real-time data
-    const isPartialFresh = dataAge < 900000; // 15 minutes for acceptable data
+    const isFresh = dataAge < 300000; // 5 minutes
+    const isPartialFresh = dataAge < 900000; // 15 minutes
 
-    // Determine status based on real data sources and freshness
     if (dataSource === 'defillama' && isFresh) {
       setOverallStatus('connected');
     } else if (dataSource === 'mixed' && isPartialFresh) {
@@ -51,13 +49,10 @@ export const WebSocketStatus = () => {
     }
   };
 
-  // Calculate hit rate from real cache stats
   const hitRate = cacheStats?.hitRate || 0;
-  const totalRequests = Object.values(cacheStats?.sources || {}).reduce((a: number, b: number) => a + b, 0);
 
   return (
     <div className="flex items-center space-x-2">
-      {/* Overall Status Indicator */}
       <div className="flex items-center space-x-1">
         {overallStatus === 'connected' ? (
           <Activity className="h-4 w-4 text-green-400 animate-pulse" />
@@ -72,20 +67,18 @@ export const WebSocketStatus = () => {
         </span>
       </div>
 
-      {/* Real Data Source Info */}
       <div className="hidden md:flex items-center space-x-1">
         <span className="text-xs text-gray-500">
           {dataSource === 'defillama' ? 'DeFiLlama' : 
            dataSource === 'mixed' ? 'APIs Mixtas' : 'Cache Local'}
         </span>
-        {totalRequests > 0 && (
+        {hitRate > 0 && (
           <span className="text-xs text-gray-400">
             ({(hitRate * 100).toFixed(0)}%)
           </span>
         )}
       </div>
 
-      {/* Last Update Time */}
       <div className="flex items-center space-x-1 text-xs text-gray-500">
         <Clock className="h-3 w-3" />
         <span>{lastUpdate.toLocaleTimeString()}</span>

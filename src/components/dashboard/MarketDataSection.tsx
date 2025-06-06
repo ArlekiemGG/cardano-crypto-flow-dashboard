@@ -1,29 +1,24 @@
 
 import { MarketData } from "@/types/trading";
-import { useOptimizedMarketData } from "@/hooks/useOptimizedMarketData";
+import { useUnifiedMarketData } from "@/hooks/useUnifiedMarketData";
 
 interface MarketDataSectionProps {
   marketData: MarketData[];
 }
 
 export const MarketDataSection = ({ marketData }: MarketDataSectionProps) => {
-  // Use optimized market data for real-time information
   const { 
     getADAPrice, 
     getADAChange24h, 
-    getADAVolume24h,
     getTopProtocolsByTVL,
     isRealDataAvailable,
     dataSource 
-  } = useOptimizedMarketData();
+  } = useUnifiedMarketData();
 
-  // Get real ADA data directly from APIs
   const realADAPrice = getADAPrice();
   const realADAChange = getADAChange24h();
-  const realADAVolume = getADAVolume24h();
-  const topProtocols = getTopProtocolsByTVL(5);
+  const topProtocols = getTopProtocolsByTVL(3);
 
-  // Create real market data array from API sources
   const realMarketData = [];
   
   // Add real ADA data if available
@@ -32,21 +27,21 @@ export const MarketDataSection = ({ marketData }: MarketDataSectionProps) => {
       symbol: 'ADA',
       price: realADAPrice,
       change24h: realADAChange,
-      volume24h: realADAVolume,
-      marketCap: realADAVolume * 100, // Approximate market cap
+      volume24h: realADAPrice * 1000000, // Approximate volume
+      marketCap: realADAPrice * 35000000000, // Approximate market cap
       lastUpdate: new Date().toISOString(),
       source: dataSource === 'defillama' ? 'DeFiLlama' : 'Mixed APIs'
     });
   }
 
-  // Add top protocol data as additional market insights
+  // Add top protocol data
   topProtocols.forEach((protocol, index) => {
-    if (protocol.tvl > 1000000) { // Only show significant protocols
+    if (protocol.tvl > 1000000) {
       realMarketData.push({
         symbol: protocol.name.substring(0, 6).toUpperCase(),
-        price: protocol.tvl / 1000000, // TVL in millions as "price"
+        price: protocol.tvl / 1000000,
         change24h: protocol.change_1d || 0,
-        volume24h: protocol.tvl * 0.1, // Estimate volume as 10% of TVL
+        volume24h: protocol.tvl * 0.1,
         marketCap: protocol.tvl,
         lastUpdate: new Date().toISOString(),
         source: 'DeFiLlama TVL'
@@ -54,7 +49,6 @@ export const MarketDataSection = ({ marketData }: MarketDataSectionProps) => {
     }
   });
 
-  // Use real data if available, fallback to provided market data
   const displayData = realMarketData.length > 0 ? realMarketData : marketData;
   const hasRealData = isRealDataAvailable();
 
