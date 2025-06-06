@@ -1,4 +1,3 @@
-
 // Modern Cardano wallet types for 2025 integration with Lucid Evolution
 
 export interface ModernCardanoWalletApi {
@@ -31,7 +30,7 @@ export interface ModernWalletApiInstance {
   };
 }
 
-// Modern Cardano interface with 2025 wallet support
+// Modern Cardano interface with 2025 wallet support - AGREGADO VESPR
 interface ModernCardano {
   [walletName: string]: ModernCardanoWalletApi | undefined;
   eternl?: ModernCardanoWalletApi;
@@ -41,6 +40,7 @@ interface ModernCardano {
   typhoncip30?: ModernCardanoWalletApi;
   gerowallet?: ModernCardanoWalletApi;
   brave?: ModernCardanoWalletApi;
+  vespr?: ModernCardanoWalletApi;
 }
 
 // Wallet capabilities for modern features

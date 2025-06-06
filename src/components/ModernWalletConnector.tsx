@@ -56,6 +56,12 @@ const walletInfo = {
     downloadUrl: 'https://brave.com/wallet/',
     description: 'Built-in browser wallet',
   },
+  vespr: {
+    name: 'Vespr',
+    icon: '🦋',
+    downloadUrl: 'https://vespr.xyz/',
+    description: 'Modern Cardano wallet',
+  },
 };
 
 export const ModernWalletConnector: React.FC = () => {
