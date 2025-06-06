@@ -4,6 +4,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { RealTimePrice } from "@/components/RealTimePrice"
 import { useRealTimeData } from "@/hooks/useRealTimeData"
+import { useMarketData } from "@/hooks/useMarketData"
 import { useWallet } from "@/contexts/ModernWalletContext"
 import { ModernWalletConnector } from "./ModernWalletConnector"
 import { ModernWalletInfo } from "./ModernWalletInfo"
@@ -11,13 +12,16 @@ import { NetworkIndicator } from "./NetworkIndicator"
 
 export function Header() {
   const { isConnected, marketData } = useRealTimeData()
+  const { dexVolumes } = useMarketData()
   const { isConnected: walletConnected } = useWallet()
   const notifications = 3
 
-  // Get real 24h volume from actual CoinGecko data
+  // Get real ADA market cap from CoinGecko data
   const adaData = marketData.find(data => data.symbol === 'ADA')
-  const ada24hVolume = adaData?.volume24h || 0
   const adaMarketCap = adaData?.marketCap || 0
+
+  // Calculate total 24h volume from all Cardano DEXs
+  const total24hDEXVolume = dexVolumes.reduce((total, dex) => total + dex.totalVolume, 0)
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
@@ -28,12 +32,14 @@ export function Header() {
         <div className="hidden md:flex items-center space-x-6">
           <RealTimePrice />
           <div className="text-sm">
-            <span className="text-gray-400">24h ADA Volume: </span>
+            <span className="text-gray-400">24h DEX Volume: </span>
             <span className="text-white font-mono">
-              {ada24hVolume > 0 
-                ? ada24hVolume > 1000000000 
-                  ? `$${(ada24hVolume / 1000000000).toFixed(1)}B`
-                  : `$${(ada24hVolume / 1000000).toFixed(1)}M`
+              {total24hDEXVolume > 0 
+                ? total24hDEXVolume > 1000000000 
+                  ? `$${(total24hDEXVolume / 1000000000).toFixed(1)}B`
+                  : total24hDEXVolume > 1000000
+                  ? `$${(total24hDEXVolume / 1000000).toFixed(1)}M`
+                  : `$${(total24hDEXVolume / 1000).toFixed(0)}K`
                 : 'Loading...'
               }
             </span>
@@ -62,7 +68,7 @@ export function Header() {
             <WifiOff className="h-4 w-4 text-red-400" />
           )}
           <span className={`text-xs hidden sm:block ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
-            {isConnected ? 'CoinGecko Live' : 'Disconnected'}
+            {isConnected ? 'DEX APIs Live' : 'Disconnected'}
           </span>
         </div>
 

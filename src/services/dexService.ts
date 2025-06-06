@@ -102,10 +102,13 @@ export class DEXService {
 
   async getRealVolumes(): Promise<{ dex: string; totalVolume: number }[]> {
     try {
+      console.log('📊 Fetching real DEX volumes from cached data...');
+      
       const { data: volumeData, error } = await supabase
         .from('market_data_cache')
-        .select('source_dex, volume_24h')
-        .not('volume_24h', 'is', null);
+        .select('source_dex, volume_24h, pair')
+        .not('volume_24h', 'is', null)
+        .gte('timestamp', new Date(Date.now() - 3600000).toISOString()); // Last hour for fresh data
 
       if (error) {
         console.error('Error fetching volume data:', error);
@@ -117,15 +120,35 @@ export class DEXService {
       volumeData?.forEach(item => {
         const dex = item.source_dex;
         const volume = Number(item.volume_24h) || 0;
-        volumesByDex[dex] = (volumesByDex[dex] || 0) + volume;
+        
+        // Only count ADA pairs for accurate volume calculation
+        if (item.pair && (item.pair.includes('ADA') || item.pair.includes('ada'))) {
+          volumesByDex[dex] = (volumesByDex[dex] || 0) + volume;
+        }
       });
 
-      return Object.entries(volumesByDex)
+      const result = Object.entries(volumesByDex)
         .map(([dex, totalVolume]) => ({ dex, totalVolume }))
         .sort((a, b) => b.totalVolume - a.totalVolume);
+
+      console.log('✅ Real DEX volumes calculated:', result);
+      return result;
     } catch (error) {
       console.error('Error getting real volumes:', error);
       return [];
+    }
+  }
+
+  // Calculate total volume across all DEXs for header display
+  async getTotalDEXVolume(): Promise<number> {
+    try {
+      const volumes = await this.getRealVolumes();
+      const total = volumes.reduce((sum, dex) => sum + dex.totalVolume, 0);
+      console.log('📈 Total DEX volume calculated:', total);
+      return total;
+    } catch (error) {
+      console.error('Error calculating total DEX volume:', error);
+      return 0;
     }
   }
 
