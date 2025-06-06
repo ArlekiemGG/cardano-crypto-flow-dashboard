@@ -1,9 +1,9 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useWallet } from '@/contexts/ModernWalletContext';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { useNavigate } from 'react-router-dom';
 import { ModernWalletConnector } from '@/components/ModernWalletConnector';
-import { Wallet, TrendingUp, Zap, Shield, Star, ChevronRight, Users, DollarSign, BarChart3 } from 'lucide-react';
+import { TrendingUp, Zap, Shield, Star, BarChart3 } from 'lucide-react';
 
 const WelcomeHero = () => {
   return (
@@ -152,31 +152,19 @@ const WelcomeHero = () => {
   );
 };
 
-const ConnectedDashboard = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Trading Dashboard</h1>
-        <p className="text-xl text-muted-foreground">Your wallet is connected! Start exploring the platform.</p>
-      </div>
-    </div>
-  );
-};
-
 const Index = () => {
   const { isConnected } = useWallet();
+  const navigate = useNavigate();
+
+  // Redirect to dashboard if wallet is connected
+  useEffect(() => {
+    if (isConnected) {
+      navigate('/dashboard');
+    }
+  }, [isConnected, navigate]);
 
   // Show welcome hero when wallet is not connected
-  if (!isConnected) {
-    return <WelcomeHero />;
-  }
-
-  // Show dashboard when connected
-  return (
-    <ProtectedRoute showConnectionScreen={false}>
-      <ConnectedDashboard />
-    </ProtectedRoute>
-  );
+  return <WelcomeHero />;
 };
 
 export default Index;

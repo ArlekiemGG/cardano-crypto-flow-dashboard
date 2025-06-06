@@ -9,6 +9,7 @@ import { WalletProvider } from "@/contexts/ModernWalletContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Header } from "@/components/Header";
+import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Arbitrage from "./pages/Arbitrage";
 import TradingStrategies from "./pages/TradingStrategies";
@@ -45,28 +46,101 @@ const App = () => (
       <Sonner />
       <WalletProvider>
         <BrowserRouter>
-          <ProtectedRoute>
-            <SidebarProvider>
-              <AppInitializer />
-              <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
-                <AppSidebar />
-                <div className="flex-1 flex flex-col">
-                  <Header />
-                  <main className="flex-1 p-6 overflow-y-auto">
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/arbitrage" element={<Arbitrage />} />
-                      <Route path="/strategies" element={<TradingStrategies />} />
-                      <Route path="/market-making" element={<MarketMaking />} />
-                      <Route path="/portfolio" element={<Portfolio />} />
-                      <Route path="/settings" element={<Settings />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </main>
-                </div>
-              </div>
-            </SidebarProvider>
-          </ProtectedRoute>
+          <AppInitializer />
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <SidebarProvider>
+                  <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col">
+                      <Header />
+                      <main className="flex-1 p-6 overflow-y-auto">
+                        <Dashboard />
+                      </main>
+                    </div>
+                  </div>
+                </SidebarProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="/arbitrage" element={
+              <ProtectedRoute>
+                <SidebarProvider>
+                  <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col">
+                      <Header />
+                      <main className="flex-1 p-6 overflow-y-auto">
+                        <Arbitrage />
+                      </main>
+                    </div>
+                  </div>
+                </SidebarProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="/strategies" element={
+              <ProtectedRoute>
+                <SidebarProvider>
+                  <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col">
+                      <Header />
+                      <main className="flex-1 p-6 overflow-y-auto">
+                        <TradingStrategies />
+                      </main>
+                    </div>
+                  </div>
+                </SidebarProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="/market-making" element={
+              <ProtectedRoute>
+                <SidebarProvider>
+                  <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col">
+                      <Header />
+                      <main className="flex-1 p-6 overflow-y-auto">
+                        <MarketMaking />
+                      </main>
+                    </div>
+                  </div>
+                </SidebarProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="/portfolio" element={
+              <ProtectedRoute>
+                <SidebarProvider>
+                  <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col">
+                      <Header />
+                      <main className="flex-1 p-6 overflow-y-auto">
+                        <Portfolio />
+                      </main>
+                    </div>
+                  </div>
+                </SidebarProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <SidebarProvider>
+                  <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
+                    <AppSidebar />
+                    <div className="flex-1 flex flex-col">
+                      <Header />
+                      <main className="flex-1 p-6 overflow-y-auto">
+                        <Settings />
+                      </main>
+                    </div>
+                  </div>
+                </SidebarProvider>
+              </ProtectedRoute>
+            } />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </BrowserRouter>
       </WalletProvider>
     </TooltipProvider>
