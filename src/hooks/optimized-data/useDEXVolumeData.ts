@@ -1,42 +1,48 @@
 
 import { useFetchOptimizedData } from './useFetchOptimizedData';
 
-export interface DEXProtocol {
-  name: string;
-  total24h: number;
-  change_1d: number;
-  change_7d: number;
-}
-
 export const useDEXVolumeData = () => {
-  const { data } = useFetchOptimizedData();
-  const dexVolumes = data.dexVolumes;
+  const { data, isLoading, dataSource, lastUpdate } = useFetchOptimizedData();
 
   return {
-    dexVolumes,
+    dexVolumes: data.dexVolumes,
+    isLoading,
+    dataSource,
+    lastUpdate,
     
-    getDexVolumeByName: (dexName: string): DEXProtocol | undefined => {
-      return dexVolumes?.protocols?.find((dex: any) => 
-        dex.name?.toLowerCase().includes(dexName.toLowerCase())
+    // Get DEX volume by name
+    getDexVolumeByName: (dexName: string) => {
+      if (!data.dexVolumes?.protocols) return 0;
+      
+      const dex = data.dexVolumes.protocols.find((protocol: any) => 
+        protocol.name?.toLowerCase().includes(dexName.toLowerCase())
       );
-    },
-
-    getTotalDexVolume24h: (): number => {
-      if (!dexVolumes?.protocols) return 0;
-      return dexVolumes.protocols.reduce((sum: number, dex: any) => 
-        sum + (dex.total24h || 0), 0
-      );
+      
+      return dex?.total24h || 0;
     },
     
-    getTopDEXsByVolume: (limit = 5): DEXProtocol[] => {
-      if (!dexVolumes?.protocols) return [];
-      return [...dexVolumes.protocols]
-        .sort((a: any, b: any) => b.total24h - a.total24h)
+    // Get total DEX volume across all DEXs
+    getTotalDexVolume24h: () => {
+      if (!data.dexVolumes?.protocols) return 0;
+      
+      return data.dexVolumes.protocols.reduce((total: number, protocol: any) => {
+        return total + (protocol.total24h || 0);
+      }, 0);
+    },
+    
+    // Get top DEXs by volume
+    getTopDEXsByVolume: (limit: number = 5) => {
+      if (!data.dexVolumes?.protocols) return [];
+      
+      return data.dexVolumes.protocols
+        .sort((a: any, b: any) => (b.total24h || 0) - (a.total24h || 0))
         .slice(0, limit);
     },
     
-    getDEXCount: (): number => {
-      return dexVolumes?.protocols?.length || 0;
+    // Get count of active DEXs
+    getDEXCount: () => {
+      if (!data.dexVolumes?.protocols) return 0;
+      return data.dexVolumes.protocols.length;
     }
   };
 };

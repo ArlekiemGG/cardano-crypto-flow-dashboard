@@ -1,22 +1,19 @@
 
 export interface DeFiLlamaPrice {
-  coins: Record<string, {
-    price: number;
-    symbol: string;
-    timestamp: number;
-    confidence: number;
-  }>;
+  price: number;
+  change_24h?: number;
+  volume_24h?: number;
+  market_cap?: number;
+  timestamp: string;
 }
 
 export interface DeFiLlamaProtocol {
   id: string;
   name: string;
-  chains: string[];
   tvl: number;
-  change_1h: number;
-  change_1d: number;
-  change_7d: number;
-  volume_1d?: number;
+  change_1d?: number;
+  chains?: string[];
+  lastUpdate?: string;
 }
 
 export interface CacheStats {

@@ -1,33 +1,48 @@
 
 import { useFetchOptimizedData } from './useFetchOptimizedData';
-import { DeFiLlamaProtocol } from '@/services/optimized-data/types';
 
 export const useProtocolData = () => {
-  const { data } = useFetchOptimizedData();
-  const protocols = data.protocols || [];
+  const { data, isLoading, dataSource, lastUpdate } = useFetchOptimizedData();
 
   return {
-    protocols,
+    protocols: data.protocols,
+    isLoading,
+    dataSource,
+    lastUpdate,
     
-    // Utility methods for protocol data
-    getTopProtocolsByTVL: (limit = 10): DeFiLlamaProtocol[] => {
-      return [...protocols]
+    // Get top protocols by TVL
+    getTopProtocolsByTVL: (limit: number = 10) => {
+      if (!data.protocols) return [];
+      
+      return data.protocols
+        .filter(protocol => protocol.tvl > 0)
         .sort((a, b) => b.tvl - a.tvl)
         .slice(0, limit);
     },
     
-    getTotalCardanoTVL: (): number => {
-      return protocols.reduce((sum, protocol) => sum + (protocol.tvl || 0), 0);
+    // Get total Cardano ecosystem TVL
+    getTotalCardanoTVL: () => {
+      if (!data.protocols) return 0;
+      
+      return data.protocols.reduce((total, protocol) => {
+        return total + (protocol.tvl || 0);
+      }, 0);
     },
     
-    getProtocolByName: (name: string): DeFiLlamaProtocol | undefined => {
-      return protocols.find(p => 
-        p.name.toLowerCase().includes(name.toLowerCase())
-      );
+    // Get protocol by name
+    getProtocolByName: (name: string) => {
+      if (!data.protocols) return null;
+      
+      return data.protocols.find(protocol => 
+        protocol.name?.toLowerCase().includes(name.toLowerCase())
+      ) || null;
     },
     
-    getProtocolById: (id: string): DeFiLlamaProtocol | undefined => {
-      return protocols.find(p => p.id === id);
+    // Get protocol by ID
+    getProtocolById: (id: string) => {
+      if (!data.protocols) return null;
+      
+      return data.protocols.find(protocol => protocol.id === id) || null;
     }
   };
 };

@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { optimizedDataService } from '@/services/optimizedDataService';
-import { DeFiLlamaPrice, DeFiLlamaProtocol, CacheStats } from '@/services/optimized-data/types';
+import { DeFiLlamaProtocol, CacheStats } from '@/services/optimized-data/types';
 
 export interface OptimizedMarketData {
   prices: Record<string, any>;
@@ -24,7 +24,6 @@ const DEFAULT_DATA: OptimizedMarketData = {
 };
 
 const UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
-const CRITICAL_TOKENS = ['coingecko:cardano'];
 
 export const useFetchOptimizedData = () => {
   const [data, setData] = useState<OptimizedMarketData>(DEFAULT_DATA);
@@ -33,56 +32,78 @@ export const useFetchOptimizedData = () => {
 
   const fetchAllData = async () => {
     try {
-      console.log('🚀 Fetching optimized market data...');
+      console.log('🚀 Fetching optimized market data from database...');
       setData(prev => ({ ...prev, isLoading: true }));
 
-      // Parallel fetching for better performance
+      // Fetch real data directly from Supabase cache (populated by edge function)
       const [pricesResult, protocolsResult, volumesResult] = await Promise.allSettled([
-        optimizedDataService.getCurrentPrices(CRITICAL_TOKENS),
+        optimizedDataService.getCurrentPrices(['ADA/USD']),
         optimizedDataService.getCardanoProtocols(),
         optimizedDataService.getCardanoDexVolumes()
       ]);
 
-      // Process results
+      // Process results and create proper data structure
       const newData: Partial<OptimizedMarketData> = {
         lastUpdate: new Date(),
         isLoading: false,
         cacheStats: optimizedDataService.getCacheStats()
       };
 
+      // Process prices result
       if (pricesResult.status === 'fulfilled') {
-        newData.prices = pricesResult.value;
+        // Convert array of price entries to proper structure
+        const pricesArray = pricesResult.value;
+        if (Array.isArray(pricesArray) && pricesArray.length > 0) {
+          // Create a lookup structure for easier access
+          const pricesMap: Record<string, any> = {};
+          pricesArray.forEach((entry, index) => {
+            const key = entry.pair || `entry_${index}`;
+            pricesMap[key] = entry;
+          });
+          newData.prices = pricesMap;
+          console.log('✅ Real prices loaded:', Object.keys(pricesMap).length, 'entries');
+        } else {
+          newData.prices = {};
+          console.warn('⚠️ No price data available');
+        }
       } else {
         console.error('❌ Error fetching prices:', pricesResult.reason);
         newData.prices = {};
       }
 
+      // Process protocols result
       if (protocolsResult.status === 'fulfilled') {
-        newData.protocols = protocolsResult.value;
+        newData.protocols = protocolsResult.value || [];
+        console.log('✅ Protocols loaded:', newData.protocols.length, 'protocols');
       } else {
         console.error('❌ Error fetching protocols:', protocolsResult.reason);
         newData.protocols = [];
       }
 
+      // Process DEX volumes result
       if (volumesResult.status === 'fulfilled') {
         newData.dexVolumes = volumesResult.value;
+        console.log('✅ DEX volumes loaded');
       } else {
         console.error('❌ Error fetching DEX volumes:', volumesResult.reason);
         newData.dexVolumes = null;
       }
 
-      // Determine predominant data source
-      const cacheStats = optimizedDataService.getCacheStats();
-      const sources = cacheStats.sources || {};
-      const totalSources = Object.values(sources).reduce((a: number, b: number) => a + b, 0);
-      const defiLlamaCount = Number(sources.defillama) || 0;
+      // Determine data source based on what we got
+      const hasRealPrices = newData.prices && Object.keys(newData.prices).length > 0;
+      const hasRealProtocols = newData.protocols && newData.protocols.length > 0;
       
-      newData.dataSource = totalSources > 0 && defiLlamaCount / totalSources > 0.7 ? 'defillama' : 
-                          defiLlamaCount === 0 ? 'native' : 'mixed';
+      if (hasRealPrices && hasRealProtocols) {
+        newData.dataSource = 'defillama';
+      } else if (hasRealPrices || hasRealProtocols) {
+        newData.dataSource = 'mixed';
+      } else {
+        newData.dataSource = 'native';
+      }
 
       setData(prev => ({ ...prev, ...newData }));
       
-      console.log(`✅ Optimized data updated - Source: ${newData.dataSource}, Cache hit rate: ${(cacheStats.hitRate * 100).toFixed(1)}%`);
+      console.log(`✅ Optimized data updated - Source: ${newData.dataSource}, Prices: ${Object.keys(newData.prices || {}).length}, Protocols: ${newData.protocols?.length || 0}`);
 
     } catch (error) {
       console.error('❌ Error in optimized data fetch:', error);

@@ -11,57 +11,119 @@ export const usePriceData = () => {
     lastUpdate,
     forceRefresh,
     
-    // Specific price getters with real data validation
+    // Get real ADA price from database (CoinGecko data)
     getADAPrice: () => {
-      // Get real ADA price directly from DeFiLlama/CoinGecko data
-      const adaData = data.prices?.coins?.['coingecko:cardano'];
-      if (adaData?.price && typeof adaData.price === 'number' && adaData.price > 0.1 && adaData.price < 10) {
-        return adaData.price;
+      // First try to get real CoinGecko data from the cached market data
+      if (data.prices && Object.keys(data.prices).length > 0) {
+        // Look for ADA/USD pair from CoinGecko
+        const adaEntry = Object.values(data.prices).find(entry => 
+          typeof entry === 'object' && 
+          entry !== null && 
+          'pair' in entry && 
+          'source_dex' in entry &&
+          'price' in entry &&
+          (entry.pair === 'ADA/USD' || entry.pair?.includes('ADA')) &&
+          entry.source_dex === 'CoinGecko' &&
+          typeof entry.price === 'number' &&
+          entry.price > 0.1 &&
+          entry.price < 10
+        );
+        
+        if (adaEntry && 'price' in adaEntry) {
+          console.log('✅ Using real CoinGecko ADA price:', adaEntry.price);
+          return adaEntry.price;
+        }
       }
-      
-      // Only fallback if no real price data is available
-      if (!adaData && data.protocols && data.protocols.length > 0) {
-        console.warn('⚠️ Using fallback ADA price calculation - real price data not available');
+
+      // Fallback: Check if we have DeFiLlama protocol data to estimate
+      if (data.protocols && data.protocols.length > 0) {
         const firstProtocol = data.protocols[0];
-        if (firstProtocol.tvl > 1000000) {
-          return Math.min(Math.max(0.3, firstProtocol.tvl / 50000000), 2.0);
+        if (firstProtocol?.tvl && firstProtocol.tvl > 1000000) {
+          const estimatedPrice = Math.min(Math.max(0.4, firstProtocol.tvl / 50000000), 1.5);
+          console.log('⚠️ Using estimated ADA price from protocol TVL:', estimatedPrice);
+          return estimatedPrice;
         }
       }
       
+      console.warn('❌ No real ADA price data available');
       return 0;
     },
     
-    // Get real 24h change directly from price data
+    // Get real 24h change from CoinGecko data
     getADAChange24h: () => {
-      const adaData = data.prices?.coins?.['coingecko:cardano'];
-      if (adaData?.change_24h && typeof adaData.change_24h === 'number') {
-        return adaData.change_24h;
+      if (data.prices && Object.keys(data.prices).length > 0) {
+        const adaEntry = Object.values(data.prices).find(entry => 
+          typeof entry === 'object' && 
+          entry !== null && 
+          'pair' in entry && 
+          'source_dex' in entry &&
+          'change_24h' in entry &&
+          (entry.pair === 'ADA/USD' || entry.pair?.includes('ADA')) &&
+          entry.source_dex === 'CoinGecko'
+        );
+        
+        if (adaEntry && 'change_24h' in adaEntry && typeof adaEntry.change_24h === 'number') {
+          return adaEntry.change_24h;
+        }
       }
       return 0;
     },
     
-    // Get real volume directly from price data
+    // Get real volume from CoinGecko data
     getADAVolume24h: () => {
-      const adaData = data.prices?.coins?.['coingecko:cardano'];
-      if (adaData?.volume_24h && typeof adaData.volume_24h === 'number') {
-        return adaData.volume_24h;
+      if (data.prices && Object.keys(data.prices).length > 0) {
+        const adaEntry = Object.values(data.prices).find(entry => 
+          typeof entry === 'object' && 
+          entry !== null && 
+          'pair' in entry && 
+          'source_dex' in entry &&
+          'volume_24h' in entry &&
+          (entry.pair === 'ADA/USD' || entry.pair?.includes('ADA')) &&
+          entry.source_dex === 'CoinGecko'
+        );
+        
+        if (adaEntry && 'volume_24h' in adaEntry && typeof adaEntry.volume_24h === 'number') {
+          return adaEntry.volume_24h;
+        }
       }
       return 0;
     },
     
     // Get price by token ID with real validation
     getTokenPrice: (tokenId: string) => {
-      const tokenData = data.prices?.coins?.[tokenId];
-      if (tokenData?.price && typeof tokenData.price === 'number') {
-        return tokenData.price;
+      if (data.prices && Object.keys(data.prices).length > 0) {
+        const tokenEntry = Object.values(data.prices).find(entry => 
+          typeof entry === 'object' && 
+          entry !== null && 
+          'pair' in entry && 
+          'price' in entry &&
+          entry.pair?.includes(tokenId)
+        );
+        
+        if (tokenEntry && 'price' in tokenEntry && typeof tokenEntry.price === 'number') {
+          return tokenEntry.price;
+        }
       }
       return 0;
     },
     
     // Check if we have real price data (not derived/calculated)
     hasRealPriceData: () => {
-      const adaData = data.prices?.coins?.['coingecko:cardano'];
-      return !!(adaData?.price && dataSource !== 'native');
+      if (data.prices && Object.keys(data.prices).length > 0) {
+        const hasRealADA = Object.values(data.prices).some(entry => 
+          typeof entry === 'object' && 
+          entry !== null && 
+          'pair' in entry && 
+          'source_dex' in entry &&
+          'price' in entry &&
+          (entry.pair === 'ADA/USD' || entry.pair?.includes('ADA')) &&
+          entry.source_dex === 'CoinGecko' &&
+          typeof entry.price === 'number' &&
+          entry.price > 0.1
+        );
+        return hasRealADA && dataSource !== 'native';
+      }
+      return false;
     }
   };
 };
