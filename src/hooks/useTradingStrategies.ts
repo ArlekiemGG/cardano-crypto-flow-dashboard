@@ -170,15 +170,15 @@ export const useTradingStrategies = (userWallet?: string) => {
         return filtered;
       });
       
-      console.log('Making Supabase delete request...');
-      const { data, error } = await supabase
-        .from('trading_strategies')
-        .delete()
-        .eq('id', strategyId)
-        .eq('user_wallet', userWallet);
+      console.log('Making Supabase RPC delete request...');
+      // Use RPC function for consistent deletion
+      const { data, error } = await supabase.rpc('delete_trading_strategy', {
+        p_strategy_id: strategyId,
+        p_user_wallet: userWallet
+      });
 
-      console.log('Supabase response - data:', data);
-      console.log('Supabase response - error:', error);
+      console.log('Supabase RPC response - data:', data);
+      console.log('Supabase RPC response - error:', error);
 
       if (error) {
         console.error('Database error deleting strategy:', error);
@@ -187,7 +187,7 @@ export const useTradingStrategies = (userWallet?: string) => {
         throw error;
       }
       
-      console.log('Strategy deleted successfully from database');
+      console.log('Strategy deleted successfully from database via RPC');
       
       toast({
         title: "Success",
