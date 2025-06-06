@@ -321,6 +321,10 @@ export type Database = {
         }
         Returns: string
       }
+      delete_trading_strategy: {
+        Args: { p_strategy_id: string; p_user_wallet: string }
+        Returns: boolean
+      }
       ensure_user_exists: {
         Args: { p_wallet_address: string }
         Returns: undefined

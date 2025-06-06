@@ -171,8 +171,8 @@ export const useTradingStrategies = (userWallet?: string) => {
       });
       
       console.log('Making Supabase RPC delete request...');
-      // Use RPC function for consistent deletion
-      const { data, error } = await supabase.rpc('delete_trading_strategy', {
+      // Use RPC function for consistent deletion with type assertion
+      const { data, error } = await supabase.rpc('delete_trading_strategy' as any, {
         p_strategy_id: strategyId,
         p_user_wallet: userWallet
       });
