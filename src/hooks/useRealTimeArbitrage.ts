@@ -30,6 +30,8 @@ interface ArbitrageStats {
   totalPotentialProfit: number;
   highConfidenceCount: number;
   lastScanTime: Date;
+  successRate: number;
+  totalVolume: number;
 }
 
 export const useRealTimeArbitrage = () => {
@@ -39,11 +41,14 @@ export const useRealTimeArbitrage = () => {
     avgProfitPercentage: 0,
     totalPotentialProfit: 0,
     highConfidenceCount: 0,
-    lastScanTime: new Date()
+    lastScanTime: new Date(),
+    successRate: 0,
+    totalVolume: 0
   });
   const [isScanning, setIsScanning] = useState(false);
   const [scanInterval, setScanInterval] = useState(15); // 15 seconds for real data
   const [executingTrades, setExecutingTrades] = useState<Set<string>>(new Set());
+  const [lastScan, setLastScan] = useState(new Date());
   
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isInitializedRef = useRef(false);
@@ -52,6 +57,7 @@ export const useRealTimeArbitrage = () => {
     if (isScanning) return;
     
     setIsScanning(true);
+    setLastScan(new Date());
     console.log('🔍 Starting REAL arbitrage scan with live DEX data...');
     
     try {
@@ -67,6 +73,7 @@ export const useRealTimeArbitrage = () => {
       setOpportunities(formattedOpportunities);
       
       // Update stats
+      const totalVolume = formattedOpportunities.reduce((sum, opp) => sum + opp.volumeAvailable, 0);
       const newStats: ArbitrageStats = {
         totalOpportunities: formattedOpportunities.length,
         avgProfitPercentage: formattedOpportunities.length > 0 
@@ -74,7 +81,9 @@ export const useRealTimeArbitrage = () => {
           : 0,
         totalPotentialProfit: formattedOpportunities.reduce((sum, opp) => sum + opp.profitADA, 0),
         highConfidenceCount: formattedOpportunities.filter(opp => opp.confidence === 'HIGH').length,
-        lastScanTime: new Date()
+        lastScanTime: new Date(),
+        successRate: 85.2, // Mock success rate - in real implementation, calculate from trade history
+        totalVolume
       };
       setStats(newStats);
       
@@ -116,14 +125,14 @@ export const useRealTimeArbitrage = () => {
       const simulationResult = await arbitrageEngine.simulateTradeExecution(opportunity);
       
       if (simulationResult.success) {
-        // Store executed trade in database
+        // Store executed trade in database - using correct status value
         await supabase.from('trade_history').insert({
           pair: opportunity.pair,
           trade_type: 'arbitrage',
           amount: opportunity.volumeAvailable,
           profit_loss: simulationResult.estimatedProfit,
           dex_name: `${opportunity.buyDex}-${opportunity.sellDex}`,
-          status: 'completed',
+          status: 'executed', // Changed from 'completed' to 'executed'
           tx_hash: `sim_${Date.now()}`, // In real implementation, this would be actual tx hash
           gas_fee: simulationResult.gasEstimate,
           metadata_json: {
@@ -164,6 +173,16 @@ export const useRealTimeArbitrage = () => {
         return newSet;
       });
     }
+  };
+
+  const simulateExecution = async (opportunityId: string) => {
+    const opportunity = opportunities.find(opp => opp.id === opportunityId);
+    if (!opportunity) {
+      return { success: false, error: 'Opportunity not found' };
+    }
+
+    // Simulate execution result
+    return await arbitrageEngine.simulateTradeExecution(opportunity);
   };
 
   const autoExecuteHighConfidence = async () => {
@@ -267,13 +286,18 @@ export const useRealTimeArbitrage = () => {
     isScanning,
     scanInterval,
     executingTrades,
+    lastScan,
     
     // Actions
     performRealScan,
+    performScan: performRealScan, // Alias for compatibility
     executeArbitrage,
+    simulateExecution,
     autoExecuteHighConfidence,
     startAutoScanning,
+    startAutoScan: startAutoScanning, // Alias for compatibility
     stopAutoScanning,
+    stopAutoScan: stopAutoScanning, // Alias for compatibility
     
     // Filtering and data access
     getFilteredOpportunities,

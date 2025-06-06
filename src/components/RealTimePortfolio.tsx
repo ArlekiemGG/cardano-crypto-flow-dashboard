@@ -96,7 +96,7 @@ export const RealTimePortfolio = () => {
           setTradeHistory(data);
           
           // Calculate performance metrics
-          const completedTrades = data.filter(trade => trade.status === 'completed');
+          const completedTrades = data.filter(trade => trade.status === 'executed'); // Changed from 'completed' to 'executed'
           const totalTrades = completedTrades.length;
           const winningTrades = completedTrades.filter(trade => (trade.profit_loss || 0) > 0).length;
           const totalPnL = completedTrades.reduce((sum, trade) => sum + (trade.profit_loss || 0), 0);
@@ -261,7 +261,7 @@ export const RealTimePortfolio = () => {
                 <div key={trade.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
                   <div className="flex items-center space-x-3">
                     <div className={`w-3 h-3 rounded-full ${
-                      trade.status === 'completed' ? 'bg-green-400' : 
+                      trade.status === 'executed' ? 'bg-green-400' : 
                       trade.status === 'pending' ? 'bg-yellow-400' : 'bg-red-400'
                     }`}></div>
                     <div>
