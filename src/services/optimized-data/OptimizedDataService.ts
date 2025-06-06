@@ -36,16 +36,23 @@ class OptimizedDataService {
       console.log(`📊 Fetching prices from DeFiLlama: ${tokensString}`);
       const data = await this.apiClient.getCurrentPrices(tokens);
 
-      // Handle the API response properly - it might be a direct coins object or wrapped
+      // Fix: Properly handle different API response formats
       let priceResponse: DeFiLlamaPriceResponse;
       
-      if (data && typeof data === 'object' && 'coins' in data) {
-        // Data is already in DeFiLlamaPriceResponse format
-        priceResponse = data as DeFiLlamaPriceResponse;
+      if (data && typeof data === 'object') {
+        // Check if it's already in the expected format with coins property
+        if ('coins' in data && typeof data.coins === 'object') {
+          priceResponse = data as DeFiLlamaPriceResponse;
+        } else {
+          // If it's a direct price object, wrap it properly
+          priceResponse = {
+            coins: data as Record<string, any>
+          };
+        }
       } else {
-        // Data is a direct price object or needs to be wrapped
+        // Fallback to empty structure
         priceResponse = {
-          coins: data || {}
+          coins: {}
         };
       }
 

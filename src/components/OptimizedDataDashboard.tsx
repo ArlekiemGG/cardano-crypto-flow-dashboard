@@ -3,7 +3,8 @@ import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Database, Zap, TrendingUp, Activity } from 'lucide-react';
+import { RefreshCw, Database, Zap, TrendingUp, Activity, AlertTriangle } from 'lucide-react';
+import { SystemDiagnostics } from './SystemDiagnostics';
 
 export const OptimizedDataDashboard = () => {
   const {
@@ -18,7 +19,9 @@ export const OptimizedDataDashboard = () => {
     getADAPrice,
     getTopProtocolsByTVL,
     getTotalCardanoTVL,
-    getTotalDexVolume24h
+    getTotalDexVolume24h,
+    hasErrors,
+    errorDetails
   } = useOptimizedMarketData();
 
   const adaPrice = getADAPrice();
@@ -37,6 +40,30 @@ export const OptimizedDataDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* System Diagnostics Section */}
+      <SystemDiagnostics />
+
+      {/* Error Alert */}
+      {hasErrors && errorDetails.length > 0 && (
+        <Card className="glass border-red-500/50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-red-400">
+              <AlertTriangle className="h-5 w-5" />
+              <span>Errores Detectados</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {errorDetails.map((error, index) => (
+                <div key={index} className="text-sm text-red-300 bg-red-500/10 p-2 rounded border border-red-500/20">
+                  {error}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header con métricas del sistema */}
       <Card className="glass">
         <CardHeader>
@@ -47,6 +74,11 @@ export const OptimizedDataDashboard = () => {
               <Badge className={getSourceBadgeColor()}>
                 {dataSource.toUpperCase()}
               </Badge>
+              {hasErrors && (
+                <Badge variant="destructive">
+                  {errorDetails.length} Errores
+                </Badge>
+              )}
             </div>
             <Button 
               onClick={forceRefresh} 
@@ -114,6 +146,12 @@ export const OptimizedDataDashboard = () => {
                 {dataSource === 'defillama' ? 'DeFiLlama API' : 
                  dataSource === 'native' ? 'APIs Nativas' : 
                  'Mixto (DeFiLlama + Nativas)'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm mt-1">
+              <span className="text-gray-400">Estado del sistema:</span>
+              <span className={`font-medium ${hasErrors ? 'text-red-400' : 'text-green-400'}`}>
+                {hasErrors ? `${errorDetails.length} errores detectados` : 'Funcionando correctamente'}
               </span>
             </div>
           </div>
