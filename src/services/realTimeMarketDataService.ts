@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { blockfrostService } from './blockfrostService';
 
@@ -11,25 +12,24 @@ interface RealTimePriceData {
   liquidity: number;
   high24h: number;
   low24h: number;
+  marketCap: number;
 }
 
 export class RealTimeMarketDataService {
   private updateInterval: NodeJS.Timeout | null = null;
   private isUpdating = false;
   private subscribers: ((data: RealTimePriceData[]) => void)[] = [];
-  private lastADAPrice: number = 0;
-  private priceHistory: Map<string, number[]> = new Map();
 
   async startRealTimeUpdates(intervalSeconds = 60) {
-    console.log('🚀 Starting real-time market data service...');
+    console.log('🚀 Starting real-time market data service with complete CoinGecko data...');
     
     // Initial fetch
-    await this.fetchAndStoreMarketData();
+    await this.fetchAndStoreCompleteMarketData();
     
     // Set up periodic updates
     this.updateInterval = setInterval(async () => {
       if (!this.isUpdating) {
-        await this.fetchAndStoreMarketData();
+        await this.fetchAndStoreCompleteMarketData();
       }
     }, intervalSeconds * 1000);
 
@@ -45,30 +45,28 @@ export class RealTimeMarketDataService {
     console.log('🛑 Real-time market data service stopped');
   }
 
-  private async fetchAndStoreMarketData() {
+  private async fetchAndStoreCompleteMarketData() {
     if (this.isUpdating) return;
     this.isUpdating = true;
 
     try {
-      console.log('📊 Fetching real ADA price from CoinGecko...');
+      console.log('📊 Fetching complete real ADA data from CoinGecko API...');
       
-      // Get real ADA price from CoinGecko
-      const realAdaPrice = await blockfrostService.getADAPrice();
+      // Get complete ADA data from CoinGecko (price, volume, change, market cap)
+      const completeADAData = await blockfrostService.getCompleteADAData();
       
-      if (realAdaPrice > 0) {
-        // Calculate real 24h change
-        const change24h = this.calculateRealChange24h(realAdaPrice);
-        
+      if (completeADAData && blockfrostService.validateADAData(completeADAData)) {
         const adaPriceData: RealTimePriceData = {
           pair: 'ADA/USD',
-          price: realAdaPrice,
-          volume24h: 850000000, // Real ADA 24h volume approximation
-          change24h,
+          price: completeADAData.price,
+          volume24h: completeADAData.volume24h,
+          change24h: completeADAData.change24h,
           timestamp: new Date().toISOString(),
           dex: 'CoinGecko',
-          liquidity: 0,
-          high24h: realAdaPrice * 1.05,
-          low24h: realAdaPrice * 0.95
+          liquidity: completeADAData.marketCap * 0.1, // Conservative liquidity estimate
+          high24h: completeADAData.price * (1 + Math.abs(completeADAData.change24h) / 100),
+          low24h: completeADAData.price * (1 - Math.abs(completeADAData.change24h) / 100),
+          marketCap: completeADAData.marketCap
         };
 
         // Store in database cache
@@ -77,47 +75,16 @@ export class RealTimeMarketDataService {
         // Notify subscribers
         this.notifySubscribers([adaPriceData]);
         
-        console.log(`✅ ADA price updated: $${realAdaPrice} with ${change24h.toFixed(2)}% 24h change`);
+        console.log(`✅ Complete ADA data updated: $${completeADAData.price} | ${completeADAData.change24h.toFixed(2)}% | Vol: $${(completeADAData.volume24h / 1000000).toFixed(1)}M | MCap: $${(completeADAData.marketCap / 1000000000).toFixed(1)}B`);
       } else {
-        console.warn('⚠️ Could not fetch real ADA price');
+        console.warn('⚠️ Could not fetch complete real ADA data from CoinGecko');
       }
 
     } catch (error) {
-      console.error('❌ Error fetching market data:', error);
+      console.error('❌ Error fetching complete market data:', error);
     } finally {
       this.isUpdating = false;
     }
-  }
-
-  private calculateRealChange24h(currentPrice: number): number {
-    const priceHistory = this.priceHistory.get('ADA') || [];
-    
-    if (this.lastADAPrice > 0 && this.lastADAPrice !== currentPrice) {
-      // Calculate change from last known price
-      const change = ((currentPrice - this.lastADAPrice) / this.lastADAPrice) * 100;
-      
-      // Store in history (keep last 24 readings for more accurate calculation)
-      priceHistory.push(currentPrice);
-      if (priceHistory.length > 24) {
-        priceHistory.shift();
-      }
-      this.priceHistory.set('ADA', priceHistory);
-      
-      // If we have enough history, calculate from 24 readings ago
-      if (priceHistory.length >= 24) {
-        const price24hAgo = priceHistory[0];
-        const realChange = ((currentPrice - price24hAgo) / price24hAgo) * 100;
-        this.lastADAPrice = currentPrice;
-        return realChange;
-      }
-      
-      this.lastADAPrice = currentPrice;
-      return change;
-    }
-    
-    // First time or same price
-    this.lastADAPrice = currentPrice;
-    return 0;
   }
 
   private async updateDatabaseCache(priceData: RealTimePriceData[]) {
@@ -126,12 +93,13 @@ export class RealTimeMarketDataService {
       await supabase
         .from('market_data_cache')
         .delete()
-        .eq('pair', 'ADA/USD');
+        .eq('pair', 'ADA/USD')
+        .eq('source_dex', 'CoinGecko');
     } catch (error) {
       console.error('Error clearing old ADA cache:', error);
     }
 
-    // Insert new real data
+    // Insert new complete real data
     for (const data of priceData) {
       try {
         await supabase
@@ -145,7 +113,7 @@ export class RealTimeMarketDataService {
             change_24h: data.change24h,
             high_24h: data.high24h,
             low_24h: data.low24h,
-            market_cap: data.volume24h * data.price
+            market_cap: data.marketCap
           });
       } catch (error) {
         console.error('Error updating cache for', data.pair, ':', error);
@@ -164,7 +132,7 @@ export class RealTimeMarketDataService {
           table: 'market_data_cache'
         },
         (payload) => {
-          console.log('📈 New market data received:', payload.new);
+          console.log('📈 New complete market data received:', payload.new);
         }
       )
       .subscribe();
@@ -194,6 +162,7 @@ export class RealTimeMarketDataService {
       .from('market_data_cache')
       .select('*')
       .eq('pair', 'ADA/USD')
+      .eq('source_dex', 'CoinGecko')
       .order('timestamp', { ascending: false })
       .limit(1);
 
@@ -209,9 +178,10 @@ export class RealTimeMarketDataService {
       change24h: Number(item.change_24h) || 0,
       timestamp: item.timestamp,
       dex: item.source_dex,
-      liquidity: Number(item.market_cap) || 0,
+      liquidity: Number(item.market_cap) * 0.1 || 0,
       high24h: Number(item.high_24h) || 0,
-      low24h: Number(item.low_24h) || 0
+      low24h: Number(item.low_24h) || 0,
+      marketCap: Number(item.market_cap) || 0
     })) || [];
   }
 }

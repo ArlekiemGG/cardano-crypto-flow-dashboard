@@ -14,9 +14,13 @@ export function Header() {
   const { isConnected: walletConnected } = useWallet()
   const notifications = 3
 
-  // Calculate real 24h volume from actual market data
-  const total24hVolume = marketData.reduce((sum, data) => sum + data.volume24h, 0)
-  const activeBots = marketData.filter(data => data.symbol !== 'ADA').length
+  // Get real 24h volume from actual CoinGecko data (not hardcoded)
+  const adaData = marketData.find(data => data.symbol === 'ADA')
+  const real24hVolume = adaData?.volume24h || 0
+  
+  // For DEX pairs count, this would be for native Cardano asset trading pairs
+  // (not just ADA pairs, but other native Cardano assets trading on DEXs)
+  const activeDEXPairs = 0 // Will be populated when DEX data for native assets is implemented
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
@@ -29,14 +33,18 @@ export function Header() {
           <div className="text-sm">
             <span className="text-gray-400">24h Vol: </span>
             <span className="text-white font-mono">
-              ${total24hVolume > 1000000 
-                ? `${(total24hVolume / 1000000).toFixed(1)}M` 
-                : `${(total24hVolume / 1000).toFixed(0)}K`}
+              {real24hVolume > 0 
+                ? real24hVolume > 1000000000 
+                  ? `$${(real24hVolume / 1000000000).toFixed(1)}B`
+                  : `$${(real24hVolume / 1000000).toFixed(1)}M`
+                : 'Loading...'
+              }
             </span>
           </div>
           <div className="text-sm">
-            <span className="text-gray-400">Active Pairs: </span>
-            <span className="text-crypto-primary font-mono">{activeBots}</span>
+            <span className="text-gray-400">DEX Pairs: </span>
+            <span className="text-crypto-primary font-mono">{activeDEXPairs}</span>
+            <span className="text-xs text-gray-500 ml-1">(Native Assets)</span>
           </div>
         </div>
       </div>
@@ -45,7 +53,7 @@ export function Header() {
         {/* Network Indicator */}
         <NetworkIndicator />
 
-        {/* DEX Connection Status */}
+        {/* CoinGecko Connection Status for ADA Data */}
         <div className="flex items-center space-x-2">
           {isConnected ? (
             <Wifi className="h-4 w-4 text-green-400" />
@@ -53,7 +61,7 @@ export function Header() {
             <WifiOff className="h-4 w-4 text-red-400" />
           )}
           <span className={`text-xs hidden sm:block ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
-            {isConnected ? 'DEX Connected' : 'Disconnected'}
+            {isConnected ? 'CoinGecko Live' : 'Disconnected'}
           </span>
         </div>
 

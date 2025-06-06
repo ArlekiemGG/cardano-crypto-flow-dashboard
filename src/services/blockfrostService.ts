@@ -1,172 +1,107 @@
 
-const BLOCKFROST_API_KEY = 'mainnetqDbcAxZGzm4fvd6efh43cp81lL1VK6TT';
-const BLOCKFROST_BASE_URL = 'https://cardano-mainnet.blockfrost.io/api/v0';
-
-interface BlockfrostAsset {
-  asset: string;
-  policy_id: string;
-  asset_name: string;
-  fingerprint: string;
-  quantity: string;
-  initial_mint_tx_hash: string;
-  mint_or_burn_count: number;
-  onchain_metadata: any;
-  metadata: any;
+interface CoinGeckoADAData {
+  cardano: {
+    usd: number;
+    usd_24h_change: number;
+    usd_24h_vol: number;
+    usd_market_cap: number;
+  };
 }
 
-interface BlockfrostUtxo {
-  address: string;
-  tx_hash: string;
-  output_index: number;
-  amount: Array<{
-    unit: string;
-    quantity: string;
-  }>;
-  block: string;
-  data_hash?: string;
-}
-
-interface BlockfrostAddressInfo {
-  address: string;
-  amount: Array<{
-    unit: string;
-    quantity: string;
-  }>;
-  stake_address: string | null;
-  type: string;
-  script: boolean;
-}
-
-interface BlockfrostPool {
-  pool_id: string;
-  hex: string;
-  vrf_key: string;
-  blocks_minted: number;
-  blocks_epoch: number;
-  live_stake: string;
-  live_size: number;
-  live_saturation: number;
-  live_delegators: number;
-  active_stake: string;
-  active_size: number;
-  declared_pledge: string;
-  live_pledge: string;
-  margin_cost: number;
-  fixed_cost: string;
-  reward_account: string;
-  owners: string[];
-  registration: string[];
-  retirement: string[];
+interface CoinGeckoDetailedData {
+  market_data: {
+    current_price: {
+      usd: number;
+    };
+    price_change_percentage_24h: number;
+    total_volume: {
+      usd: number;
+    };
+    market_cap: {
+      usd: number;
+    };
+  };
 }
 
 export class BlockfrostService {
-  private async makeBlockfrostRequest(endpoint: string) {
+  private readonly COINGECKO_SIMPLE_API = 'https://api.coingecko.com/api/v3/simple/price';
+  private readonly COINGECKO_DETAILED_API = 'https://api.coingecko.com/api/v3/coins/cardano';
+
+  async getCompleteADAData(): Promise<{
+    price: number;
+    change24h: number;
+    volume24h: number;
+    marketCap: number;
+  } | null> {
     try {
-      console.log(`Making Blockfrost request to: ${BLOCKFROST_BASE_URL}${endpoint}`);
+      console.log('🔍 Fetching complete ADA data from CoinGecko...');
       
-      const response = await fetch(`${BLOCKFROST_BASE_URL}${endpoint}`, {
-        headers: {
-          'project_id': BLOCKFROST_API_KEY,
-          'Content-Type': 'application/json'
-        }
-      });
+      // Try detailed endpoint first for more accurate data
+      const detailedResponse = await fetch(
+        `${this.COINGECKO_DETAILED_API}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`
+      );
 
-      console.log(`Blockfrost response status: ${response.status}`);
+      if (detailedResponse.ok) {
+        const detailedData: CoinGeckoDetailedData = await detailedResponse.json();
+        const result = {
+          price: detailedData.market_data.current_price.usd,
+          change24h: detailedData.market_data.price_change_percentage_24h || 0,
+          volume24h: detailedData.market_data.total_volume.usd,
+          marketCap: detailedData.market_data.market_cap.usd
+        };
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Blockfrost API error response:', errorText);
-        throw new Error(`Blockfrost API error: ${response.status} ${response.statusText} - ${errorText}`);
+        console.log('✅ Complete ADA data fetched from detailed endpoint:', result);
+        return result;
       }
 
-      const data = await response.json();
-      console.log('Blockfrost response data:', data);
-      return data;
+      // Fallback to simple endpoint with additional parameters
+      console.log('🔄 Falling back to simple endpoint with extended data...');
+      const simpleResponse = await fetch(
+        `${this.COINGECKO_SIMPLE_API}?ids=cardano&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true`
+      );
+
+      if (!simpleResponse.ok) {
+        throw new Error(`CoinGecko API error: ${simpleResponse.status}`);
+      }
+
+      const simpleData: CoinGeckoADAData = await simpleResponse.json();
+      
+      if (!simpleData.cardano) {
+        throw new Error('No ADA data found in CoinGecko response');
+      }
+
+      const result = {
+        price: simpleData.cardano.usd,
+        change24h: simpleData.cardano.usd_24h_change || 0,
+        volume24h: simpleData.cardano.usd_24h_vol || 0,
+        marketCap: simpleData.cardano.usd_market_cap || 0
+      };
+
+      console.log('✅ Complete ADA data fetched from simple endpoint:', result);
+      return result;
+
     } catch (error) {
-      console.error('Error making Blockfrost request:', error);
-      throw error;
+      console.error('❌ Error fetching complete ADA data:', error);
+      return null;
     }
   }
 
-  async getAddressInfo(address: string): Promise<BlockfrostAddressInfo> {
-    console.log('Fetching real address info from Blockfrost for:', address);
-    
-    // Validate address format
-    if (!address || (!address.startsWith('addr1') && !address.startsWith('DdzFF'))) {
-      console.warn('Invalid address format, trying anyway:', address);
-    }
-    
-    return await this.makeBlockfrostRequest(`/addresses/${address}`);
-  }
-
-  async getAddressUtxos(address: string): Promise<BlockfrostUtxo[]> {
-    console.log('Fetching real UTXOs from Blockfrost for:', address);
-    
-    // Validate address format
-    if (!address || (!address.startsWith('addr1') && !address.startsWith('DdzFF'))) {
-      console.warn('Invalid address format, trying anyway:', address);
-    }
-    
-    return await this.makeBlockfrostRequest(`/addresses/${address}/utxos`);
-  }
-
+  // Legacy method for backward compatibility
   async getADAPrice(): Promise<number> {
-    try {
-      // Use CoinGecko for USD price as it's public and doesn't require API key
-      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=cardano&vs_currencies=usd');
-      const data = await response.json();
-      return data.cardano?.usd || 0;
-    } catch (error) {
-      console.error('Error fetching ADA price:', error);
-      return 0;
-    }
+    const completeData = await this.getCompleteADAData();
+    return completeData?.price || 0;
   }
 
-  async getPoolInfo(poolId: string): Promise<BlockfrostPool> {
-    return await this.makeBlockfrostRequest(`/pools/${poolId}`);
-  }
-
-  async getAllPools(): Promise<string[]> {
-    return await this.makeBlockfrostRequest('/pools');
-  }
-
-  async getPoolsExtended(page: number = 1): Promise<BlockfrostPool[]> {
-    return await this.makeBlockfrostRequest(`/pools/extended?page=${page}&count=100`);
-  }
-
-  async getLatestBlock() {
-    return await this.makeBlockfrostRequest('/blocks/latest');
-  }
-
-  async getNetworkInfo() {
-    return await this.makeBlockfrostRequest('/network');
-  }
-
-  async getAssetInfo(asset: string): Promise<BlockfrostAsset> {
-    return await this.makeBlockfrostRequest(`/assets/${asset}`);
-  }
-
-  async getTransaction(txHash: string) {
-    return await this.makeBlockfrostRequest(`/txs/${txHash}`);
-  }
-
-  async getTransactionUtxos(txHash: string) {
-    return await this.makeBlockfrostRequest(`/txs/${txHash}/utxos`);
-  }
-
-  async getAddressTransactions(address: string, page: number = 1) {
-    return await this.makeBlockfrostRequest(`/addresses/${address}/transactions?page=${page}&count=50&order=desc`);
-  }
-
-  // Convert lovelace string to ADA
-  lovelaceToAda(lovelace: string): number {
-    return parseInt(lovelace) / 1000000;
-  }
-
-  // Get ADA balance from address info
-  getAdaBalance(addressInfo: BlockfrostAddressInfo): number {
-    const adaAmount = addressInfo.amount.find(amount => amount.unit === 'lovelace');
-    return adaAmount ? this.lovelaceToAda(adaAmount.quantity) : 0;
+  // Method to validate if we have complete data
+  validateADAData(data: any): boolean {
+    return !!(
+      data &&
+      typeof data.price === 'number' &&
+      typeof data.change24h === 'number' &&
+      typeof data.volume24h === 'number' &&
+      typeof data.marketCap === 'number' &&
+      data.price > 0
+    );
   }
 }
 
