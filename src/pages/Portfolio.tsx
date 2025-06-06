@@ -1,7 +1,7 @@
 
 import { MetricCard } from "@/components/MetricCard"
 import { PieChart, TrendingUp, BarChart3, DollarSign } from "lucide-react"
-import { useWallet } from "@/contexts/WalletContext"
+import { useWallet } from "@/contexts/ModernWalletContext"
 
 export default function Portfolio() {
   const { balance, address, isConnected } = useWallet();

@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { blockfrostService } from '@/services/blockfrostService';
 
@@ -34,14 +35,14 @@ export class WalletService {
 
   async getPortfolioValue(walletAddress: string): Promise<number> {
     try {
-      // Get real balance from Blockfrost instead of database
+      // Get balance from Blockfrost (currently mock implementation)
       const addressInfo = await blockfrostService.getAddressInfo(walletAddress);
       const realBalance = blockfrostService.getAdaBalance(addressInfo);
       
-      console.log('Real portfolio value from Blockfrost:', realBalance);
+      console.log('Portfolio value from Blockfrost (mock):', realBalance);
       return realBalance;
     } catch (error) {
-      console.error('Error fetching real portfolio value:', error);
+      console.error('Error fetching portfolio value:', error);
       return 0;
     }
   }
@@ -61,7 +62,7 @@ export class WalletService {
     network: string;
   }): Promise<void> {
     try {
-      // Get real balance from Blockfrost before saving
+      // Get balance from Blockfrost (currently mock implementation)
       const addressInfo = await blockfrostService.getAddressInfo(walletData.address);
       const realBalance = blockfrostService.getAdaBalance(addressInfo);
 
@@ -80,7 +81,7 @@ export class WalletService {
           }
         });
 
-      console.log('Real wallet session saved to database with Blockfrost balance:', realBalance);
+      console.log('Wallet session saved to database with Blockfrost balance (mock):', realBalance);
     } catch (error) {
       console.error('Error saving wallet session:', error);
     }
@@ -89,7 +90,7 @@ export class WalletService {
   // Update portfolio metrics with real wallet data
   async updatePortfolioMetrics(walletAddress: string): Promise<void> {
     try {
-      // Get real balance from Blockfrost
+      // Get balance from Blockfrost (currently mock implementation)
       const addressInfo = await blockfrostService.getAddressInfo(walletAddress);
       const realBalance = blockfrostService.getAdaBalance(addressInfo);
 
@@ -101,9 +102,9 @@ export class WalletService {
           updated_at: new Date().toISOString()
         });
 
-      console.log('Real portfolio metrics updated from Blockfrost for wallet:', walletAddress, 'Balance:', realBalance);
+      console.log('Portfolio metrics updated from Blockfrost (mock) for wallet:', walletAddress, 'Balance:', realBalance);
     } catch (error) {
-      console.error('Error updating portfolio metrics with real data:', error);
+      console.error('Error updating portfolio metrics:', error);
     }
   }
 
@@ -126,18 +127,18 @@ export class WalletService {
     }
   }
 
-  // Verify stake pool information using real Blockfrost data
+  // Verify stake pool information using Blockfrost data (currently mock)
   async verifyStakePool(stakeAddress: string): Promise<{
     poolId?: string;
     poolName?: string;
     isStaked: boolean;
   }> {
     try {
-      // Use real Blockfrost API to get stake pool info
+      // Use Blockfrost API to get stake pool info (currently mock implementation)
       const addressInfo = await blockfrostService.getAddressInfo(stakeAddress);
       return {
         poolId: addressInfo.stake_address || undefined,
-        poolName: 'Real Pool',
+        poolName: 'Mock Pool',
         isStaked: !!addressInfo.stake_address
       };
     } catch (error) {
@@ -146,14 +147,14 @@ export class WalletService {
     }
   }
 
-  // Get real UTXO data from Blockfrost
+  // Get UTXO data from Blockfrost (currently mock)
   async getUTXOs(address: string): Promise<any[]> {
     try {
       const utxos = await blockfrostService.getAddressUtxos(address);
-      console.log('Real UTXOs fetched from Blockfrost:', utxos.length);
+      console.log('UTXOs fetched from Blockfrost (mock):', utxos.length);
       return utxos;
     } catch (error) {
-      console.error('Error fetching real UTXOs from Blockfrost:', error);
+      console.error('Error fetching UTXOs from Blockfrost:', error);
       return [];
     }
   }

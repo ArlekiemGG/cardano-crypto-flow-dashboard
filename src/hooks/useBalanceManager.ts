@@ -24,17 +24,17 @@ export const useBalanceManager = (walletApi: CardanoWalletApi | null, isConnecte
     try {
       console.log('Refreshing balance for address:', address);
       
-      // Get real address info from Blockfrost
+      // Get real address info from Blockfrost (currently mock implementation)
       const addressInfo = await blockfrostService.getAddressInfo(address);
       const balance = blockfrostService.getAdaBalance(addressInfo);
 
-      // Get real UTXOs from Blockfrost
+      // Get real UTXOs from Blockfrost (currently mock implementation)
       const utxos = await blockfrostService.getAddressUtxos(address);
 
       setBalanceState({ balance, utxos });
 
-      console.log('Real balance from Blockfrost:', balance, 'ADA');
-      console.log('Real UTXOs count:', utxos.length);
+      console.log('Balance from Blockfrost (mock):', balance, 'ADA');
+      console.log('UTXOs count:', utxos.length);
     } catch (error) {
       console.error('Failed to refresh balance from Blockfrost:', error);
       // Set balance to 0 on error to avoid showing fake data

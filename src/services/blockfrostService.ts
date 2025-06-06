@@ -23,6 +23,17 @@ interface CoinGeckoDetailedData {
   };
 }
 
+interface AddressInfo {
+  amount: Array<{ unit: string; quantity: string }>;
+  stake_address: string | null;
+}
+
+interface UTXO {
+  tx_hash: string;
+  output_index: number;
+  amount: Array<{ unit: string; quantity: string }>;
+}
+
 export class BlockfrostService {
   private readonly COINGECKO_SIMPLE_API = 'https://api.coingecko.com/api/v3/simple/price';
   private readonly COINGECKO_DETAILED_API = 'https://api.coingecko.com/api/v3/coins/cardano';
@@ -102,6 +113,33 @@ export class BlockfrostService {
       typeof data.marketCap === 'number' &&
       data.price > 0
     );
+  }
+
+  // Mock methods for address info - these would normally use Blockfrost API
+  async getAddressInfo(address: string): Promise<AddressInfo> {
+    console.log('Mock: Getting address info for', address);
+    // This is a mock implementation - in real usage, this would call Blockfrost API
+    return {
+      amount: [{ unit: 'lovelace', quantity: '1000000' }], // 1 ADA = 1,000,000 lovelace
+      stake_address: null
+    };
+  }
+
+  getAdaBalance(addressInfo: AddressInfo): number {
+    const lovelaceAmount = addressInfo.amount.find(asset => asset.unit === 'lovelace');
+    return lovelaceAmount ? parseInt(lovelaceAmount.quantity) / 1000000 : 0;
+  }
+
+  async getAddressUtxos(address: string): Promise<UTXO[]> {
+    console.log('Mock: Getting UTXOs for', address);
+    // This is a mock implementation - in real usage, this would call Blockfrost API
+    return [
+      {
+        tx_hash: 'mock_tx_hash',
+        output_index: 0,
+        amount: [{ unit: 'lovelace', quantity: '1000000' }]
+      }
+    ];
   }
 }
 
