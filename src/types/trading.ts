@@ -49,4 +49,5 @@ export interface MarketData {
   volume24h: number;
   marketCap: number;
   lastUpdate: string;
+  source?: string; // Added optional source property
 }

@@ -55,9 +55,11 @@ export const RealTimePrice = () => {
             {adaData?.lastUpdate ? new Date(adaData.lastUpdate).toLocaleTimeString() : 'Live'}
           </span>
 
-          <span className="text-xs text-green-400">
-            {adaData?.source || 'API'}
-          </span>
+          {adaData?.source && (
+            <span className="text-xs text-green-400">
+              {adaData.source}
+            </span>
+          )}
         </>
       ) : (
         <>
