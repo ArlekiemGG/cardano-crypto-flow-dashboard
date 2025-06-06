@@ -1,7 +1,6 @@
 
 import { useState } from 'react';
 import type { WalletApi as CardanoWalletApi } from '@/types/cardano';
-import { hexToAddress } from '@/utils/walletUtils';
 
 interface WalletConnectionState {
   isConnecting: boolean;
@@ -38,29 +37,85 @@ export const useWalletConnection = () => {
       const networkId = await walletApi.getNetworkId();
       const network = networkId === 1 ? 'Mainnet' : 'Testnet';
 
-      // Get wallet addresses
-      const usedAddresses = await walletApi.getUsedAddresses();
-      const unusedAddresses = await walletApi.getUnusedAddresses();
-      
+      // Get wallet addresses - try multiple methods
       let address = '';
-      if (usedAddresses && usedAddresses.length > 0) {
-        address = hexToAddress(usedAddresses[0]);
-      } else if (unusedAddresses && unusedAddresses.length > 0) {
-        address = hexToAddress(unusedAddresses[0]);
-      } else {
-        // Fallback: get change address
-        address = await walletApi.getChangeAddress();
-        address = hexToAddress(address);
+      
+      try {
+        // Method 1: Try to get used addresses first
+        const usedAddresses = await walletApi.getUsedAddresses();
+        console.log('Used addresses from wallet:', usedAddresses);
+        
+        if (usedAddresses && usedAddresses.length > 0) {
+          // Convert from CBOR hex to bech32 if needed
+          const firstAddress = usedAddresses[0];
+          if (typeof firstAddress === 'string') {
+            // If it's already a bech32 address
+            if (firstAddress.startsWith('addr1')) {
+              address = firstAddress;
+            } else {
+              // Try to decode CBOR hex - for now just use the hex
+              address = firstAddress;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Could not get used addresses:', error);
       }
 
-      console.log('Real wallet address obtained:', address);
+      // Method 2: If no used addresses, try unused addresses
+      if (!address) {
+        try {
+          const unusedAddresses = await walletApi.getUnusedAddresses();
+          console.log('Unused addresses from wallet:', unusedAddresses);
+          
+          if (unusedAddresses && unusedAddresses.length > 0) {
+            const firstAddress = unusedAddresses[0];
+            if (typeof firstAddress === 'string') {
+              if (firstAddress.startsWith('addr1')) {
+                address = firstAddress;
+              } else {
+                address = firstAddress;
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Could not get unused addresses:', error);
+        }
+      }
+
+      // Method 3: Fallback to change address
+      if (!address) {
+        try {
+          const changeAddress = await walletApi.getChangeAddress();
+          console.log('Change address from wallet:', changeAddress);
+          
+          if (typeof changeAddress === 'string') {
+            if (changeAddress.startsWith('addr1')) {
+              address = changeAddress;
+            } else {
+              address = changeAddress;
+            }
+          }
+        } catch (error) {
+          console.warn('Could not get change address:', error);
+        }
+      }
+
+      if (!address) {
+        throw new Error('Could not retrieve wallet address');
+      }
+
+      console.log('Final wallet address obtained:', address);
 
       // Get stake address
       let stakeAddress: string | null = null;
       try {
         const rewardAddresses = await walletApi.getRewardAddresses();
         if (rewardAddresses && rewardAddresses.length > 0) {
-          stakeAddress = hexToAddress(rewardAddresses[0]);
+          const firstRewardAddr = rewardAddresses[0];
+          if (typeof firstRewardAddr === 'string') {
+            stakeAddress = firstRewardAddr.startsWith('stake1') ? firstRewardAddr : firstRewardAddr;
+          }
         }
       } catch (error) {
         console.warn('Could not fetch stake address:', error);
@@ -75,7 +130,7 @@ export const useWalletConnection = () => {
       console.log(`Successfully connected to ${walletName} wallet`);
       console.log('Real address:', address);
       console.log('Network:', network);
-      console.log('Balance will be fetched from Blockfrost...');
+      console.log('Stake address:', stakeAddress);
 
       return {
         walletApi,

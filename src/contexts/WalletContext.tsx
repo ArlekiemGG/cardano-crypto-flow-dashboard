@@ -67,14 +67,15 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   // Update wallet state with balance and utxos from the balance manager (real Blockfrost data)
   useEffect(() => {
-    if (walletState.isConnected) {
+    if (walletState.isConnected && walletState.address) {
+      console.log('Updating wallet state with new balance:', balance);
       setWalletState(prev => ({
         ...prev,
         balance,
         utxos,
       }));
     }
-  }, [balance, utxos, walletState.isConnected]);
+  }, [balance, utxos, walletState.isConnected, walletState.address]);
 
   // Update wallet state with connection state
   useEffect(() => {
@@ -88,9 +89,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   // Connect to wallet
   const connectWallet = async (walletName: string): Promise<void> => {
     try {
+      console.log('Attempting to connect to wallet:', walletName);
+      
       const connectionResult = await connectWalletHook(walletName);
       
-      console.log('Connected to wallet, real address:', connectionResult.address);
+      console.log('Wallet connection successful, setting state...');
+      console.log('Connection result:', connectionResult);
       
       setWalletState(prev => ({
         ...prev,
@@ -102,6 +106,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         network: connectionResult.network,
         utxos: [],
         stakeAddress: connectionResult.stakeAddress,
+        error: null,
       }));
 
       // Save wallet session to database with real data
@@ -111,9 +116,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         stakeAddress: connectionResult.stakeAddress,
         network: connectionResult.network,
       });
+
+      console.log('Wallet connected successfully with address:', connectionResult.address);
       
     } catch (error) {
-      // Error is already handled in the hook
+      console.error('Failed to connect wallet:', error);
+      setWalletState(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : 'Failed to connect wallet',
+        isConnected: false,
+      }));
       throw error;
     }
   };
@@ -130,8 +142,18 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   // Auto-reconnect on page load
   useEffect(() => {
     const savedWallet = localStorage.getItem('connectedWallet');
+    const savedAddress = localStorage.getItem('walletAddress');
+    
+    console.log('Checking for saved wallet:', savedWallet, savedAddress);
+    
     if (savedWallet && getAvailableWallets().includes(savedWallet)) {
-      connectWallet(savedWallet);
+      console.log('Attempting to auto-reconnect to saved wallet:', savedWallet);
+      connectWallet(savedWallet).catch(error => {
+        console.error('Auto-reconnect failed:', error);
+        // Clear saved data if auto-reconnect fails
+        localStorage.removeItem('connectedWallet');
+        localStorage.removeItem('walletAddress');
+      });
     }
   }, []);
 

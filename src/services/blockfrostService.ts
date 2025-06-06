@@ -62,6 +62,8 @@ interface BlockfrostPool {
 export class BlockfrostService {
   private async makeBlockfrostRequest(endpoint: string) {
     try {
+      console.log(`Making Blockfrost request to: ${BLOCKFROST_BASE_URL}${endpoint}`);
+      
       const response = await fetch(`${BLOCKFROST_BASE_URL}${endpoint}`, {
         headers: {
           'project_id': BLOCKFROST_API_KEY,
@@ -69,11 +71,17 @@ export class BlockfrostService {
         }
       });
 
+      console.log(`Blockfrost response status: ${response.status}`);
+
       if (!response.ok) {
-        throw new Error(`Blockfrost API error: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('Blockfrost API error response:', errorText);
+        throw new Error(`Blockfrost API error: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log('Blockfrost response data:', data);
+      return data;
     } catch (error) {
       console.error('Error making Blockfrost request:', error);
       throw error;
@@ -82,11 +90,23 @@ export class BlockfrostService {
 
   async getAddressInfo(address: string): Promise<BlockfrostAddressInfo> {
     console.log('Fetching real address info from Blockfrost for:', address);
+    
+    // Validate address format
+    if (!address || (!address.startsWith('addr1') && !address.startsWith('DdzFF'))) {
+      console.warn('Invalid address format, trying anyway:', address);
+    }
+    
     return await this.makeBlockfrostRequest(`/addresses/${address}`);
   }
 
   async getAddressUtxos(address: string): Promise<BlockfrostUtxo[]> {
     console.log('Fetching real UTXOs from Blockfrost for:', address);
+    
+    // Validate address format
+    if (!address || (!address.startsWith('addr1') && !address.startsWith('DdzFF'))) {
+      console.warn('Invalid address format, trying anyway:', address);
+    }
+    
     return await this.makeBlockfrostRequest(`/addresses/${address}/utxos`);
   }
 
