@@ -46,7 +46,7 @@ export const useMarketData = () => {
         const uniquePairs = new Map<string, any>();
         
         cachedData.forEach(item => {
-          const key = item.pair;
+          const key = `${item.pair}-${item.source_dex}`;
           if (!uniquePairs.has(key) || new Date(item.timestamp) > new Date(uniquePairs.get(key).timestamp)) {
             uniquePairs.set(key, item);
           }
@@ -157,11 +157,11 @@ export const useMarketData = () => {
     // Store channels for cleanup
     channelsRef.current = [marketDataChannel, arbitrageChannel];
 
-    // Periodic updates every 60 seconds for real-time data
+    // Periodic updates every 30 seconds for more frequent real-time data
     intervalRef.current = setInterval(() => {
       console.log('Periodic real market data update...');
       fetchMarketData();
-    }, 60000);
+    }, 30000);
 
     return () => {
       console.log('useMarketData cleanup initiated...');
