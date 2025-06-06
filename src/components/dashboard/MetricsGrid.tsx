@@ -41,43 +41,44 @@ export const MetricsGrid = ({
       <MetricCard
         title="Portfolio Value"
         value={`$${portfolioValue.toFixed(2)}`}
-        change={dailyPnL}
-        icon={<DollarSign className="h-5 w-5" />}
+        change={dailyPnL >= 0 ? `+$${dailyPnL.toFixed(2)}` : `-$${Math.abs(dailyPnL).toFixed(2)}`}
+        changeType={dailyPnL >= 0 ? 'positive' : 'negative'}
+        icon={DollarSign}
       />
       
       <MetricCard
         title="Arbitrage Opportunities"
         value={totalOpportunities.toString()}
-        subValue={`${highConfidenceOpportunities} high confidence`}
-        icon={<TrendingUp className="h-5 w-5" />}
+        description={`${highConfidenceOpportunities} high confidence`}
+        icon={TrendingUp}
       />
       
       <MetricCard
         title="Potential Profit"
         value={`₳${totalPotentialProfit.toFixed(1)}`}
-        subValue={`${avgProfitPercentage.toFixed(1)}% avg`}
-        icon={<Activity className="h-5 w-5" />}
+        description={`${avgProfitPercentage.toFixed(1)}% avg`}
+        icon={Activity}
       />
       
       <MetricCard
         title="DEX Volume 24h"
         value={formatVolume(totalVolume24h)}
-        subValue="DeFiLlama data"
-        icon={<Database className="h-5 w-5" />}
+        description="DeFiLlama data"
+        icon={Database}
       />
       
       <MetricCard
         title="Active Pairs"
         value={activePairs.toString()}
-        subValue="Trading pairs"
-        icon={<Zap className="h-5 w-5" />}
+        description="Trading pairs"
+        icon={Zap}
       />
       
       <MetricCard
         title="Data Sources"
         value={`${connectedSources}/2`}
-        subValue="Connected"
-        icon={<Globe className="h-5 w-5" />}
+        description="Connected"
+        icon={Globe}
       />
     </div>
   );
