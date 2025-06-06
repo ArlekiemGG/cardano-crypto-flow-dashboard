@@ -25,7 +25,6 @@ export async function clearOldCachedData(supabaseClient: any): Promise<void> {
 
 export async function cacheADAPrice(supabaseClient: any, price: number): Promise<void> {
   try {
-    // Usar upsert para evitar conflictos de duplicados
     const { error } = await supabaseClient
       .from('market_data_cache')
       .upsert({
@@ -35,8 +34,6 @@ export async function cacheADAPrice(supabaseClient: any, price: number): Promise
         timestamp: new Date().toISOString(),
         volume_24h: 0,
         market_cap: 0
-      }, {
-        onConflict: 'pair,source_dex'
       });
       
     if (error) {
@@ -62,8 +59,6 @@ export async function cacheProtocolData(supabaseClient: any, protocol: any): Pro
         timestamp: new Date().toISOString(),
         volume_24h: protocol.change_1d || 0,
         market_cap: protocol.tvl || 0
-      }, {
-        onConflict: 'pair,source_dex'
       });
 
     if (error) {
@@ -87,8 +82,6 @@ export async function cacheDEXVolume(supabaseClient: any, dex: any): Promise<voi
         timestamp: new Date().toISOString(),
         volume_24h: dex.total24h || 0,
         market_cap: 0
-      }, {
-        onConflict: 'pair,source_dex'
       });
 
     if (error) {
@@ -110,8 +103,6 @@ export async function cacheNetworkData(supabaseClient: any, networkData: any): P
         timestamp: new Date().toISOString(),
         volume_24h: 0,
         market_cap: networkData.supply?.total || 0
-      }, {
-        onConflict: 'pair,source_dex'
       });
 
     if (error) {
