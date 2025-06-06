@@ -312,6 +312,32 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      create_trading_strategy: {
+        Args: {
+          p_user_wallet: string
+          p_name: string
+          p_strategy_type: Database["public"]["Enums"]["trading_strategy_type"]
+          p_config_json?: Json
+        }
+        Returns: string
+      }
+      get_user_trading_strategies: {
+        Args: { p_user_wallet: string }
+        Returns: {
+          id: string
+          name: string
+          strategy_type: Database["public"]["Enums"]["trading_strategy_type"]
+          active: boolean
+          profit_loss: number
+          total_trades: number
+          created_at: string
+          config_json: Json
+        }[]
+      }
+      toggle_strategy_status: {
+        Args: { p_strategy_id: string; p_user_wallet: string }
+        Returns: boolean
+      }
       update_portfolio_metrics: {
         Args: { p_user_wallet: string }
         Returns: undefined
