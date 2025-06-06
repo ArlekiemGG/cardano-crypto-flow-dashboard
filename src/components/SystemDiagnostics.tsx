@@ -31,15 +31,16 @@ export const SystemDiagnostics = () => {
     runDiagnostics();
   }, []);
 
-  const getStatusIcon = (type: 'success' | 'error' | 'warning') => {
+  const getStatusIcon = (type: 'success' | 'error' | 'warning' | 'info') => {
     switch (type) {
       case 'success': return <CheckCircle className="h-4 w-4 text-green-400" />;
       case 'error': return <XCircle className="h-4 w-4 text-red-400" />;
       case 'warning': return <AlertTriangle className="h-4 w-4 text-yellow-400" />;
+      case 'info': return <Database className="h-4 w-4 text-blue-400" />;
     }
   };
 
-  const getLogType = (log: string) => {
+  const getLogType = (log: string): 'success' | 'error' | 'warning' | 'info' => {
     if (log.includes('✅')) return 'success';
     if (log.includes('❌')) return 'error';
     if (log.includes('⚠️')) return 'warning';

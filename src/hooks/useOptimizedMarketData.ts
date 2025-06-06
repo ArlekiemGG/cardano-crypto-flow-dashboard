@@ -5,7 +5,7 @@ import { useProtocolData } from './optimized-data/useProtocolData';
 import { useDEXVolumeData } from './optimized-data/useDEXVolumeData';
 
 export const useOptimizedMarketData = () => {
-  const { data, forceRefresh, isLoading, lastUpdate, dataSource, cacheStats } = useFetchOptimizedData();
+  const { data, forceRefresh, isLoading, lastUpdate, dataSource, cacheStats, hasErrors, errorDetails } = useFetchOptimizedData();
   const priceData = usePriceData();
   const protocolData = useProtocolData();
   const dexVolumeData = useDEXVolumeData();
@@ -22,6 +22,10 @@ export const useOptimizedMarketData = () => {
     dataSource,
     cacheStats,
     forceRefresh,
+    
+    // Error handling
+    hasErrors,
+    errorDetails,
     
     // Enhanced price methods with real data validation
     getADAPrice: priceData.getADAPrice,
