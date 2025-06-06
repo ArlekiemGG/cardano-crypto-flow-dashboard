@@ -7,7 +7,7 @@ import { useWallet } from "@/contexts/ModernWalletContext"
 import { LiveArbitrageOpportunities } from "@/components/LiveArbitrageOpportunities"
 import { DEXConnectionStatus } from "@/components/DEXConnectionStatus"
 import { RealTimeTradingPanel } from "@/components/RealTimeTradingPanel"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { realTimeMarketDataService } from "@/services/realTimeMarketDataService"
 
@@ -21,44 +21,58 @@ export default function Dashboard() {
     stats 
   } = useRealTimeArbitrage()
   const { balance } = useWallet()
-  const [portfolioValue, setPortfolioValue] = useState(0)
-  const [dailyPnL, setDailyPnL] = useState(0)
-  const [marketStats, setMarketStats] = useState({
-    totalVolume24h: 0,
-    activePairs: 0,
-    dexCount: 0
-  })
-
-  // Calculate portfolio value based on real wallet balance and ADA price
-  useEffect(() => {
+  
+  // Memoized calculations to prevent infinite re-renders
+  const portfolioCalculations = useMemo(() => {
     const adaData = marketData.find(data => data.symbol === 'ADA')
-    if (adaData && balance > 0) {
-      const realPortfolioValue = balance * adaData.price
-      setPortfolioValue(realPortfolioValue)
-      
-      // Calculate daily P&L based on real price changes
-      const dailyChange = realPortfolioValue * (adaData.change24h / 100)
-      setDailyPnL(dailyChange)
-    } else if (balance > 0) {
-      // Fallback to USD approximation if ADA price not available
-      setPortfolioValue(balance * 0.63) // Approximate ADA price
-      setDailyPnL((balance * 0.63) * 0.02) // Small positive change
+    const adaPrice = adaData?.price || 0.63
+    const realPortfolioValue = balance * adaPrice
+    const dailyChange = adaData?.change24h || 0
+    const dailyPnL = realPortfolioValue * (dailyChange / 100)
+    
+    return {
+      portfolioValue: realPortfolioValue,
+      dailyPnL,
+      adaPrice
     }
   }, [marketData, balance])
 
-  // Calculate real market statistics
-  useEffect(() => {
+  const marketStats = useMemo(() => {
     const allPrices = realTimeMarketDataService.getCurrentPrices()
     const totalVolume = allPrices.reduce((sum, price) => sum + price.volume24h, 0)
     const activePairs = new Set(allPrices.map(price => price.pair)).size
     const dexCount = new Set(allPrices.map(price => price.dex)).size
 
-    setMarketStats({
+    return {
       totalVolume24h: totalVolume,
       activePairs,
       dexCount
-    })
-  }, [marketData])
+    }
+  }, [marketData]) // Only recalculate when marketData changes
+
+  // Connection health status
+  const [connectionHealth, setConnectionHealth] = useState({
+    minswap: false,
+    sundaeswap: false,
+    muesliswap: false,
+    wingriders: false,
+    coingecko: false
+  })
+
+  // Update connection health periodically
+  useEffect(() => {
+    const updateHealth = () => {
+      const health = realTimeMarketDataService.getConnectionHealth()
+      setConnectionHealth(health)
+    }
+
+    updateHealth()
+    const interval = setInterval(updateHealth, 30000) // Check every 30 seconds
+
+    return () => clearInterval(interval)
+  }, [])
+
+  const connectedDEXs = Object.values(connectionHealth).filter(Boolean).length
 
   return (
     <div className="space-y-6">
@@ -76,7 +90,7 @@ export default function Dashboard() {
               <div className={`flex items-center space-x-2 ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
                 <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
                 <span className="text-sm font-medium">
-                  {isConnected ? `${marketStats.dexCount} DEXs Connected` : 'Connecting to DEXs...'}
+                  {isConnected ? `${connectedDEXs}/5 DEXs Connected` : 'Connecting to DEXs...'}
                 </span>
               </div>
               <div className="text-sm text-gray-400">
@@ -90,10 +104,10 @@ export default function Dashboard() {
                 <div className="text-2xl font-bold text-white">₳ {balance.toFixed(3)}</div>
                 <div className="text-crypto-primary text-sm">Wallet Balance</div>
                 <div className="text-xs text-gray-400 mt-1">
-                  ${portfolioValue.toFixed(2)} USD
+                  ${portfolioCalculations.portfolioValue.toFixed(2)} USD
                 </div>
-                <div className={`text-xs mt-1 ${dailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {dailyPnL >= 0 ? '+' : ''}${dailyPnL.toFixed(2)} (24h)
+                <div className={`text-xs mt-1 ${portfolioCalculations.dailyPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {portfolioCalculations.dailyPnL >= 0 ? '+' : ''}${portfolioCalculations.dailyPnL.toFixed(2)} (24h)
                 </div>
               </div>
             </div>
@@ -105,9 +119,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <MetricCard
           title="Portfolio Value"
-          value={`$${portfolioValue.toFixed(2)}`}
-          change={`${dailyPnL >= 0 ? '+' : ''}$${Math.abs(dailyPnL).toFixed(2)}`}
-          changeType={dailyPnL >= 0 ? "positive" : "negative"}
+          value={`$${portfolioCalculations.portfolioValue.toFixed(2)}`}
+          change={`${portfolioCalculations.dailyPnL >= 0 ? '+' : ''}$${Math.abs(portfolioCalculations.dailyPnL).toFixed(2)}`}
+          changeType={portfolioCalculations.dailyPnL >= 0 ? "positive" : "negative"}
           icon={DollarSign}
           description="Live USD value of your ADA"
           gradient="gradient-primary"
@@ -155,9 +169,9 @@ export default function Dashboard() {
         
         <MetricCard
           title="Connected DEXs"
-          value={marketStats.dexCount.toString()}
+          value={`${connectedDEXs}/5`}
           change="Minswap, SundaeSwap, MuesliSwap..."
-          changeType="positive"
+          changeType={connectedDEXs > 2 ? "positive" : "negative"}
           icon={Bot}
           description="Live DEX API connections"
           gradient="gradient-primary"
@@ -213,7 +227,7 @@ export default function Dashboard() {
         <h2 className="text-xl font-semibold text-white mb-4">Live Market Data</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {marketData.slice(0, 6).map((data, index) => (
-            <div key={index} className="p-4 rounded-lg bg-white/5 border border-white/10">
+            <div key={`${data.symbol}-${index}`} className="p-4 rounded-lg bg-white/5 border border-white/10">
               <div className="flex justify-between items-center">
                 <span className="text-white font-medium">{data.symbol}</span>
                 <span className={`text-sm ${data.change24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>

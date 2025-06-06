@@ -1,9 +1,5 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { blockfrostService } from './blockfrostService';
-import { minswapService } from './minswapService';
-import { sundaeSwapService } from './sundaeSwapService';
-import { muesliSwapService } from './muesliSwapService';
-import { wingRidersService } from './wingRidersService';
 
 interface RealTimePrice {
   dex: string;
@@ -20,176 +16,195 @@ export class RealTimeMarketDataService {
   private reconnectInterval: NodeJS.Timeout | null = null;
   private subscribers: Array<(data: RealTimePrice[]) => void> = [];
   private currentPrices: RealTimePrice[] = [];
-  private readonly UPDATE_INTERVAL = 10000; // 10 seconds for real APIs
-  private readonly RECONNECT_INTERVAL = 30000; // 30 seconds
+  private readonly UPDATE_INTERVAL = 30000; // 30 seconds to avoid rate limits
+  private readonly RECONNECT_INTERVAL = 60000; // 60 seconds
   private retryCount = 0;
   private readonly MAX_RETRIES = 3;
+  private connectionHealth = {
+    minswap: false,
+    sundaeswap: false,
+    muesliswap: false,
+    wingriders: false,
+    coingecko: false
+  };
 
-  async startRealTimeUpdates(intervalSeconds: number = 10) {
+  async startRealTimeUpdates(intervalSeconds: number = 30) {
     if (this.isRunning) {
       console.log('🔄 Real-time updates already running');
       return;
     }
 
     this.isRunning = true;
-    console.log('🚀 Starting REAL-TIME market data updates with live DEX APIs...');
+    console.log('🚀 Starting REAL-TIME market data updates...');
 
-    // Initial fetch from all DEXs
+    // Initial fetch
     await this.fetchAllRealData();
 
-    // Set up periodic updates
+    // Set up periodic updates with longer interval to avoid rate limits
     this.updateInterval = setInterval(async () => {
       try {
         await this.fetchAllRealData();
-        this.retryCount = 0; // Reset retry count on success
+        this.retryCount = 0;
       } catch (error) {
         console.error('❌ Error in periodic update:', error);
         this.handleUpdateError();
       }
-    }, intervalSeconds * 1000);
+    }, Math.max(intervalSeconds * 1000, 30000)); // Minimum 30 seconds
 
-    console.log(`✅ Real-time updates started with ${intervalSeconds}s interval`);
+    console.log(`✅ Real-time updates started with ${Math.max(intervalSeconds, 30)}s interval`);
   }
 
   private async fetchAllRealData() {
-    console.log('📊 Fetching REAL data from all Cardano DEX APIs...');
+    console.log('📊 Fetching REAL data using Supabase Edge Function...');
     const allPrices: RealTimePrice[] = [];
 
     try {
-      // Fetch from CoinGecko for ADA reference price
-      const adaData = await blockfrostService.getCompleteADAData();
-      if (adaData) {
-        allPrices.push({
-          dex: 'CoinGecko',
-          pair: 'ADA/USD',
-          price: adaData.price,
-          volume24h: adaData.volume24h,
-          liquidity: adaData.marketCap,
-          lastUpdate: new Date().toISOString()
-        });
-        console.log('✅ CoinGecko ADA data fetched:', adaData.price);
+      // Use Supabase Edge Function to fetch data server-side (avoids CORS)
+      const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
+        body: JSON.stringify({ action: 'fetch_all' })
+      });
+
+      if (error) {
+        console.error('❌ Edge function error:', error);
+        throw error;
       }
 
-      // Fetch from Minswap
-      try {
-        const minswapPrices = await minswapService.calculateRealPrices();
-        minswapPrices.forEach(price => {
-          allPrices.push({
-            dex: 'Minswap',
-            pair: price.pair,
-            price: price.price,
-            volume24h: price.volume24h,
-            liquidity: price.reserveA + price.reserveB,
-            lastUpdate: new Date().toISOString()
-          });
-        });
-        console.log(`✅ Minswap: ${minswapPrices.length} pairs fetched`);
-      } catch (error) {
-        console.error('⚠️ Minswap API error:', error);
-      }
+      console.log('✅ Edge function response:', data);
 
-      // Fetch from SundaeSwap
-      try {
-        const sundaePrices = await sundaeSwapService.calculateRealPrices();
-        sundaePrices.forEach(price => {
-          allPrices.push({
-            dex: 'SundaeSwap',
-            pair: price.pair,
-            price: price.price,
-            volume24h: price.volume24h,
-            liquidity: price.tvl,
-            lastUpdate: new Date().toISOString()
-          });
-        });
-        console.log(`✅ SundaeSwap: ${sundaePrices.length} pairs fetched`);
-      } catch (error) {
-        console.error('⚠️ SundaeSwap API error:', error);
-      }
+      // Get CoinGecko ADA price (this usually works)
+      await this.fetchCoinGeckoData(allPrices);
 
-      // Fetch from MuesliSwap
-      try {
-        const muesliPrices = await muesliSwapService.calculateRealPrices();
-        muesliPrices.forEach(price => {
-          allPrices.push({
-            dex: 'MuesliSwap',
-            pair: price.pair,
-            price: price.price,
-            volume24h: price.volume24h,
-            liquidity: price.liquidity,
-            lastUpdate: new Date().toISOString()
-          });
-        });
-        console.log(`✅ MuesliSwap: ${muesliPrices.length} pairs fetched`);
-      } catch (error) {
-        console.error('⚠️ MuesliSwap API error:', error);
-      }
+      // Get cached data from database (populated by edge function)
+      await this.fetchCachedData(allPrices);
 
-      // Fetch from WingRiders
-      try {
-        const wingRidersPrices = await wingRidersService.calculateRealPrices();
-        wingRidersPrices.forEach(price => {
-          allPrices.push({
-            dex: 'WingRiders',
-            pair: price.pair,
-            price: price.price,
-            volume24h: price.volume24h,
-            liquidity: price.tvl,
-            lastUpdate: new Date().toISOString()
-          });
-        });
-        console.log(`✅ WingRiders: ${wingRidersPrices.length} pairs fetched`);
-      } catch (error) {
-        console.error('⚠️ WingRiders API error:', error);
-      }
+      // Update connection health
+      this.updateConnectionHealth(allPrices);
 
-      // Update current prices and cache in database
+      // Update current prices and cache
       this.currentPrices = allPrices;
-      await this.cacheRealDataInDatabase(allPrices);
       
       // Notify all subscribers
       this.notifySubscribers(allPrices);
 
-      console.log(`📈 Total REAL prices fetched: ${allPrices.length} from ${new Set(allPrices.map(p => p.dex)).size} DEXs`);
+      console.log(`📈 Total REAL prices fetched: ${allPrices.length} from ${new Set(allPrices.map(p => p.dex)).size} sources`);
 
     } catch (error) {
       console.error('❌ Error fetching real market data:', error);
+      
+      // Fallback: try to get cached data
+      await this.fetchCachedData(allPrices);
+      
+      if (allPrices.length > 0) {
+        this.currentPrices = allPrices;
+        this.notifySubscribers(allPrices);
+        console.log('📊 Using cached data as fallback');
+      }
+      
       throw error;
     }
   }
 
-  private async cacheRealDataInDatabase(prices: RealTimePrice[]) {
+  private async fetchCoinGeckoData(allPrices: RealTimePrice[]) {
     try {
-      // Clear old data (keep last 24 hours)
-      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      await supabase
-        .from('market_data_cache')
-        .delete()
-        .lt('timestamp', yesterday);
+      const response = await fetch('https://api.coingecko.com/api/v3/coins/cardano?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false');
+      
+      if (response.ok) {
+        const data = await response.json();
+        const price = data.market_data?.current_price?.usd;
+        const volume = data.market_data?.total_volume?.usd;
+        
+        if (price && volume) {
+          allPrices.push({
+            dex: 'CoinGecko',
+            pair: 'ADA/USD',
+            price,
+            volume24h: volume,
+            liquidity: data.market_data?.market_cap?.usd || 0,
+            lastUpdate: new Date().toISOString()
+          });
+          
+          this.connectionHealth.coingecko = true;
+          console.log('✅ CoinGecko ADA data fetched:', price);
 
-      // Insert new real data
-      const insertData = prices.map(price => ({
-        pair: price.pair,
-        price: price.price,
-        volume_24h: price.volume24h,
-        source_dex: price.dex,
-        timestamp: price.lastUpdate,
-        high_24h: price.price * 1.05, // Estimate 5% range
-        low_24h: price.price * 0.95,
-        market_cap: price.liquidity
-      }));
-
-      const { error } = await supabase
-        .from('market_data_cache')
-        .insert(insertData);
-
-      if (error) {
-        console.error('❌ Error caching real data:', error);
-      } else {
-        console.log('✅ Real market data cached successfully');
+          // Cache in database using upsert to avoid duplicates
+          await this.upsertMarketData({
+            pair: 'ADA/USD',
+            price,
+            volume_24h: volume,
+            source_dex: 'CoinGecko',
+            timestamp: new Date().toISOString(),
+            change_24h: data.market_data?.price_change_percentage_24h || 0,
+            high_24h: data.market_data?.high_24h?.usd || price * 1.05,
+            low_24h: data.market_data?.low_24h?.usd || price * 0.95,
+            market_cap: data.market_data?.market_cap?.usd || 0
+          });
+        }
       }
     } catch (error) {
-      console.error('❌ Database cache error:', error);
+      console.error('⚠️ CoinGecko API error:', error);
+      this.connectionHealth.coingecko = false;
     }
+  }
+
+  private async fetchCachedData(allPrices: RealTimePrice[]) {
+    try {
+      const { data: cachedData, error } = await supabase
+        .from('market_data_cache')
+        .select('*')
+        .gte('timestamp', new Date(Date.now() - 3600000).toISOString()) // Last hour
+        .order('timestamp', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching cached data:', error);
+        return;
+      }
+
+      if (cachedData && cachedData.length > 0) {
+        cachedData.forEach(item => {
+          allPrices.push({
+            dex: item.source_dex,
+            pair: item.pair,
+            price: Number(item.price),
+            volume24h: Number(item.volume_24h) || 0,
+            liquidity: Number(item.market_cap) || 0,
+            lastUpdate: item.timestamp
+          });
+        });
+        
+        console.log(`📊 Loaded ${cachedData.length} cached price entries`);
+      }
+    } catch (error) {
+      console.error('❌ Error loading cached data:', error);
+    }
+  }
+
+  private async upsertMarketData(data: any) {
+    try {
+      const { error } = await supabase
+        .from('market_data_cache')
+        .upsert(data, {
+          onConflict: 'pair,source_dex',
+          ignoreDuplicates: false
+        });
+
+      if (error) {
+        console.error('❌ Error upserting market data:', error);
+      }
+    } catch (error) {
+      console.error('❌ Upsert error:', error);
+    }
+  }
+
+  private updateConnectionHealth(prices: RealTimePrice[]) {
+    const dexSources = new Set(prices.map(p => p.dex.toLowerCase()));
+    
+    this.connectionHealth = {
+      minswap: dexSources.has('minswap'),
+      sundaeswap: dexSources.has('sundaeswap'),
+      muesliswap: dexSources.has('muesliswap'),
+      wingriders: dexSources.has('wingriders'),
+      coingecko: dexSources.has('coingecko')
+    };
   }
 
   private handleUpdateError() {
@@ -207,10 +222,9 @@ export class RealTimeMarketDataService {
 
     this.reconnectInterval = setInterval(async () => {
       try {
-        console.log('🔄 Attempting to reconnect to real DEX APIs...');
+        console.log('🔄 Attempting to reconnect...');
         await this.fetchAllRealData();
         
-        // If successful, clear reconnect interval
         if (this.reconnectInterval) {
           clearInterval(this.reconnectInterval);
           this.reconnectInterval = null;
@@ -270,24 +284,26 @@ export class RealTimeMarketDataService {
     return this.currentPrices;
   }
 
-  // Get prices for specific DEX
   getDEXPrices(dexName: string): RealTimePrice[] {
-    return this.currentPrices.filter(price => price.dex === dexName);
+    return this.currentPrices.filter(price => 
+      price.dex.toLowerCase() === dexName.toLowerCase()
+    );
   }
 
-  // Get specific pair across all DEXs
   getPairPrices(pairName: string): RealTimePrice[] {
     return this.currentPrices.filter(price => 
       price.pair.toLowerCase().includes(pairName.toLowerCase())
     );
   }
 
-  // Get connection status
   isConnected(): boolean {
     return this.isRunning && this.currentPrices.length > 0;
   }
 
-  // Force refresh
+  getConnectionHealth() {
+    return this.connectionHealth;
+  }
+
   async forceRefresh() {
     console.log('🔄 Force refreshing real market data...');
     await this.fetchAllRealData();
