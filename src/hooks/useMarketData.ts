@@ -10,9 +10,9 @@ export const useMarketData = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(new Date());
   
-  const channelsRef = useRef<any[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isInitializedRef = useRef(false);
+  const channelRef = useRef<any>(null);
 
   const fetchMarketData = async () => {
     try {
@@ -37,13 +37,9 @@ export const useMarketData = () => {
       if (cachedData && cachedData.length > 0) {
         // Process and organize data
         const processedData: MarketData[] = [];
-        const seenPairs = new Set<string>();
-
-        // Group by pair and get the most recent data for each
         const pairMap = new Map<string, any>();
         
         cachedData.forEach(item => {
-          const pairKey = `${item.pair}-${item.source_dex}`;
           if (!pairMap.has(item.pair) || new Date(item.timestamp) > new Date(pairMap.get(item.pair).timestamp)) {
             pairMap.set(item.pair, item);
           }
@@ -51,7 +47,7 @@ export const useMarketData = () => {
 
         // Convert to MarketData format
         pairMap.forEach((item, pair) => {
-          if (pair.includes('ADA') || pair.includes('CARDANO')) {
+          if (pair.includes('ADA') || pair.includes('CARDANO') || pair.toLowerCase().includes('cardano')) {
             const symbol = pair.includes('ADA/USD') ? 'ADA' : 
                           pair.includes('CARDANO') ? 'ADA' : 
                           pair.split('/')[0];
@@ -73,7 +69,6 @@ export const useMarketData = () => {
           console.log(`✅ Market data loaded: ${processedData.length} items`);
         } else {
           console.log('⚠️ No relevant market data found, triggering refresh...');
-          // Trigger edge function to fetch fresh data
           triggerDataRefresh();
         }
       } else {
@@ -129,9 +124,19 @@ export const useMarketData = () => {
       fetchMarketData();
     }, 120000);
 
+    // Clean up any existing channel
+    if (channelRef.current) {
+      try {
+        channelRef.current.unsubscribe();
+        supabase.removeChannel(channelRef.current);
+      } catch (error) {
+        console.error('Error cleaning up existing channel:', error);
+      }
+    }
+
     // Set up real-time subscription for cache updates
-    const subscription = supabase
-      .channel('market_data_changes')
+    channelRef.current = supabase
+      .channel(`market_data_changes_${Date.now()}`) // Unique channel name
       .on('postgres_changes', 
         { 
           event: '*', 
@@ -145,10 +150,12 @@ export const useMarketData = () => {
             fetchMarketData();
           }, 1000);
         }
-      )
-      .subscribe();
+      );
 
-    channelsRef.current.push(subscription);
+    // Subscribe to the channel
+    channelRef.current.subscribe((status: string) => {
+      console.log('📊 Subscription status:', status);
+    });
 
     return () => {
       console.log('🧹 useMarketData cleanup initiated...');
@@ -158,15 +165,15 @@ export const useMarketData = () => {
         intervalRef.current = null;
       }
       
-      channelsRef.current.forEach(channel => {
+      if (channelRef.current) {
         try {
-          channel.unsubscribe();
-          supabase.removeChannel(channel);
+          channelRef.current.unsubscribe();
+          supabase.removeChannel(channelRef.current);
+          channelRef.current = null;
         } catch (error) {
           console.error('Error cleaning up channel:', error);
         }
-      });
-      channelsRef.current = [];
+      }
       
       isInitializedRef.current = false;
       console.log('✅ useMarketData cleanup completed');

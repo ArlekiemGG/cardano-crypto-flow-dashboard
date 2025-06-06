@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export const useConnectionHealth = () => {
@@ -8,8 +8,17 @@ export const useConnectionHealth = () => {
     defiLlama: false
   });
   const [lastDataUpdate, setLastDataUpdate] = useState<Date | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitializedRef = useRef(false);
 
   useEffect(() => {
+    if (isInitializedRef.current) {
+      console.log('useConnectionHealth already initialized, skipping...');
+      return;
+    }
+
+    isInitializedRef.current = true;
+
     const updateHealth = async () => {
       try {
         // Verificar datos recientes en cache (últimos 10 minutos)
@@ -90,14 +99,15 @@ export const useConnectionHealth = () => {
     triggerDataFetch();
     
     // Actualizar cada 30 segundos
-    const healthInterval = setInterval(updateHealth, 30000);
-    
-    // Trigger data fetch every 2 minutes
-    const fetchInterval = setInterval(triggerDataFetch, 120000);
+    intervalRef.current = setInterval(updateHealth, 30000);
 
     return () => {
-      clearInterval(healthInterval);
-      clearInterval(fetchInterval);
+      console.log('🧹 useConnectionHealth cleanup...');
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      isInitializedRef.current = false;
     };
   }, []);
 
