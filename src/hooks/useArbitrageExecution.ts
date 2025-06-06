@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import { arbitrageEngine } from '@/services/arbitrageEngine';
+import { realTradingService } from '@/services/realTradingService';
 import { supabase } from '@/integrations/supabase/client';
 
 interface RealArbitrageOpportunity {
@@ -33,49 +33,82 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
     }
 
     setExecutingTrades(prev => new Set([...prev, opportunityId]));
-    console.log(`🚀 Executing arbitrage trade for ${opportunity.pair}...`);
+    console.log(`🚀 EXECUTING REAL ARBITRAGE TRADE for ${opportunity.pair}...`);
 
     try {
-      const simulationResult = await arbitrageEngine.simulateTradeExecution(opportunity);
-      
-      if (simulationResult.success) {
-        await supabase.from('trade_history').insert({
-          pair: opportunity.pair,
-          trade_type: 'arbitrage',
-          amount: opportunity.volumeAvailable,
-          profit_loss: simulationResult.estimatedProfit,
-          dex_name: `${opportunity.buyDex}-${opportunity.sellDex}`,
-          status: 'executed',
-          tx_hash: `sim_${Date.now()}`,
-          gas_fee: simulationResult.gasEstimate,
-          metadata_json: {
-            buyDex: opportunity.buyDex,
-            sellDex: opportunity.sellDex,
-            buyPrice: opportunity.buyPrice,
-            sellPrice: opportunity.sellPrice,
-            profitPercentage: opportunity.profitPercentage,
-            slippageRisk: opportunity.slippageRisk,
-            confidence: opportunity.confidence
-          }
-        });
+      // Check if wallet is connected
+      const walletApi = window.cardano?.eternl || window.cardano?.nami || window.cardano?.vespr;
+      if (!walletApi || !walletApi.isEnabled) {
+        throw new Error('No wallet connected. Please connect your wallet first.');
+      }
+
+      // Validate wallet for trading
+      const walletValidation = await realTradingService.validateWalletForTrading(walletApi);
+      if (!walletValidation.valid) {
+        throw new Error(walletValidation.error || 'Wallet validation failed');
+      }
+
+      console.log(`💰 Wallet validated: ${walletValidation.balance} ADA available`);
+
+      // Execute the real arbitrage trade
+      const result = await realTradingService.executeRealArbitrageTrade({
+        pair: opportunity.pair,
+        buyDex: opportunity.buyDex,
+        sellDex: opportunity.sellDex,
+        buyPrice: opportunity.buyPrice,
+        sellPrice: opportunity.sellPrice,
+        amount: Math.min(opportunity.volumeAvailable, walletValidation.balance * 0.5), // Use max 50% of balance
+        walletApi
+      });
+
+      if (result.success) {
+        console.log(`✅ REAL ARBITRAGE TRADE SUCCESSFUL!`);
+        console.log(`💰 Actual profit: ${result.actualProfit?.toFixed(4)} ADA`);
+        console.log(`📋 Transaction hashes: ${result.txHash}`);
 
         return {
           success: true,
-          txHash: `sim_${Date.now()}`,
-          actualProfit: simulationResult.estimatedProfit
+          txHash: result.txHash,
+          actualProfit: result.actualProfit,
+          buyTxHash: result.buyTxHash,
+          sellTxHash: result.sellTxHash
         };
       } else {
+        console.error(`❌ REAL ARBITRAGE TRADE FAILED: ${result.error}`);
+        
+        // If we have a buy transaction but sell failed, record partial execution
+        if (result.buyTxHash) {
+          await supabase.from('trade_history').insert({
+            pair: opportunity.pair,
+            trade_type: 'partial_arbitrage',
+            amount: opportunity.volumeAvailable,
+            profit_loss: -opportunity.totalFees, // Record as loss due to fees
+            dex_name: `${opportunity.buyDex}-${opportunity.sellDex}`,
+            status: 'partial',
+            tx_hash: result.buyTxHash,
+            metadata_json: {
+              buyDex: opportunity.buyDex,
+              sellDex: opportunity.sellDex,
+              buyTxHash: result.buyTxHash,
+              error: result.error,
+              partialExecution: true,
+              realTrade: true
+            }
+          });
+        }
+
         return {
           success: false,
-          error: `Execution failed: ${simulationResult.estimatedSlippage}% slippage too high`
+          error: result.error,
+          buyTxHash: result.buyTxHash
         };
       }
 
     } catch (error) {
-      console.error('❌ Error executing arbitrage:', error);
+      console.error('❌ Error executing REAL arbitrage:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
       };
     } finally {
       setExecutingTrades(prev => {
@@ -92,13 +125,26 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
       return { success: false, error: 'Opportunity not found' };
     }
 
+    console.log(`🧪 Simulating execution for ${opportunity.pair} (for validation only)`);
+
     try {
-      const simulationResult = await arbitrageEngine.simulateTradeExecution(opportunity);
+      // Check wallet connection for simulation
+      const walletApi = window.cardano?.eternl || window.cardano?.nami || window.cardano?.vespr;
+      if (!walletApi || !walletApi.isEnabled) {
+        return {
+          success: false,
+          error: 'No wallet connected for simulation'
+        };
+      }
+
+      const walletValidation = await realTradingService.validateWalletForTrading(walletApi);
+      
       return {
-        success: simulationResult.success,
-        estimatedProfit: simulationResult.estimatedProfit,
-        estimatedSlippage: simulationResult.estimatedSlippage,
-        timeEstimate: simulationResult.timeEstimate || 30
+        success: walletValidation.valid,
+        estimatedProfit: opportunity.netProfit,
+        estimatedSlippage: opportunity.slippageRisk,
+        timeEstimate: 120, // 2 minutes estimate for real trades
+        error: walletValidation.error
       };
     } catch (error) {
       return {
@@ -112,10 +158,16 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
     const highConfidenceOps = opportunities.filter(opp => 
       opp.confidence === 'HIGH' && 
       opp.executionReady && 
-      !executingTrades.has(opp.id)
+      !executingTrades.has(opp.id) &&
+      opp.netProfit > 5 // Only auto-execute if profit is more than 5 ADA
     );
 
-    console.log(`🤖 Auto-executing ${highConfidenceOps.length} high confidence opportunities...`);
+    console.log(`🤖 AUTO-EXECUTING ${highConfidenceOps.length} HIGH CONFIDENCE REAL TRADES...`);
+
+    if (highConfidenceOps.length === 0) {
+      console.log('📊 No high-confidence opportunities available for auto-execution');
+      return { executed: 0, successful: 0 };
+    }
 
     const results = await Promise.allSettled(
       highConfidenceOps.map(opp => executeArbitrage(opp.id))
@@ -125,7 +177,7 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
       result.status === 'fulfilled' && result.value.success
     ).length;
 
-    console.log(`✅ Auto-execution completed: ${successful}/${highConfidenceOps.length} successful`);
+    console.log(`✅ AUTO-EXECUTION COMPLETED: ${successful}/${highConfidenceOps.length} SUCCESSFUL REAL TRADES`);
 
     return { executed: highConfidenceOps.length, successful };
   }, [opportunities, executingTrades, executeArbitrage]);

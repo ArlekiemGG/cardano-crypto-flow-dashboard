@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { realTimeMarketDataService } from './realTimeMarketDataService';
+import { realTradingService } from './realTradingService';
 
 interface ArbitrageOpportunityReal {
   id: string;
@@ -38,17 +39,18 @@ export class ArbitrageEngine {
     { dex: 'CoinGecko', tradingFee: 0, withdrawalFee: 0, networkFee: 0, minimumTrade: 0 }
   ];
 
-  // Make these thresholds more lenient to find more opportunities
-  private readonly MIN_PROFIT_PERCENTAGE = 0.3; // Reduced from 0.5
-  private readonly MIN_VOLUME_ADA = 50; // Reduced from 100
-  private readonly MAX_SLIPPAGE = 8; // Increased from 5
+  // More conservative thresholds for REAL trading
+  private readonly MIN_PROFIT_PERCENTAGE = 1.5; // Higher threshold for real trades
+  private readonly MIN_VOLUME_ADA = 100; // Higher minimum volume
+  private readonly MAX_SLIPPAGE = 3; // Lower slippage tolerance
+  private readonly MIN_CONFIDENCE_FOR_REAL_TRADES = 'HIGH'; // Only execute HIGH confidence trades
 
   private normalizePair(pair: string): string {
     return pair.toUpperCase().replace(/\s+/g, '').replace(/[\/\-]/g, '/');
   }
 
   async scanForArbitrageOpportunities(): Promise<ArbitrageOpportunityReal[]> {
-    console.log('🔍 Scanning for REAL arbitrage opportunities using live DEX data...');
+    console.log('🔍 Scanning for REAL arbitrage opportunities for LIVE TRADING...');
     
     try {
       const currentPrices = await realTimeMarketDataService.getCurrentPrices();
@@ -56,19 +58,12 @@ export class ArbitrageEngine {
       
       if (currentPrices.length === 0) {
         console.log('⚠️ No real price data available from DEX APIs');
-        
-        // Generate demo opportunities for testing if no real data is available
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('🔧 Development mode: Generating sample opportunities for testing');
-          return this.generateSampleOpportunities();
-        }
-        
         return [];
       }
 
-      // Filter out CoinGecko data for arbitrage analysis (it's just for reference)
+      // Filter out CoinGecko data for arbitrage analysis
       const dexPrices = currentPrices.filter(price => price.dex !== 'CoinGecko');
-      console.log(`📊 Using ${dexPrices.length} DEX price entries for arbitrage analysis`);
+      console.log(`📊 Using ${dexPrices.length} DEX price entries for REAL arbitrage analysis`);
 
       const opportunities: ArbitrageOpportunityReal[] = [];
 
@@ -82,7 +77,7 @@ export class ArbitrageEngine {
         pairGroups.get(normalizedPair)!.push(price);
       });
 
-      console.log(`🔗 Grouped real DEX prices into ${pairGroups.size} unique pairs`);
+      console.log(`🔗 Grouped real DEX prices into ${pairGroups.size} unique pairs for REAL TRADING`);
 
       // Analyze each pair for real arbitrage opportunities
       for (const [pair, prices] of pairGroups) {
@@ -92,36 +87,26 @@ export class ArbitrageEngine {
         }
       }
 
-      // Apply realistic filters for real opportunities
+      // Apply strict filters for REAL trading
       const validOpportunities = opportunities
         .filter(opp => opp.profitPercentage >= this.MIN_PROFIT_PERCENTAGE)
         .filter(opp => opp.volumeAvailable >= this.MIN_VOLUME_ADA)
         .filter(opp => opp.slippageRisk <= this.MAX_SLIPPAGE)
-        .filter(opp => opp.netProfit > 1) // Reduced minimum profit to 1 ADA
+        .filter(opp => opp.netProfit > 5) // Minimum 5 ADA profit for real trades
+        .filter(opp => opp.confidence === 'HIGH') // Only HIGH confidence for real trading
         .sort((a, b) => b.netProfit - a.netProfit)
-        .slice(0, 20); // Limit to top 20 opportunities
+        .slice(0, 10); // Limit to top 10 opportunities for focus
 
       // Store real opportunities in database
       await this.storeRealOpportunities(validOpportunities);
 
-      console.log(`✅ Found ${validOpportunities.length} valid REAL arbitrage opportunities out of ${opportunities.length} total analyzed`);
-      
-      // If no real opportunities found and we're not in production, generate samples
-      if (validOpportunities.length === 0 && process.env.NODE_ENV !== 'production') {
-        console.log('🔧 Development mode: No real opportunities found. Generating samples...');
-        return this.generateSampleOpportunities();
-      }
+      console.log(`✅ Found ${validOpportunities.length} REAL TRADING opportunities out of ${opportunities.length} total analyzed`);
+      console.log(`🎯 All opportunities are HIGH CONFIDENCE and ready for REAL EXECUTION`);
       
       return validOpportunities;
 
     } catch (error) {
-      console.error('❌ Error scanning for real arbitrage opportunities:', error);
-      
-      // Return sample data in development mode if there's an error
-      if (process.env.NODE_ENV !== 'production') {
-        return this.generateSampleOpportunities();
-      }
-      
+      console.error('❌ Error scanning for REAL arbitrage opportunities:', error);
       return [];
     }
   }
@@ -148,20 +133,20 @@ export class ArbitrageEngine {
         const priceDiff = sellPrice.price - buyPrice.price;
         const rawProfitPercentage = (priceDiff / buyPrice.price) * 100;
 
-        // Only consider realistic opportunities
-        if (rawProfitPercentage > 0.1 && rawProfitPercentage < 10) {
+        // Only consider realistic and profitable opportunities for REAL trading
+        if (rawProfitPercentage > 1.0 && rawProfitPercentage < 8) {
           // Calculate real fees for these DEXs
           const buyFees = this.calculateRealDEXFees(buyDex, buyPrice.price);
           const sellFees = this.calculateRealDEXFees(sellDex, sellPrice.price);
           const totalFees = buyFees + sellFees;
 
-          // Use conservative volume estimation based on real liquidity
+          // Use conservative volume estimation for REAL trading
           const volumeAvailable = Math.min(
-            buyPrice.volume24h * 0.02, // 2% of daily volume is realistic
-            sellPrice.volume24h * 0.02,
-            Math.max(buyPrice.liquidity * 0.001, 50), // 0.1% of liquidity or min 50 ADA
-            Math.max(sellPrice.liquidity * 0.001, 50),
-            1000 // Max 1000 ADA per opportunity
+            buyPrice.volume24h * 0.01, // 1% of daily volume (more conservative)
+            sellPrice.volume24h * 0.01,
+            Math.max(buyPrice.liquidity * 0.0005, 100), // 0.05% of liquidity or min 100 ADA
+            Math.max(sellPrice.liquidity * 0.0005, 100),
+            500 // Max 500 ADA per opportunity for risk management
           );
 
           // Calculate realistic net profit
@@ -174,7 +159,7 @@ export class ArbitrageEngine {
           const liquidityScore = this.calculateRealLiquidityScore(buyPrice.liquidity, sellPrice.liquidity);
           const slippageRisk = this.calculateRealSlippageRisk(volumeAvailable, liquidityScore);
 
-          // Determine confidence based on real market conditions
+          // Determine confidence based on real market conditions (stricter for real trading)
           const confidence = this.calculateRealConfidence(
             netProfitPercentage, 
             liquidityScore, 
@@ -183,8 +168,8 @@ export class ArbitrageEngine {
             volumeAvailable
           );
 
-          // Only include profitable opportunities with reasonable risk
-          if (netProfitPercentage > 0.3 && netProfit > 2 && slippageRisk < 8) {
+          // Only include HIGH confidence opportunities with significant profit for REAL trading
+          if (netProfitPercentage > 1.5 && netProfit > 5 && slippageRisk < 3 && confidence === 'HIGH') {
             opportunities.push({
               id: `${pair}-${buyDex}-${sellDex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               pair,
@@ -202,7 +187,7 @@ export class ArbitrageEngine {
               slippageRisk,
               liquidityScore,
               timestamp: new Date().toISOString(),
-              executionReady: confidence === 'HIGH' && netProfitPercentage > 1.5 && slippageRisk < 3
+              executionReady: true // All opportunities are execution ready for real trading
             });
           }
         }
@@ -250,26 +235,27 @@ export class ArbitrageEngine {
     priceDiff: number,
     volume: number
   ): 'HIGH' | 'MEDIUM' | 'LOW' {
-    // More sophisticated confidence calculation for real opportunities
+    // Stricter confidence calculation for real trading
     let score = 0;
     
     // Profit factor (higher profit = higher confidence)
-    score += Math.min(30, profitPercentage * 8);
+    score += Math.min(40, profitPercentage * 10);
     
     // Liquidity factor
-    score += liquidityScore * 0.4;
+    score += liquidityScore * 0.5;
     
-    // Slippage penalty
-    score -= slippageRisk * 3;
+    // Slippage penalty (more severe for real trading)
+    score -= slippageRisk * 5;
     
     // Price difference factor (too high might be stale data)
-    if (priceDiff / 0.5 > 0.02) score -= 10; // Penalty for very high price differences
+    if (priceDiff / 0.5 > 0.02) score -= 15; // Higher penalty for very high price differences
     
     // Volume factor
-    score += Math.min(10, volume / 100);
+    score += Math.min(15, volume / 50);
     
-    if (score > 70) return 'HIGH';
-    if (score > 50) return 'MEDIUM';
+    // For real trading, we're much more conservative
+    if (score > 85) return 'HIGH';
+    if (score > 70) return 'MEDIUM';
     return 'LOW';
   }
 
@@ -298,7 +284,7 @@ export class ArbitrageEngine {
             price_diff: opp.sellPrice - opp.buyPrice,
             profit_potential: opp.profitPercentage,
             volume_available: opp.volumeAvailable,
-            confidence_score: opp.confidence === 'HIGH' ? 90 : opp.confidence === 'MEDIUM' ? 70 : 50,
+            confidence_score: 90, // All stored opportunities are HIGH confidence
             is_active: true,
             timestamp: opp.timestamp
           });
@@ -308,109 +294,33 @@ export class ArbitrageEngine {
     }
   }
 
-  // New method to generate sample opportunities for testing
-  private generateSampleOpportunities(): ArbitrageOpportunityReal[] {
-    console.log('🔧 Generating sample arbitrage opportunities for testing');
-    
-    const dexList = ['Minswap', 'SundaeSwap', 'MuesliSwap', 'WingRiders'];
-    const pairs = ['ADA/USDT', 'ADA/USDC', 'ADA/DJED', 'HOSKY/ADA'];
-    
-    const opportunities: ArbitrageOpportunityReal[] = [];
-    
-    // Generate 3 sample opportunities
-    for (let i = 0; i < 3; i++) {
-      const pair = pairs[Math.floor(Math.random() * pairs.length)];
-      const buyDex = dexList[Math.floor(Math.random() * dexList.length)];
-      
-      // Ensure sellDex is different from buyDex
-      let sellDex = dexList[Math.floor(Math.random() * dexList.length)];
-      while (sellDex === buyDex) {
-        sellDex = dexList[Math.floor(Math.random() * dexList.length)];
-      }
-      
-      const basePrice = pair.includes('ADA/') ? 0.64 : 0.0001;
-      const buyPrice = basePrice * (0.95 + Math.random() * 0.03);
-      const sellPrice = buyPrice * (1.01 + Math.random() * 0.03);
-      const volumeAvailable = 100 + Math.floor(Math.random() * 900);
-      
-      const profitPercentage = ((sellPrice - buyPrice) / buyPrice) * 100;
-      const profitADA = (sellPrice - buyPrice) * volumeAvailable;
-      
-      const liquidityScore = 70 + Math.floor(Math.random() * 20);
-      const slippageRisk = 1 + Math.random() * 3;
-      
-      const confidence = profitPercentage > 2 ? 'HIGH' : 
-                          profitPercentage > 1 ? 'MEDIUM' : 'LOW';
-      
-      opportunities.push({
-        id: `${pair}-${buyDex}-${sellDex}-${Date.now()}-${i}`,
-        pair,
-        buyDex,
-        sellDex,
-        buyPrice,
-        sellPrice,
-        profitPercentage,
-        profitADA,
-        volumeAvailable,
-        totalFees: 0.5 + Math.random(),
-        netProfit: profitADA - 1,
-        confidence,
-        timeToExpiry: 120 + Math.floor(Math.random() * 120),
-        slippageRisk,
-        liquidityScore,
-        timestamp: new Date().toISOString(),
-        executionReady: confidence === 'HIGH'
-      });
-    }
-    
-    return opportunities;
-  }
-
-  // Method to simulate trade execution for validation
-  async simulateTradeExecution(opportunity: ArbitrageOpportunityReal): Promise<{
+  // Remove simulation methods since we're doing REAL trading
+  async executeRealArbitrageTrade(opportunity: ArbitrageOpportunityReal, walletApi: any): Promise<{
     success: boolean;
-    estimatedProfit: number;
-    estimatedSlippage: number;
-    gasEstimate: number;
-    timeEstimate: number;
+    txHash?: string;
+    actualProfit?: number;
+    error?: string;
   }> {
-    console.log(`🧪 Simulating trade execution for ${opportunity.pair}`);
+    console.log(`🚀 EXECUTING REAL ARBITRAGE TRADE for ${opportunity.pair}`);
 
     try {
-      // Simulate buy order
-      const buySlippage = Math.random() * opportunity.slippageRisk;
-      const actualBuyPrice = opportunity.buyPrice * (1 + buySlippage / 100);
+      const result = await realTradingService.executeRealArbitrageTrade({
+        pair: opportunity.pair,
+        buyDex: opportunity.buyDex,
+        sellDex: opportunity.sellDex,
+        buyPrice: opportunity.buyPrice,
+        sellPrice: opportunity.sellPrice,
+        amount: opportunity.volumeAvailable,
+        walletApi
+      });
 
-      // Simulate sell order
-      const sellSlippage = Math.random() * opportunity.slippageRisk;
-      const actualSellPrice = opportunity.sellPrice * (1 - sellSlippage / 100);
-
-      // Calculate actual profit
-      const actualProfit = (actualSellPrice - actualBuyPrice) * opportunity.volumeAvailable - opportunity.totalFees;
-      const totalSlippage = buySlippage + sellSlippage;
-
-      // Estimate gas costs
-      const gasEstimate = 0.5; // 0.5 ADA for transaction fees
-
-      // Estimate execution time
-      const timeEstimate = 120; // 2 minutes average
-
-      return {
-        success: actualProfit > 0,
-        estimatedProfit: actualProfit,
-        estimatedSlippage: totalSlippage,
-        gasEstimate,
-        timeEstimate
-      };
+      return result;
 
     } catch (error) {
-      console.error('Error simulating trade:', error);
+      console.error('❌ Error executing real arbitrage:', error);
       return {
         success: false,
-        estimatedProfit: 0,
-        estimatedSlippage: 100,
-        gasEstimate: 0,
-        timeEstimate: 0
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
