@@ -307,11 +307,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     return () => clearInterval(interval);
   }, [walletState.isConnected, walletState.lucid]);
 
-  // Auto-reconnection logic (simplified for security)
+  // Initialize without auto-reconnection (no persistence)
   useEffect(() => {
-    console.log('Modern WalletProvider initialized - 2025 configuration');
+    console.log('Modern WalletProvider initialized - 2025 configuration (NO PERSISTENCE)');
     const availableWallets = getAvailableWallets();
     console.log('Available wallets:', availableWallets);
+    console.log('Wallet connection will NOT persist across browser sessions');
   }, []);
 
   const contextValue: WalletContextType = {
