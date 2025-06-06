@@ -5,14 +5,14 @@ class DataThrottlingService {
   private requestCounts: Map<string, number> = new Map();
   private windowStart: number = Date.now();
   private readonly WINDOW_SIZE = 60000; // 1 minuto
-  private readonly MAX_REQUESTS_PER_WINDOW = 10; // Reducido de 20 a 10
+  private readonly MAX_REQUESTS_PER_WINDOW = 8; // Reducido para evitar spam
 
   constructor() {
-    // Intervalos más conservadores para evitar spam
-    this.minIntervals.set('arbitrage', 45000); // 45 segundos
-    this.minIntervals.set('market_data', 120000); // 2 minutos
+    // Intervalos optimizados
+    this.minIntervals.set('arbitrage', 30000); // 30 segundos
+    this.minIntervals.set('marketData', 60000); // 1 minuto
+    this.minIntervals.set('defiLlama', 180000); // 3 minutos
     this.minIntervals.set('portfolio', 300000); // 5 minutos
-    this.minIntervals.set('dex_prices', 90000); // 1.5 minutos
   }
 
   canFetch(serviceKey: string): boolean {
@@ -78,6 +78,14 @@ class DataThrottlingService {
     this.lastFetchTimes.delete(serviceKey);
     this.requestCounts.delete(serviceKey);
     console.log(`🔄 Reset throttling para ${serviceKey}`);
+  }
+
+  // Limpiar todo el throttling
+  reset() {
+    this.lastFetchTimes.clear();
+    this.requestCounts.clear();
+    this.windowStart = Date.now();
+    console.log('🔄 Reset completo de throttling');
   }
 }
 

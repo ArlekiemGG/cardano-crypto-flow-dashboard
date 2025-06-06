@@ -21,10 +21,10 @@ export const RealTimeArbitrageMonitor = () => {
     totalOpportunities,
     highConfidenceOpportunities,
     avgProfitPercentage,
-    totalPotentialProfit
+    totalPotentialProfit,
+    isAutoScanning
   } = useRealTimeArbitrage();
 
-  const [isAutoScanning, setIsAutoScanning] = useState(true);
   const [selectedOpportunity, setSelectedOpportunity] = useState<string | null>(null);
   const [simulationResult, setSimulationResult] = useState<any>(null);
 
@@ -33,10 +33,8 @@ export const RealTimeArbitrageMonitor = () => {
   const handleAutoScanToggle = () => {
     if (isAutoScanning) {
       stopAutoScan();
-      setIsAutoScanning(false);
     } else {
       startAutoScan(scanInterval);
-      setIsAutoScanning(true);
     }
   };
 

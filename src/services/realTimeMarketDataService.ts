@@ -21,31 +21,29 @@ class RealTimeMarketDataService {
 
   async startRealTimeUpdates(intervalSeconds: number = 45): Promise<void> {
     if (this.isServiceActive) {
-      console.log('📊 Servicio ya activo, optimizando configuración...');
+      console.log('📊 Servicio ya activo');
       return;
     }
 
     this.isServiceActive = true;
-    console.log(`🚀 Iniciando servicio optimizado (intervalo: ${intervalSeconds}s)...`);
+    console.log(`🚀 Iniciando servicio (intervalo: ${intervalSeconds}s)...`);
     
     try {
-      // Fetch inicial inmediato
+      // Fetch inicial
       await this.fetchAndNotify();
 
-      // Configurar actualizaciones periódicas más agresivas
+      // Configurar actualizaciones periódicas
       intervalManagerService.startUpdateInterval(async () => {
         if (dataThrottlingService.canFetch('marketData')) {
           await this.fetchAndNotify();
-        } else {
-          console.log('📊 Throttling activo, esperando siguiente oportunidad...');
         }
       }, intervalSeconds * 1000);
 
-      // Iniciar monitoreo de salud del servicio
+      // Iniciar monitoreo de salud
       this.startHealthCheck();
 
     } catch (error) {
-      console.error('❌ Error iniciando servicio optimizado:', error);
+      console.error('❌ Error iniciando servicio:', error);
       this.isServiceActive = false;
     }
   }
@@ -61,12 +59,12 @@ class RealTimeMarketDataService {
       
       // Si no hemos tenido actualizaciones en 3 minutos, forzar fetch
       if (timeSinceLastUpdate > 180000) {
-        console.log('🔄 Forzando actualización por inactividad prolongada...');
+        console.log('🔄 Forzando actualización por inactividad...');
         this.fetchAndNotify().catch(error => {
           console.error('❌ Error en fetch forzado:', error);
         });
       }
-    }, 60000); // Check cada minuto
+    }, 60000);
   }
 
   private async fetchAndNotify(): Promise<void> {
@@ -78,7 +76,6 @@ class RealTimeMarketDataService {
       const fetchDuration = Date.now() - startTime;
       
       if (prices.length > 0) {
-        // Filtrar datos duplicados y obsoletos
         const uniquePrices = this.deduplicatePrices(prices);
         const freshPrices = this.filterFreshData(uniquePrices);
         
@@ -88,20 +85,15 @@ class RealTimeMarketDataService {
           this.notifySubscribers(freshPrices);
           intervalManagerService.resetRetryCount();
           
-          console.log(`✅ Datos actualizados: ${freshPrices.length} precios únicos (fetch: ${fetchDuration}ms)`);
-        } else {
-          console.log('⚠️ No hay datos frescos disponibles');
+          console.log(`✅ Datos actualizados: ${freshPrices.length} precios (${fetchDuration}ms)`);
         }
-      } else {
-        console.log('⚠️ No se obtuvieron datos en esta iteración');
       }
 
     } catch (error) {
-      console.error('❌ Error en fetch optimizado:', error);
+      console.error('❌ Error en fetch:', error);
       
       const maxRetries = intervalManagerService.incrementRetryCount();
       if (maxRetries) {
-        console.error('❌ Máximo de reintentos alcanzado, programando reconexión...');
         intervalManagerService.scheduleReconnect(async () => {
           await this.fetchAndNotify();
         });
@@ -135,7 +127,7 @@ class RealTimeMarketDataService {
   subscribe(callback: (data: RealTimePrice[]) => void) {
     this.subscribers.add(callback);
     
-    // Enviar datos actuales inmediatamente si están disponibles
+    // Enviar datos actuales inmediatamente
     if (this.currentPrices.length > 0) {
       callback(this.currentPrices);
     }
@@ -161,7 +153,7 @@ class RealTimeMarketDataService {
 
   isConnected(): boolean {
     const hasData = this.currentPrices.length > 0;
-    const isRecent = this.lastUpdateTime > 0 && (Date.now() - this.lastUpdateTime) < 300000; // 5 min
+    const isRecent = this.lastUpdateTime > 0 && (Date.now() - this.lastUpdateTime) < 300000;
     return this.isServiceActive && hasData && isRecent;
   }
 
@@ -182,7 +174,7 @@ class RealTimeMarketDataService {
   }
 
   stop(): void {
-    console.log('🛑 Deteniendo servicio optimizado...');
+    console.log('🛑 Deteniendo servicio...');
     this.isServiceActive = false;
     
     if (this.healthCheckInterval) {

@@ -12,7 +12,6 @@ import { useWallet } from "@/contexts/ModernWalletContext"
 import { useMemo } from "react"
 import { Zap } from "lucide-react"
 import { useOptimizedMarketData } from "@/hooks/useOptimizedMarketData"
-import { realTimeMarketDataService } from "@/services/realTimeMarketDataService"
 
 export default function Dashboard() {
   const { marketData, isConnected } = useRealTimeData()
@@ -30,8 +29,7 @@ export default function Dashboard() {
   const totalDexVolume = getTotalDexVolume24h()
 
   const marketStats = useMemo(() => {
-    const allPrices = realTimeMarketDataService.getCurrentPrices()
-    const totalVolume = allPrices.reduce((sum, price) => sum + price.volume24h, 0)
+    const totalVolume = marketData.reduce((sum, data) => sum + (data.volume24h || 0), 0)
 
     return {
       totalVolume24h: totalVolume
