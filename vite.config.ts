@@ -38,11 +38,16 @@ export default defineConfig(({ mode }) => ({
     exclude: ['@cardano-foundation/cardano-connect-with-wallet']
   },
   build: {
+    target: 'esnext',
     rollupOptions: {
       external: [],
       output: {
+        format: 'es',
         globals: {}
       }
     }
+  },
+  esbuild: {
+    target: 'esnext'
   }
 }));
