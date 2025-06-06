@@ -16,10 +16,22 @@ import {
   TrendingUp
 } from 'lucide-react';
 
+interface SystemStatus {
+  overall: 'healthy' | 'degraded' | 'down';
+  services: HealthCheck[];
+  alerts: number;
+}
+
+interface PerformanceMetrics {
+  apiLatency: { [service: string]: number };
+  errorRate: number;
+  throughput: number;
+}
+
 export const SystemMonitorDashboard: React.FC = () => {
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([]);
-  const [systemStatus, setSystemStatus] = useState<any>(null);
-  const [performanceMetrics, setPerformanceMetrics] = useState<any>(null);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 
-import { LucidEvolution, UTxO, Assets, PolicyId, AssetName } from '@lucid-evolution/lucid';
+import { LucidEvolution, UTxO, Assets, PolicyId } from '@lucid-evolution/lucid';
 import { initializeLucid } from '@/utils/modernWalletUtils';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -125,8 +125,9 @@ export class RealCardanoIntegration {
 
   private async buildLiquidityTransaction(assets: Assets, fees: bigint) {
     // Build liquidity provision transaction
+    const datum = "d87980"; // Simple datum for demo
     return this.lucid!.newTx()
-      .pay.ToContract("addr_contract...", { inline: "datum" }, assets)
+      .pay.ToContract("addr_contract...", { kind: "inline", value: datum }, assets)
       .validFrom(Date.now());
   }
 
@@ -174,7 +175,7 @@ export class RealCardanoIntegration {
     }
   }
 
-  async handleNativeTokens(policyId: PolicyId, assetName: AssetName): Promise<string> {
+  async handleNativeTokens(policyId: PolicyId, assetName: string): Promise<string> {
     // Handle Cardano native tokens and NFTs
     return `${policyId}${assetName}`;
   }

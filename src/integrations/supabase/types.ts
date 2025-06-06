@@ -57,6 +57,36 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_trail: {
+        Row: {
+          action: string
+          details_json: Json | null
+          id: string
+          ip_address: string | null
+          timestamp: string
+          user_agent: string | null
+          user_wallet: string
+        }
+        Insert: {
+          action: string
+          details_json?: Json | null
+          id?: string
+          ip_address?: string | null
+          timestamp?: string
+          user_agent?: string | null
+          user_wallet: string
+        }
+        Update: {
+          action?: string
+          details_json?: Json | null
+          id?: string
+          ip_address?: string | null
+          timestamp?: string
+          user_agent?: string | null
+          user_wallet?: string
+        }
+        Relationships: []
+      }
       dex_configs: {
         Row: {
           active: boolean | null
@@ -87,6 +117,33 @@ export type Database = {
           id?: string
           last_updated?: string | null
           websocket_url?: string | null
+        }
+        Relationships: []
+      }
+      health_checks: {
+        Row: {
+          checked_at: string
+          error_message: string | null
+          id: string
+          latency_ms: number
+          service_name: string
+          status: string
+        }
+        Insert: {
+          checked_at?: string
+          error_message?: string | null
+          id?: string
+          latency_ms: number
+          service_name: string
+          status: string
+        }
+        Update: {
+          checked_at?: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number
+          service_name?: string
+          status?: string
         }
         Relationships: []
       }
@@ -354,6 +411,30 @@ export type Database = {
             referencedColumns: ["wallet_address"]
           },
         ]
+      }
+      system_alerts: {
+        Row: {
+          id: string
+          message: string
+          resolved: boolean
+          severity: string
+          timestamp: string
+        }
+        Insert: {
+          id?: string
+          message: string
+          resolved?: boolean
+          severity: string
+          timestamp?: string
+        }
+        Update: {
+          id?: string
+          message?: string
+          resolved?: boolean
+          severity?: string
+          timestamp?: string
+        }
+        Relationships: []
       }
       trade_history: {
         Row: {

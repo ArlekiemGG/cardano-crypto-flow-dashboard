@@ -76,18 +76,18 @@ export class RealTimeMonitoring {
   }> {
     const { data: transactions } = await supabase
       .from('trade_history')
-      .select('status, created_at, updated_at')
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+      .select('status, timestamp')
+      .gte('timestamp', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
     const pending = transactions?.filter(tx => tx.status === 'pending').length || 0;
     const failed = transactions?.filter(tx => tx.status === 'failed').length || 0;
     
     // Calculate average confirmation time
-    const confirmed = transactions?.filter(tx => tx.status === 'confirmed') || [];
+    const confirmed = transactions?.filter(tx => tx.status === 'executed') || [];
     const avgConfirmationTime = confirmed.length > 0 
       ? confirmed.reduce((sum, tx) => {
-          const created = new Date(tx.created_at).getTime();
-          const updated = new Date(tx.updated_at).getTime();
+          const created = new Date(tx.timestamp).getTime();
+          const updated = new Date().getTime(); // Using current time as approximation
           return sum + (updated - created);
         }, 0) / confirmed.length / 1000 // Convert to seconds
       : 0;
@@ -111,7 +111,7 @@ export class RealTimeMonitoring {
     const { data: recentTxs } = await supabase
       .from('trade_history')
       .select('status')
-      .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()); // Last hour
+      .gte('timestamp', new Date(Date.now() - 60 * 60 * 1000).toISOString()); // Last hour
 
     const errorRate = recentTxs?.length > 0 
       ? (recentTxs.filter(tx => tx.status === 'failed').length / recentTxs.length) * 100

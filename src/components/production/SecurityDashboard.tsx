@@ -14,9 +14,23 @@ import {
   XCircle
 } from 'lucide-react';
 
+interface AuditEntry {
+  id: string;
+  action: string;
+  user_wallet: string;
+  timestamp: string;
+}
+
+interface SecurityAlert {
+  id: string;
+  message: string;
+  severity: string;
+  timestamp: string;
+}
+
 export const SecurityDashboard: React.FC = () => {
-  const [auditTrail, setAuditTrail] = useState<any[]>([]);
-  const [securityAlerts, setSecurityAlerts] = useState<any[]>([]);
+  const [auditTrail, setAuditTrail] = useState<AuditEntry[]>([]);
+  const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
   const [securityMetrics, setSecurityMetrics] = useState({
     totalTransactions: 0,
     blockedTransactions: 0,
