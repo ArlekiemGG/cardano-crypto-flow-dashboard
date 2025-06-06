@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 import { useWallet } from '@/contexts/ModernWalletContext';
 import { useNavigate } from 'react-router-dom';
 import { ModernWalletConnector } from '@/components/ModernWalletConnector';
-import { TrendingUp, Zap, Shield, Star, BarChart3 } from 'lucide-react';
+import { TrendingUp, Zap, Shield, BarChart3 } from 'lucide-react';
 
 const WelcomeHero = () => {
   return (
@@ -102,41 +102,6 @@ const WelcomeHero = () => {
             <div className="text-center">
               <div className="text-3xl font-bold text-crypto-success mb-1">7</div>
               <div className="text-sm text-gray-400">Supported Wallets</div>
-            </div>
-          </div>
-
-          {/* 2025 Features */}
-          <div className="glass rounded-2xl p-8 border border-white/10 animate-fade-in" style={{ animationDelay: '1.5s' }}>
-            <h3 className="text-2xl font-bold text-white mb-6 flex items-center justify-center">
-              <Star className="w-6 h-6 text-crypto-primary mr-2" />
-              2025 Platform Features
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-crypto-success rounded-full"></div>
-                <span className="text-gray-300">Lucid Evolution Integration</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-crypto-success rounded-full"></div>
-                <span className="text-gray-300">Blockfrost API Connectivity</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-crypto-success rounded-full"></div>
-                <span className="text-gray-300">7 Major Wallet Support</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-crypto-success rounded-full"></div>
-                <span className="text-gray-300">Auto-Balance Updates (30s)</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-crypto-success rounded-full"></div>
-                <span className="text-gray-300">Real-Time Arbitrage Scanning</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-crypto-success rounded-full"></div>
-                <span className="text-gray-300">Automated Market Making</span>
-              </div>
             </div>
           </div>
         </div>
