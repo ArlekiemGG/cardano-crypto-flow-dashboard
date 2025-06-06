@@ -29,7 +29,7 @@ export interface SpreadCalculation {
 export const useMarketMaking = () => {
   const [positions, setPositions] = useState<MarketMakingPosition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { isConnected, walletAddress } = useWallet();
+  const { isConnected, address } = useWallet();
   const { prices, getADAPrice } = useOptimizedMarketData();
   const { toast } = useToast();
 
