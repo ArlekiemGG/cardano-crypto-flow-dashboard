@@ -16,8 +16,27 @@ import MarketMaking from "./pages/MarketMaking";
 import Portfolio from "./pages/Portfolio";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import { useEffect } from "react";
+import { optimizedDataService } from "./services/optimizedDataService";
 
 const queryClient = new QueryClient();
+
+// Initialize the optimized data service
+const AppInitializer = () => {
+  useEffect(() => {
+    // Start the optimized data service immediately
+    optimizedDataService.refreshCriticalData();
+    
+    // Refresh the data every 5 minutes
+    const interval = setInterval(() => {
+      optimizedDataService.refreshCriticalData();
+    }, 5 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  return null;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -28,6 +47,7 @@ const App = () => (
         <BrowserRouter>
           <ProtectedRoute>
             <SidebarProvider>
+              <AppInitializer />
               <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
                 <AppSidebar />
                 <div className="flex-1 flex flex-col">

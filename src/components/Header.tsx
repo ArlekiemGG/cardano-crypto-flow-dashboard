@@ -3,36 +3,44 @@ import { Bell, Wifi, WifiOff } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { RealTimePrice } from "@/components/RealTimePrice"
-import { useRealTimeData } from "@/hooks/useRealTimeData"
+import { useConnectionHealth } from "@/hooks/useConnectionHealth"
 import { useWallet } from "@/contexts/ModernWalletContext"
 import { ModernWalletConnector } from "./ModernWalletConnector"
 import { ModernWalletInfo } from "./ModernWalletInfo"
 import { NetworkIndicator } from "./NetworkIndicator"
-import { useQuery } from "@tanstack/react-query"
-import { dexService } from "@/services/dexService"
+import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData'
 
 export function Header() {
-  const { isConnected, marketData } = useRealTimeData()
+  const { connectedSources } = useConnectionHealth()
   const { isConnected: walletConnected } = useWallet()
   const notifications = 3
-
-  // Get real DEX pairs count
-  const { data: allDexPrices = [] } = useQuery({
-    queryKey: ['all-dex-prices-header'],
-    queryFn: () => dexService.getAllDEXPrices(),
-    refetchInterval: 30000,
-    staleTime: 15000
-  })
-
-  // Get real 24h volume from actual CoinGecko data (not hardcoded)
-  const adaData = marketData.find(data => data.symbol === 'ADA')
-  const real24hVolume = adaData?.volume24h || 0
   
-  // Count active DEX pairs from real data
-  const activeDEXPairs = allDexPrices.filter(price => 
-    price.volume24h > 100 && // Only count pairs with meaningful volume
-    new Date(price.lastUpdate).getTime() > Date.now() - 3600000 // Updated within last hour
-  ).length
+  // Use the optimized market data hook for DeFiLlama data
+  const { 
+    dexVolumes,
+    isLoading,
+    dataSource,
+    getTotalDexVolume24h
+  } = useOptimizedMarketData()
+  
+  // Get total DEX volume from DeFiLlama
+  const totalVolume24h = getTotalDexVolume24h()
+  
+  // Count active DEX pairs from DeFiLlama data
+  const activeDEXPairs = dexVolumes?.protocols?.length || 0
+  
+  // Format volume for display
+  const formatVolume = (volume: number) => {
+    if (volume >= 1000000000) {
+      return `$${(volume / 1000000000).toFixed(1)}B`;
+    } else if (volume >= 1000000) {
+      return `$${(volume / 1000000).toFixed(1)}M`;
+    } else if (volume >= 1000) {
+      return `$${(volume / 1000).toFixed(1)}K`;
+    } else {
+      return `$${volume.toFixed(0)}`;
+    }
+  };
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
@@ -45,10 +53,8 @@ export function Header() {
           <div className="text-sm">
             <span className="text-gray-400">24h Vol: </span>
             <span className="text-white font-mono">
-              {real24hVolume > 0 
-                ? real24hVolume > 1000000000 
-                  ? `$${(real24hVolume / 1000000000).toFixed(1)}B`
-                  : `$${(real24hVolume / 1000000).toFixed(1)}M`
+              {totalVolume24h > 0 
+                ? formatVolume(totalVolume24h)
                 : 'Loading...'
               }
             </span>
@@ -65,15 +71,15 @@ export function Header() {
         {/* Network Indicator */}
         <NetworkIndicator />
 
-        {/* CoinGecko Connection Status for ADA Data */}
+        {/* DeFiLlama Connection Status */}
         <div className="flex items-center space-x-2">
-          {isConnected ? (
+          {!isLoading ? (
             <Wifi className="h-4 w-4 text-green-400" />
           ) : (
             <WifiOff className="h-4 w-4 text-red-400" />
           )}
-          <span className={`text-xs hidden sm:block ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
-            {isConnected ? 'CoinGecko Live' : 'Disconnected'}
+          <span className={`text-xs hidden sm:block ${!isLoading ? 'text-green-400' : 'text-red-400'}`}>
+            {!isLoading ? 'DeFiLlama Live' : 'Disconnected'}
           </span>
         </div>
 
