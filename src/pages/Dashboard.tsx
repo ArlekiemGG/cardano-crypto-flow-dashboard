@@ -1,3 +1,4 @@
+
 import { useRealTimeData } from "@/hooks/useRealTimeData"
 import { useRealTimeArbitrage } from "@/hooks/useRealTimeArbitrage"
 import { useArbitrageStats } from "@/hooks/useArbitrageStats"
@@ -6,7 +7,6 @@ import { LiveArbitrageOpportunities } from "@/components/LiveArbitrageOpportunit
 import { DEXConnectionStatus } from "@/components/DEXConnectionStatus"
 import { HeroSection } from "@/components/dashboard/HeroSection"
 import { MetricsGrid } from "@/components/dashboard/MetricsGrid"
-import { MarketDataSection } from "@/components/dashboard/MarketDataSection"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useWallet } from "@/contexts/ModernWalletContext"
 import { useMemo } from "react"
@@ -55,7 +55,7 @@ export default function Dashboard() {
         highConfidenceOpportunities={arbitrageStats.highConfidenceOpportunities}
         totalPotentialProfit={arbitrageStats.totalPotentialProfit}
         avgProfitPercentage={arbitrageStats.avgProfitPercentage}
-        totalVolume24h={totalDexVolume} // Use DeFiLlama DEX volume here
+        totalVolume24h={totalDexVolume}
       />
 
       {/* Real-Time Trading Panel Preview */}
@@ -101,9 +101,6 @@ export default function Dashboard() {
         <LiveArbitrageOpportunities />
         <DEXConnectionStatus />
       </div>
-
-      {/* Real Market Data Section */}
-      <MarketDataSection marketData={marketData} />
     </div>
   )
 }
