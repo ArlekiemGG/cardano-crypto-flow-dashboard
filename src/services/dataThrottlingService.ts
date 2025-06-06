@@ -2,11 +2,11 @@
 export class DataThrottlingService {
   private lastFetchTimes = new Map<string, number>();
   private readonly THROTTLE_INTERVALS = {
-    coinGecko: 60000, // 1 minuto
-    defiLlama: 45000, // 45 segundos
-    blockfrost: 30000, // 30 segundos
-    arbitrage: 30000, // 30 segundos para escaneos
-    marketData: 60000 // 1 minuto para datos de mercado
+    coinGecko: 45000, // Reducido de 60s a 45s
+    defiLlama: 30000, // Reducido de 45s a 30s
+    blockfrost: 20000, // Reducido de 30s a 20s
+    arbitrage: 15000, // Reducido de 30s a 15s para capturar más oportunidades
+    marketData: 30000 // Reducido de 60s a 30s para datos más frescos
   };
 
   canFetch(source: keyof typeof this.THROTTLE_INTERVALS): boolean {
@@ -35,6 +35,26 @@ export class DataThrottlingService {
     } else {
       this.lastFetchTimes.clear();
     }
+  }
+
+  // Nuevo método para verificar el estado del throttling
+  getThrottlingStatus(): Record<string, { canFetch: boolean; nextAllowedIn: number }> {
+    const now = Date.now();
+    const status: Record<string, { canFetch: boolean; nextAllowedIn: number }> = {};
+    
+    Object.keys(this.THROTTLE_INTERVALS).forEach((source) => {
+      const key = source as keyof typeof this.THROTTLE_INTERVALS;
+      const lastFetch = this.lastFetchTimes.get(key) || 0;
+      const interval = this.THROTTLE_INTERVALS[key];
+      const nextAllowed = lastFetch + interval;
+      
+      status[source] = {
+        canFetch: now >= nextAllowed,
+        nextAllowedIn: Math.max(0, nextAllowed - now)
+      };
+    });
+    
+    return status;
   }
 }
 

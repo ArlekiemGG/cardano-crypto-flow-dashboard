@@ -40,36 +40,52 @@ export const useRealTimeArbitrage = () => {
     if (isInitializedRef.current) return;
     isInitializedRef.current = true;
 
-    console.log('🚀 Inicializando monitoreo optimizado de arbitraje...');
+    console.log('🚀 Inicializando monitoreo optimizado de arbitraje v2...');
     
     const initializeServices = async () => {
       try {
-        await realTimeMarketDataService.startRealTimeUpdates(90); // Aumentar intervalo a 90 segundos
+        // Iniciar con intervalo más agresivo (45s en lugar de 90s)
+        await realTimeMarketDataService.startRealTimeUpdates(45);
         
         const unsubscribe = realTimeMarketDataService.subscribe((data) => {
           if (data.length > 0 && dataThrottlingService.canFetch('arbitrage')) {
-            console.log('📊 Datos actualizados, programando escaneo...');
-            // Usar timeout más largo para evitar bucles
+            console.log('📊 Datos actualizados, iniciando escaneo optimizado...');
+            // Reducir delay para respuesta más rápida
             setTimeout(() => {
               if (!isScanning) {
                 performRealScan();
               }
-            }, 20000); // 20 segundos de delay
+            }, 5000); // Reducido de 20s a 5s
           }
         });
 
         subscriptionRef.current = unsubscribe;
 
-        // Primer escaneo con delay más largo
+        // Primer escaneo más rápido
         setTimeout(() => {
           if (dataThrottlingService.canFetch('arbitrage')) {
             performRealScan();
           }
-        }, 10000); // 10 segundos inicial
+        }, 3000); // Reducido de 10s a 3s
 
-        return unsubscribe;
+        // Monitoreo periódico del estado de throttling
+        const throttlingMonitor = setInterval(() => {
+          const status = dataThrottlingService.getThrottlingStatus();
+          const canScanArbitrage = status.arbitrage?.canFetch;
+          
+          if (canScanArbitrage && !isScanning && data.length > 0) {
+            console.log('⚡ Oportunidad de escaneo detectada por monitor');
+            performRealScan();
+          }
+        }, 30000); // Check cada 30s
+
+        return () => {
+          unsubscribe();
+          clearInterval(throttlingMonitor);
+        };
+
       } catch (error) {
-        console.error('❌ Error inicializando servicios optimizados:', error);
+        console.error('❌ Error inicializando servicios optimizados v2:', error);
         return () => {};
       }
     };
@@ -77,13 +93,12 @@ export const useRealTimeArbitrage = () => {
     initializeServices();
 
     return () => {
-      console.log('🧹 Limpiando monitoreo optimizado de arbitraje...');
+      console.log('🧹 Limpiando monitoreo optimizado de arbitraje v2...');
       cleanupAutoScanning();
       if (subscriptionRef.current) {
         subscriptionRef.current();
         subscriptionRef.current = null;
       }
-      dataThrottlingService.reset();
       isInitializedRef.current = false;
     };
   }, [cleanupAutoScanning, isScanning, performRealScan]);
