@@ -1,87 +1,83 @@
 
-export class DataThrottlingService {
-  private lastFetchTimes = new Map<string, number>();
-  private readonly THROTTLE_INTERVALS = {
-    coinGecko: 30000, // Reducido a 30s para datos más frescos
-    defiLlama: 20000, // Reducido a 20s
-    blockfrost: 15000, // Reducido a 15s 
-    arbitrage: 10000, // Reducido a 10s para capturar más oportunidades
-    marketData: 15000, // Reducido a 15s para datos más frescos
-    websocket: 5000, // Nuevo: para reconexiones WebSocket
-    realtime: 1000 // Nuevo: para actualizaciones en tiempo real
-  };
+class DataThrottlingService {
+  private lastFetchTimes: Map<string, number> = new Map();
+  private minIntervals: Map<string, number> = new Map();
+  private requestCounts: Map<string, number> = new Map();
+  private windowStart: number = Date.now();
+  private readonly WINDOW_SIZE = 60000; // 1 minuto
+  private readonly MAX_REQUESTS_PER_WINDOW = 10; // Reducido de 20 a 10
 
-  canFetch(source: keyof typeof this.THROTTLE_INTERVALS): boolean {
+  constructor() {
+    // Intervalos más conservadores para evitar spam
+    this.minIntervals.set('arbitrage', 45000); // 45 segundos
+    this.minIntervals.set('market_data', 120000); // 2 minutos
+    this.minIntervals.set('portfolio', 300000); // 5 minutos
+    this.minIntervals.set('dex_prices', 90000); // 1.5 minutos
+  }
+
+  canFetch(serviceKey: string): boolean {
     const now = Date.now();
-    const lastFetch = this.lastFetchTimes.get(source) || 0;
-    const interval = this.THROTTLE_INTERVALS[source];
     
-    if (now - lastFetch >= interval) {
-      this.lastFetchTimes.set(source, now);
-      return true;
+    // Reset window si ha pasado el tiempo
+    if (now - this.windowStart > this.WINDOW_SIZE) {
+      this.requestCounts.clear();
+      this.windowStart = now;
     }
+
+    // Check rate limiting por ventana
+    const currentCount = this.requestCounts.get(serviceKey) || 0;
+    if (currentCount >= this.MAX_REQUESTS_PER_WINDOW) {
+      console.log(`⚠️ Rate limit alcanzado para ${serviceKey}: ${currentCount}/${this.MAX_REQUESTS_PER_WINDOW}`);
+      return false;
+    }
+
+    // Check intervalo mínimo
+    const lastFetch = this.lastFetchTimes.get(serviceKey) || 0;
+    const minInterval = this.minIntervals.get(serviceKey) || 30000;
+    const timeSinceLastFetch = now - lastFetch;
+
+    const canFetch = timeSinceLastFetch >= minInterval;
     
-    return false;
-  }
-
-  getNextAllowedTime(source: keyof typeof this.THROTTLE_INTERVALS): number {
-    const lastFetch = this.lastFetchTimes.get(source) || 0;
-    const interval = this.THROTTLE_INTERVALS[source];
-    return lastFetch + interval;
-  }
-
-  reset(source?: keyof typeof this.THROTTLE_INTERVALS): void {
-    if (source) {
-      this.lastFetchTimes.delete(source);
+    if (canFetch) {
+      this.lastFetchTimes.set(serviceKey, now);
+      this.requestCounts.set(serviceKey, currentCount + 1);
+      console.log(`✅ Fetch permitido para ${serviceKey} (${timeSinceLastFetch}ms desde último)`);
     } else {
-      this.lastFetchTimes.clear();
+      const waitTime = minInterval - timeSinceLastFetch;
+      console.log(`⏳ Throttling ${serviceKey}: esperar ${Math.round(waitTime/1000)}s más`);
     }
+
+    return canFetch;
   }
 
-  // Método mejorado para verificar el estado del throttling
-  getThrottlingStatus(): Record<string, { canFetch: boolean; nextAllowedIn: number; interval: number }> {
+  getThrottlingStatus() {
     const now = Date.now();
-    const status: Record<string, { canFetch: boolean; nextAllowedIn: number; interval: number }> = {};
-    
-    Object.keys(this.THROTTLE_INTERVALS).forEach((source) => {
-      const key = source as keyof typeof this.THROTTLE_INTERVALS;
-      const lastFetch = this.lastFetchTimes.get(key) || 0;
-      const interval = this.THROTTLE_INTERVALS[key];
-      const nextAllowed = lastFetch + interval;
-      
-      status[source] = {
-        canFetch: now >= nextAllowed,
-        nextAllowedIn: Math.max(0, nextAllowed - now),
-        interval
+    const status: Record<string, any> = {};
+
+    for (const [service, minInterval] of this.minIntervals.entries()) {
+      const lastFetch = this.lastFetchTimes.get(service) || 0;
+      const timeSinceLastFetch = now - lastFetch;
+      const canFetch = timeSinceLastFetch >= minInterval;
+      const requestCount = this.requestCounts.get(service) || 0;
+
+      status[service] = {
+        canFetch,
+        lastFetch: new Date(lastFetch).toISOString(),
+        timeSinceLastFetch,
+        minInterval,
+        requestCount,
+        waitTime: canFetch ? 0 : minInterval - timeSinceLastFetch
       };
-    });
-    
+    }
+
     return status;
   }
 
-  // Nuevo método para forzar un reset inteligente
-  forceReset(source: keyof typeof this.THROTTLE_INTERVALS, delay: number = 0): void {
-    setTimeout(() => {
-      this.lastFetchTimes.set(source, 0);
-      console.log(`🔄 Force reset throttling for ${source}`);
-    }, delay);
-  }
-
-  // Método para ajustar dinámicamente los intervalos basado en la calidad de conexión
-  adjustInterval(source: keyof typeof this.THROTTLE_INTERVALS, multiplier: number): void {
-    if (multiplier < 0.5 || multiplier > 3) {
-      console.warn(`⚠️ Invalid multiplier ${multiplier} for ${source}, should be between 0.5 and 3`);
-      return;
-    }
-
-    // Temporarily adjust the interval (this would need more sophisticated state management for persistence)
-    const currentInterval = this.THROTTLE_INTERVALS[source];
-    const newInterval = Math.round(currentInterval * multiplier);
-    
-    console.log(`⚙️ Adjusting ${source} interval from ${currentInterval}ms to ${newInterval}ms`);
-    
-    // For now, just log the change. In a production environment, 
-    // you'd want to update the intervals map or store the adjustments
+  // Método para forzar reset si es necesario
+  resetService(serviceKey: string) {
+    this.lastFetchTimes.delete(serviceKey);
+    this.requestCounts.delete(serviceKey);
+    console.log(`🔄 Reset throttling para ${serviceKey}`);
   }
 }
 

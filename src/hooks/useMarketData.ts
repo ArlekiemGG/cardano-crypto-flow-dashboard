@@ -13,13 +13,20 @@ export const useMarketData = () => {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isInitializedRef = useRef(false);
   const channelRef = useRef<any>(null);
+  const isFetchingRef = useRef(false);
 
   const fetchMarketData = async () => {
+    // Prevenir fetch simultáneos
+    if (isFetchingRef.current) {
+      console.log('⏭️ Fetch ya en progreso, saltando...');
+      return;
+    }
+
     try {
+      isFetchingRef.current = true;
       setIsLoading(true);
-      console.log('📊 Fetching REAL market data from database...');
+      console.log('📊 Fetching market data (instancia única)...');
       
-      // Get fresh data from the last 15 minutes to ensure real-time accuracy
       const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
       
       const { data: cachedData, error } = await supabase
@@ -29,19 +36,17 @@ export const useMarketData = () => {
         .order('timestamp', { ascending: false });
 
       if (error) {
-        console.error('❌ Error fetching real market data:', error);
+        console.error('❌ Error fetching market data:', error);
         setIsConnected(false);
         return;
       }
 
       if (cachedData && cachedData.length > 0) {
-        console.log(`📊 Processing ${cachedData.length} real data entries...`);
+        console.log(`📊 Procesando ${cachedData.length} entradas de datos...`);
         
-        // Process real market data with priority for external APIs
         const processedData: MarketData[] = [];
         const seenPairs = new Map<string, any>();
 
-        // Sort by data quality: CoinGecko > DeFiLlama > others
         const sortedData = cachedData.sort((a, b) => {
           const sourceRanking = (source: string) => {
             if (source === 'CoinGecko') return 3;
@@ -52,15 +57,12 @@ export const useMarketData = () => {
         });
 
         sortedData.forEach((item) => {
-          // Process ADA data specifically with real validation
           if (item.pair && (item.pair.includes('ADA') || item.pair.includes('CARDANO')) && item.price > 0) {
-            const pairKey = 'ADA'; // Normalize to ADA
+            const pairKey = 'ADA';
             
-            // Only accept real price data (not mock $1.0000)
             if (item.price !== 1 && item.price > 0.1 && item.price < 10) {
               const existing = seenPairs.get(pairKey);
               
-              // Use the most recent and reliable data
               if (!existing || 
                   new Date(item.timestamp) > new Date(existing.timestamp) ||
                   (item.source_dex === 'CoinGecko' && existing.source_dex !== 'CoinGecko')) {
@@ -79,83 +81,83 @@ export const useMarketData = () => {
           }
         });
 
-        // Convert map to array
         const finalData = Array.from(seenPairs.values());
         
         if (finalData.length > 0) {
           setMarketData(finalData);
           setIsConnected(true);
-          console.log(`✅ REAL market data loaded:`, finalData);
+          console.log(`✅ Market data actualizado: ${finalData.length} tokens`);
         } else {
-          console.log('⚠️ No valid real market data found, triggering refresh...');
+          console.log('⚠️ No hay datos válidos, triggerando refresh...');
           await triggerDataRefresh();
         }
       } else {
-        console.log('📊 No recent data found, triggering edge function...');
+        console.log('📊 No hay datos recientes, triggerando refresh...');
         await triggerDataRefresh();
       }
 
       setLastUpdate(new Date());
     } catch (error) {
-      console.error('❌ Error in fetchMarketData:', error);
+      console.error('❌ Error en fetchMarketData:', error);
       setIsConnected(false);
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
   const triggerDataRefresh = async () => {
     try {
-      console.log('🔄 Triggering REAL data refresh via edge function...');
+      console.log('🔄 Triggerando refresh de datos...');
       const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
         body: JSON.stringify({ action: 'fetch_all' })
       });
 
       if (error) {
-        console.error('❌ Edge function error:', error);
+        console.error('❌ Error en edge function:', error);
       } else {
-        console.log('✅ Real data refresh completed:', data);
-        // Wait for fresh data and then fetch
+        console.log('✅ Refresh completado:', data);
         setTimeout(() => {
           fetchMarketData();
         }, 3000);
       }
     } catch (error) {
-      console.error('❌ Error triggering real data refresh:', error);
+      console.error('❌ Error triggerando refresh:', error);
     }
   };
 
   useEffect(() => {
     if (isInitializedRef.current) {
-      console.log('useMarketData already initialized, skipping...');
+      console.log('⚠️ useMarketData ya inicializado, saltando...');
       return;
     }
 
-    console.log('🚀 Initializing REAL market data service...');
+    console.log('🚀 Inicializando market data service ÚNICO...');
     isInitializedRef.current = true;
     
-    // Initial fetch of real data
+    // Fetch inicial
     fetchMarketData();
 
-    // Set up periodic updates every 3 minutes for real-time data
+    // Interval más conservador para evitar sobrecargar
     intervalRef.current = setInterval(() => {
-      console.log('🔄 Periodic REAL market data refresh...');
+      console.log('🔄 Refresh periódico de market data...');
       fetchMarketData();
-    }, 180000);
+    }, 300000); // 5 minutos en lugar de 3
 
-    // Clean up any existing channel
+    // Limpiar canal existente
     if (channelRef.current) {
       try {
         channelRef.current.unsubscribe();
         supabase.removeChannel(channelRef.current);
       } catch (error) {
-        console.error('Error cleaning up existing channel:', error);
+        console.error('Error limpiando canal existente:', error);
       }
     }
 
-    // Set up real-time subscription for fresh data updates
+    // Suscripción real-time con debounce
+    let debounceTimer: NodeJS.Timeout;
     channelRef.current = supabase
-      .channel(`real_market_data_${Date.now()}`)
+      .channel(`market_data_unique_${Date.now()}`)
       .on('postgres_changes', 
         { 
           event: '*', 
@@ -163,21 +165,22 @@ export const useMarketData = () => {
           table: 'market_data_cache' 
         }, 
         (payload) => {
-          console.log('📊 Real-time market data update received:', payload);
-          // Debounce the refresh to avoid too many updates
-          setTimeout(() => {
+          console.log('📊 Update real-time recibido');
+          
+          // Debounce para evitar múltiples updates
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
             fetchMarketData();
-          }, 2000);
+          }, 5000); // 5 segundos de debounce
         }
       );
 
-    // Subscribe to the channel
     channelRef.current.subscribe((status: string) => {
-      console.log('📊 Real-time subscription status:', status);
+      console.log('📊 Suscripción real-time:', status);
     });
 
     return () => {
-      console.log('🧹 useMarketData cleanup initiated...');
+      console.log('🧹 Limpieza de useMarketData...');
       
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -190,12 +193,13 @@ export const useMarketData = () => {
           supabase.removeChannel(channelRef.current);
           channelRef.current = null;
         } catch (error) {
-          console.error('Error cleaning up channel:', error);
+          console.error('Error limpiando canal:', error);
         }
       }
       
       isInitializedRef.current = false;
-      console.log('✅ useMarketData cleanup completed');
+      isFetchingRef.current = false;
+      console.log('✅ Limpieza completada');
     };
   }, []);
 
