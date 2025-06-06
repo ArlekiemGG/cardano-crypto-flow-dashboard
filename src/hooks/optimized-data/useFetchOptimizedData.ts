@@ -73,10 +73,11 @@ export const useFetchOptimizedData = () => {
 
       // Determine predominant data source
       const cacheStats = optimizedDataService.getCacheStats();
-      const totalSources = Object.values(cacheStats.sources || {}).reduce((a: number, b: number) => a + b, 0);
-      const defiLlamaCount = cacheStats.sources?.defillama || 0;
+      const sources = cacheStats.sources || {};
+      const totalSources = Object.values(sources).reduce((a: number, b: number) => a + b, 0);
+      const defiLlamaCount = Number(sources.defillama) || 0;
       
-      newData.dataSource = defiLlamaCount / totalSources > 0.7 ? 'defillama' : 
+      newData.dataSource = totalSources > 0 && defiLlamaCount / totalSources > 0.7 ? 'defillama' : 
                           defiLlamaCount === 0 ? 'native' : 'mixed';
 
       setData(prev => ({ ...prev, ...newData }));
