@@ -21,7 +21,7 @@ export const MetricsGrid = ({
   avgProfitPercentage,
   totalVolume24h
 }: MetricsGridProps) => {
-  // Formatear volumen para mostrar en formato legible
+  // Format volume to show in readable format
   const formatVolume = (volume: number) => {
     if (volume >= 1000000) {
       return `$${(volume / 1000000).toFixed(2)}M`;

@@ -1,4 +1,3 @@
-
 import { useRealTimeData } from "@/hooks/useRealTimeData"
 import { useRealTimeArbitrage } from "@/hooks/useRealTimeArbitrage"
 import { useArbitrageStats } from "@/hooks/useArbitrageStats"
@@ -9,10 +8,11 @@ import { HeroSection } from "@/components/dashboard/HeroSection"
 import { MetricsGrid } from "@/components/dashboard/MetricsGrid"
 import { MarketDataSection } from "@/components/dashboard/MarketDataSection"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { realTimeMarketDataService } from "@/services/realTimeMarketDataService"
 import { useWallet } from "@/contexts/ModernWalletContext"
 import { useMemo } from "react"
 import { Zap } from "lucide-react"
+import { useOptimizedMarketData } from "@/hooks/useOptimizedMarketData"
+import { realTimeMarketDataService } from "@/services/realTimeMarketDataService"
 
 export default function Dashboard() {
   const { marketData, isConnected } = useRealTimeData()
@@ -24,6 +24,10 @@ export default function Dashboard() {
   
   const arbitrageStats = useArbitrageStats(opportunities, stats)
   const portfolioCalculations = usePortfolioCalculations(marketData, balance)
+  
+  // Use DeFiLlama data for DEX volume
+  const { getTotalDexVolume24h } = useOptimizedMarketData()
+  const totalDexVolume = getTotalDexVolume24h()
 
   const marketStats = useMemo(() => {
     const allPrices = realTimeMarketDataService.getCurrentPrices()
@@ -51,7 +55,7 @@ export default function Dashboard() {
         highConfidenceOpportunities={arbitrageStats.highConfidenceOpportunities}
         totalPotentialProfit={arbitrageStats.totalPotentialProfit}
         avgProfitPercentage={arbitrageStats.avgProfitPercentage}
-        totalVolume24h={marketStats.totalVolume24h}
+        totalVolume24h={totalDexVolume} // Use DeFiLlama DEX volume here
       />
 
       {/* Real-Time Trading Panel Preview */}
