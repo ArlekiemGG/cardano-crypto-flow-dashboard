@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { WalletContextService } from '@/services/walletContextService';
 import { realCardanoDEXService } from '@/services/realCardanoDEXService';
@@ -32,27 +31,12 @@ export class MarketMakingPositionsService {
     try {
       console.log('🔄 Creating new market making position...');
 
-      // Add liquidity through DEX service
-      const dexResult = await realCardanoDEXService.addLiquidityToPool(
-        params.dex,
-        params.pair,
-        params.tokenAAmount,
-        params.tokenBAmount,
-        walletAddress,
-        params.priceA,
-        params.priceB
-      );
-
-      if (!dexResult.success) {
-        return { success: false, error: dexResult.error };
-      }
-
       // Calculate initial metrics
       const liquidityProvided = (params.tokenAAmount * params.priceA) + (params.tokenBAmount * params.priceB);
       const lpTokenAmount = Math.sqrt(params.tokenAAmount * params.tokenBAmount);
 
-      // Store position in database
-      const { data, error } = await WalletContextService.executeWithWalletContext(
+      // First create the position in database
+      const { data: positionData, error: positionError } = await WalletContextService.executeWithWalletContext(
         walletAddress,
         async () => {
           return await supabase
@@ -79,12 +63,38 @@ export class MarketMakingPositionsService {
         }
       );
 
-      if (error) {
-        console.error('Error creating position:', error);
+      if (positionError || !positionData) {
+        console.error('Error creating position:', positionError);
         return { success: false, error: 'Failed to store position in database' };
       }
 
-      const position = this.mapDatabaseToPosition(data);
+      // Now add liquidity through DEX service with the position ID
+      const dexResult = await realCardanoDEXService.addLiquidityToPool(
+        params.dex,
+        params.pair,
+        params.tokenAAmount,
+        params.tokenBAmount,
+        walletAddress,
+        params.priceA,
+        params.priceB,
+        positionData.id
+      );
+
+      if (!dexResult.success) {
+        // If DEX operation fails, we should remove the position we just created
+        await WalletContextService.executeWithWalletContext(
+          walletAddress,
+          async () => {
+            return await supabase
+              .from('market_making_positions')
+              .delete()
+              .eq('id', positionData.id);
+          }
+        );
+        return { success: false, error: dexResult.error };
+      }
+
+      const position = this.mapDatabaseToPosition(positionData);
       console.log('✅ Position created successfully:', position.id);
       
       return { success: true, position };

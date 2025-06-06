@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { WalletContextService } from '@/services/walletContextService';
 
@@ -29,7 +28,8 @@ export class RealCardanoDEXService {
     tokenBAmount: number,
     walletAddress: string,
     priceA: number,
-    priceB: number
+    priceB: number,
+    positionId?: string
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     try {
       console.log(`🔄 Adding liquidity to ${pair} on ${dex}...`);
@@ -43,29 +43,31 @@ export class RealCardanoDEXService {
       // For now, we'll simulate the transaction
       const mockTxHash = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Store the transaction in our database with wallet context
-      const { error: txError } = await WalletContextService.executeWithWalletContext(
-        walletAddress,
-        async () => {
-          return await supabase
-            .from('market_making_transactions')
-            .insert({
-              user_wallet: walletAddress,
-              transaction_type: 'add_liquidity',
-              amount_a: tokenAAmount,
-              amount_b: tokenBAmount,
-              price_a: priceA,
-              price_b: priceB,
-              tx_hash: mockTxHash,
-              status: 'pending',
-              position_id: '' // Will be updated when position is created
-            });
-        }
-      );
+      // Only store transaction if positionId is provided
+      if (positionId) {
+        const { error: txError } = await WalletContextService.executeWithWalletContext(
+          walletAddress,
+          async () => {
+            return await supabase
+              .from('market_making_transactions')
+              .insert({
+                position_id: positionId,
+                user_wallet: walletAddress,
+                transaction_type: 'add_liquidity',
+                amount_a: tokenAAmount,
+                amount_b: tokenBAmount,
+                price_a: priceA,
+                price_b: priceB,
+                tx_hash: mockTxHash,
+                status: 'pending'
+              });
+          }
+        );
 
-      if (txError) {
-        console.error('Error storing transaction:', txError);
-        return { success: false, error: 'Failed to store transaction record' };
+        if (txError) {
+          console.error('Error storing transaction:', txError);
+          return { success: false, error: 'Failed to store transaction record' };
+        }
       }
 
       // Simulate network delay
