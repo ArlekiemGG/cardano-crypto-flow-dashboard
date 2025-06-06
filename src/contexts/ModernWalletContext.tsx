@@ -1,6 +1,6 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Lucid, Blockfrost, LucidEvolution } from '@lucid-evolution/lucid';
-import { BlockfrostApi } from 'blockfrost-js';
 
 // Environment configuration
 const BLOCKFROST_API_URL = 'https://cardano-mainnet.blockfrost.io/api/v0';
@@ -137,14 +137,14 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       }
 
       // Select wallet in Lucid
-      lucid.selectWallet(walletApi);
+      lucid.selectWallet.fromAPI(walletApi);
 
       // Get wallet address - try different methods
       let address = '';
       
       try {
         // Try Lucid's method first
-        address = await lucid.wallet.address();
+        address = await lucid.wallet().address();
       } catch (error) {
         console.warn('Lucid address method failed, trying wallet API directly:', error);
         
@@ -179,7 +179,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       // Get initial balance
       let balance = 0;
       try {
-        const utxos = await lucid.wallet.getUtxos();
+        const utxos = await lucid.wallet().getUtxos();
         balance = utxos.reduce((total, utxo) => {
           return total + Number(utxo.assets.lovelace) / 1000000;
         }, 0);
@@ -251,7 +251,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       let balance = 0;
       
       try {
-        const utxos = await walletState.lucid.wallet.getUtxos();
+        const utxos = await walletState.lucid.wallet().getUtxos();
         balance = utxos.reduce((total, utxo) => {
           return total + Number(utxo.assets.lovelace) / 1000000;
         }, 0);
