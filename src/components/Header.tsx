@@ -1,43 +1,17 @@
-import { Bell, Wifi, WifiOff } from "lucide-react"
+
+import { Wifi, WifiOff } from "lucide-react"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
-import { RealTimePrice } from "@/components/RealTimePrice"
 import { useConnectionHealth } from "@/hooks/useConnectionHealth"
 import { useWallet } from "@/contexts/ModernWalletContext"
 import { ModernWalletConnector } from "./ModernWalletConnector"
 import { ModernWalletInfo } from "./ModernWalletInfo"
 import { NetworkIndicator } from "./NetworkIndicator"
 import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData'
-import { NotificationsDropdown } from "./NotificationsDropdown"
-import { useState } from "react"
+import { RealTimePrice } from "@/components/RealTimePrice"
 
 export function Header() {
   const { connectedSources } = useConnectionHealth()
   const { isConnected: walletConnected } = useWallet()
-  
-  // Sample notifications data
-  const [notifications] = useState([
-    {
-      id: "1",
-      title: "Nueva oportunidad de arbitraje detectada",
-      description: "Se ha detectado una nueva oportunidad de arbitraje con potencial beneficio.",
-      time: "Hace 5 minutos"
-    },
-    {
-      id: "2",
-      title: "Precio de ADA actualizado",
-      description: "El precio de ADA se ha actualizado a $0.6413",
-      time: "Hace 10 minutos"
-    },
-    {
-      id: "3",
-      title: "Conexión a DeFiLlama estable",
-      description: "La conexión con DeFiLlama se ha restablecido correctamente.",
-      time: "Hace 15 minutos"
-    }
-  ]);
-
-  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
   
   // Use the optimized market data hook for DeFiLlama data
   const { 
@@ -64,10 +38,6 @@ export function Header() {
     } else {
       return `$${volume.toFixed(0)}`;
     }
-  };
-  
-  const handleMarkNotificationsAsRead = () => {
-    setHasUnreadNotifications(false);
   };
 
   return (
@@ -110,13 +80,6 @@ export function Header() {
             {!isLoading ? 'DeFiLlama Live' : 'Disconnected'}
           </span>
         </div>
-
-        {/* Notifications Dropdown */}
-        <NotificationsDropdown 
-          notifications={notifications} 
-          hasUnreadNotifications={hasUnreadNotifications}
-          onMarkAsRead={handleMarkNotificationsAsRead}
-        />
 
         {/* Modern Wallet Connection */}
         {walletConnected ? <ModernWalletInfo /> : <ModernWalletConnector />}
