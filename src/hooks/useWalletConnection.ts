@@ -37,7 +37,6 @@ export const useWalletConnection = () => {
       }
 
       // CRITICAL: Clear any existing connection state first
-      // This ensures we don't reuse cached connections
       if (walletExtension.experimental && typeof walletExtension.experimental.disconnect === 'function') {
         try {
           await walletExtension.experimental.disconnect();
@@ -50,25 +49,10 @@ export const useWalletConnection = () => {
       // Force a small delay to ensure wallet state is cleared
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // SOLUTION: Always call enable() with explicit user interaction requirement
-      // This MUST trigger the wallet's authorization popup
+      // FIXED: Call enable() without arguments as per TypeScript definition
       console.log(`Requesting explicit authorization from ${walletName}...`);
       
-      // Some wallets support options to force authorization dialog
-      const enableOptions = {
-        requestIdentification: true,
-        onlySilent: false // Explicitly request interactive authorization
-      };
-
-      let walletApi;
-      try {
-        // Try with options first (for wallets that support it)
-        walletApi = await walletExtension.enable(enableOptions);
-      } catch (error) {
-        console.log('Trying fallback enable method...');
-        // Fallback to standard enable call
-        walletApi = await walletExtension.enable();
-      }
+      const walletApi = await walletExtension.enable();
       
       if (!walletApi) {
         throw new Error(`Authorization denied by ${walletName} wallet. Please try again and approve the connection.`);
