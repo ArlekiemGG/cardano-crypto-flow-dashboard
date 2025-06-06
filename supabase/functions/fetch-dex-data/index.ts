@@ -18,7 +18,7 @@ serve(async (req) => {
   try {
     const supabaseClient = createSupabaseClient();
     const requestBody = await req.json();
-    const { action, endpoint } = requestBody;
+    const { action, endpoint, data } = requestBody;
 
     // Handle Blockfrost requests
     if (action === 'blockfrost_request') {
@@ -34,7 +34,54 @@ serve(async (req) => {
       });
     }
 
-    console.log('🚀 Starting simplified data fetch with Blockfrost + DeFiLlama only...');
+    // NUEVO: Handle manual cache data insertion
+    if (action === 'cache_data' && data) {
+      console.log(`📥 Caching manual data for ${data.pair} from ${data.source_dex}`);
+      
+      try {
+        const { error } = await supabaseClient
+          .from('market_data_cache')
+          .upsert({
+            pair: data.pair,
+            price: data.price,
+            volume_24h: data.volume_24h || 0,
+            change_24h: data.change_24h || 0,
+            source_dex: data.source_dex,
+            timestamp: data.timestamp || new Date().toISOString(),
+            high_24h: data.high_24h || null,
+            low_24h: data.low_24h || null,
+            market_cap: data.market_cap || 0
+          });
+
+        if (error) {
+          console.error('Error caching manual data:', error);
+          throw error;
+        }
+
+        console.log(`✅ Manual data cached successfully for ${data.pair}`);
+        
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Data cached successfully',
+          pair: data.pair
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        });
+
+      } catch (error) {
+        console.error('Error in manual cache operation:', error);
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        });
+      }
+    }
+
+    console.log('🚀 Starting data fetch process...');
     
     let totalPoolsProcessed = 0;
     let totalArbitrageOpportunities = 0;
@@ -78,20 +125,19 @@ serve(async (req) => {
       }
     }
 
-    // 5. Detect simplified arbitrage opportunities
+    // 5. Detect arbitrage opportunities
     totalArbitrageOpportunities = await detectArbitrageOpportunities(supabaseClient);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Simplified data fetch completed with Blockfrost + DeFiLlama',
+        message: 'Data fetch completed successfully',
         data: {
           pools_processed: totalPoolsProcessed,
           arbitrage_opportunities: totalArbitrageOpportunities,
           ada_price: adaPrice,
           sources_used: ['Blockfrost', 'DeFiLlama'],
-          timestamp: new Date().toISOString(),
-          simplified_architecture: true
+          timestamp: new Date().toISOString()
         }
       }),
       {
@@ -101,7 +147,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in simplified fetch-dex-data function:', error);
+    console.error('Error in fetch-dex-data function:', error);
     return new Response(
       JSON.stringify({
         success: false,

@@ -18,72 +18,70 @@ export const useMarketData = () => {
   const fetchMarketData = async () => {
     try {
       setIsLoading(true);
-      console.log('📊 Fetching complete ADA market data from CoinGecko...');
+      console.log('📊 Fetching ADA data from cached database...');
       
-      // Fetch complete ADA data from CoinGecko (price, volume, change, market cap)
-      const completeADAData = await blockfrostService.getCompleteADAData();
-      
-      if (completeADAData && blockfrostService.validateADAData(completeADAData)) {
-        console.log('✅ Complete real ADA data received:', completeADAData);
-        
-        // Create ADA market data entry with REAL data from CoinGecko
+      // CAMBIO IMPORTANTE: Solo leer de la cache, no escribir
+      // El edge function se encarga de mantener los datos actualizados
+      const { data: cachedADA, error } = await supabase
+        .from('market_data_cache')
+        .select('*')
+        .eq('pair', 'ADA/USD')
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cachedADA && !error) {
         const adaMarketData: MarketData = {
           symbol: 'ADA',
-          price: completeADAData.price,
-          change24h: completeADAData.change24h,
-          volume24h: completeADAData.volume24h,
-          marketCap: completeADAData.marketCap,
-          lastUpdate: new Date().toISOString()
+          price: Number(cachedADA.price),
+          change24h: Number(cachedADA.change_24h) || 0,
+          volume24h: Number(cachedADA.volume_24h) || 0,
+          marketCap: Number(cachedADA.market_cap) || 0,
+          lastUpdate: cachedADA.timestamp || new Date().toISOString()
         };
 
         setMarketData([adaMarketData]);
         setIsConnected(true);
-        console.log('✅ ADA market data updated with complete real data from CoinGecko');
-        
-        // Store in cache for consistency
-        await updateDatabaseCache(adaMarketData);
-        
+        console.log('✅ ADA data loaded from cache:', adaMarketData);
       } else {
-        console.warn('⚠️ Could not fetch complete ADA data from CoinGecko');
-        setIsConnected(false);
+        console.log('📊 No cached ADA data found, triggering edge function...');
+        
+        // Solo disparar el edge function, no cachear nosotros mismos
+        await supabase.functions.invoke('fetch-dex-data', {
+          body: JSON.stringify({ action: 'fetch_all' })
+        });
+        
+        // Intentar leer de nuevo después de disparar el edge function
+        setTimeout(async () => {
+          const { data: retryData } = await supabase
+            .from('market_data_cache')
+            .select('*')
+            .eq('pair', 'ADA/USD')
+            .order('timestamp', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (retryData) {
+            const adaMarketData: MarketData = {
+              symbol: 'ADA',
+              price: Number(retryData.price),
+              change24h: Number(retryData.change_24h) || 0,
+              volume24h: Number(retryData.volume_24h) || 0,
+              marketCap: Number(retryData.market_cap) || 0,
+              lastUpdate: retryData.timestamp || new Date().toISOString()
+            };
+            setMarketData([adaMarketData]);
+            setIsConnected(true);
+          }
+        }, 3000);
       }
 
       setLastUpdate(new Date());
     } catch (error) {
-      console.error('❌ Error fetching complete ADA market data:', error);
+      console.error('❌ Error fetching market data:', error);
       setIsConnected(false);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const updateDatabaseCache = async (adaData: MarketData) => {
-    try {
-      // Clear old ADA data
-      await supabase
-        .from('market_data_cache')
-        .delete()
-        .eq('pair', 'ADA/USD')
-        .eq('source_dex', 'CoinGecko');
-
-      // Insert new complete real data
-      await supabase
-        .from('market_data_cache')
-        .insert({
-          pair: 'ADA/USD',
-          price: adaData.price,
-          volume_24h: adaData.volume24h,
-          change_24h: adaData.change24h,
-          source_dex: 'CoinGecko',
-          timestamp: adaData.lastUpdate,
-          high_24h: adaData.price * 1.02, // Conservative estimate
-          low_24h: adaData.price * 0.98,  // Conservative estimate
-          market_cap: adaData.marketCap
-        });
-
-      console.log('✅ ADA data cached in database with complete real values');
-    } catch (error) {
-      console.error('❌ Error caching ADA data:', error);
     }
   };
 
@@ -113,17 +111,17 @@ export const useMarketData = () => {
       return;
     }
 
-    console.log('🚀 Initializing complete ADA market data connection...');
+    console.log('🚀 Initializing market data connection (read-only mode)...');
     isInitializedRef.current = true;
     
-    // Initial fetch of complete data
+    // Initial fetch
     fetchMarketData();
 
-    // Periodic updates every 60 seconds for complete ADA data
+    // Periodic updates every 2 minutes (menos frecuente para evitar conflictos)
     intervalRef.current = setInterval(() => {
-      console.log('🔄 Periodic complete ADA data update...');
+      console.log('🔄 Periodic market data refresh...');
       fetchMarketData();
-    }, 60000);
+    }, 120000); // 2 minutos en lugar de 1
 
     return () => {
       console.log('🧹 useMarketData cleanup initiated...');
