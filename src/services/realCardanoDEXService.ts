@@ -1,5 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { walletContextService } from '@/services/walletContextService';
 
 export interface CardanoTransaction {
   txHash: string;
@@ -42,20 +42,25 @@ export class RealCardanoDEXService {
       // For now, we'll simulate the transaction
       const mockTxHash = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Store the transaction in our database
-      const { error: txError } = await supabase
-        .from('market_making_transactions')
-        .insert({
-          user_wallet: walletAddress,
-          transaction_type: 'add_liquidity',
-          amount_a: tokenAAmount,
-          amount_b: tokenBAmount,
-          price_a: priceA,
-          price_b: priceB,
-          tx_hash: mockTxHash,
-          status: 'pending',
-          position_id: '' // Will be updated when position is created
-        });
+      // Store the transaction in our database with wallet context
+      const { error: txError } = await walletContextService.executeWithWalletContext(
+        walletAddress,
+        async () => {
+          return await supabase
+            .from('market_making_transactions')
+            .insert({
+              user_wallet: walletAddress,
+              transaction_type: 'add_liquidity',
+              amount_a: tokenAAmount,
+              amount_b: tokenBAmount,
+              price_a: priceA,
+              price_b: priceB,
+              tx_hash: mockTxHash,
+              status: 'pending',
+              position_id: '' // Will be updated when position is created
+            });
+        }
+      );
 
       if (txError) {
         console.error('Error storing transaction:', txError);
@@ -87,13 +92,17 @@ export class RealCardanoDEXService {
     try {
       console.log(`🔄 Removing liquidity for position ${positionId}...`);
       
-      // Get position details
-      const { data: position, error: positionError } = await supabase
-        .from('market_making_positions')
-        .select('*')
-        .eq('id', positionId)
-        .eq('user_wallet', walletAddress)
-        .single();
+      // Get position details with wallet context
+      const { data: position, error: positionError } = await walletContextService.executeWithWalletContext(
+        walletAddress,
+        async () => {
+          return await supabase
+            .from('market_making_positions')
+            .select('*')
+            .eq('id', positionId)
+            .single();
+        }
+      );
 
       if (positionError || !position) {
         return { success: false, error: 'Position not found' };
@@ -102,16 +111,21 @@ export class RealCardanoDEXService {
       // Simulate transaction
       const mockTxHash = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Store the transaction
-      const { error: txError } = await supabase
-        .from('market_making_transactions')
-        .insert({
-          position_id: positionId,
-          user_wallet: walletAddress,
-          transaction_type: 'remove_liquidity',
-          tx_hash: mockTxHash,
-          status: 'pending'
-        });
+      // Store the transaction with wallet context
+      const { error: txError } = await walletContextService.executeWithWalletContext(
+        walletAddress,
+        async () => {
+          return await supabase
+            .from('market_making_transactions')
+            .insert({
+              position_id: positionId,
+              user_wallet: walletAddress,
+              transaction_type: 'remove_liquidity',
+              tx_hash: mockTxHash,
+              status: 'pending'
+            });
+        }
+      );
 
       if (txError) {
         console.error('Error storing transaction:', txError);

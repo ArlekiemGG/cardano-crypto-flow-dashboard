@@ -4,6 +4,7 @@ import { useWallet } from '@/contexts/ModernWalletContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { realCardanoDEXService } from '@/services/realCardanoDEXService';
+import { walletContextService } from '@/services/walletContextService';
 
 export interface RealMarketMakingPosition {
   id: string;
@@ -34,17 +35,21 @@ export const useRealMarketMakingPositions = () => {
   const { isConnected, address } = useWallet();
   const { toast } = useToast();
 
-  // Fetch positions from database
+  // Fetch positions from database with proper wallet context
   const fetchPositions = async () => {
     if (!isConnected || !address) return;
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('market_making_positions')
-        .select('*')
-        .eq('user_wallet', address)
-        .order('created_at', { ascending: false });
+      const { data, error } = await walletContextService.executeWithWalletContext(
+        address,
+        async () => {
+          return await supabase
+            .from('market_making_positions')
+            .select('*')
+            .order('created_at', { ascending: false });
+        }
+      );
 
       if (error) {
         console.error('Error fetching positions:', error);
@@ -132,29 +137,34 @@ export const useRealMarketMakingPositions = () => {
         return;
       }
 
-      // Create position record in database
+      // Create position record in database with wallet context
       const liquidityProvided = tokenAAmount + (tokenBAmount * priceB / priceA);
       
-      const { data, error } = await supabase
-        .from('market_making_positions')
-        .insert({
-          user_wallet: address,
-          pair,
-          dex,
-          liquidity_provided: liquidityProvided,
-          token_a_amount: tokenAAmount,
-          token_b_amount: tokenBAmount,
-          entry_price_a: priceA,
-          entry_price_b: priceB,
-          current_spread: Math.random() * 0.5 + 0.1, // Will be updated by price monitoring
-          volume_24h: 0,
-          fees_earned: 0,
-          impermanent_loss: 0,
-          apy: 0,
-          status: 'active'
-        })
-        .select()
-        .single();
+      const { data, error } = await walletContextService.executeWithWalletContext(
+        address,
+        async () => {
+          return await supabase
+            .from('market_making_positions')
+            .insert({
+              user_wallet: address,
+              pair,
+              dex,
+              liquidity_provided: liquidityProvided,
+              token_a_amount: tokenAAmount,
+              token_b_amount: tokenBAmount,
+              entry_price_a: priceA,
+              entry_price_b: priceB,
+              current_spread: Math.random() * 0.5 + 0.1, // Will be updated by price monitoring
+              volume_24h: 0,
+              fees_earned: 0,
+              impermanent_loss: 0,
+              apy: 0,
+              status: 'active'
+            })
+            .select()
+            .single();
+        }
+      );
 
       if (error) {
         console.error('Error creating position:', error);
@@ -167,13 +177,18 @@ export const useRealMarketMakingPositions = () => {
       }
 
       // Update transaction record with position ID
-      await supabase
-        .from('market_making_transactions')
-        .update({ 
-          position_id: data.id,
-          status: 'confirmed'
-        })
-        .eq('tx_hash', txResult.txHash);
+      await walletContextService.executeWithWalletContext(
+        address,
+        async () => {
+          return await supabase
+            .from('market_making_transactions')
+            .update({ 
+              position_id: data.id,
+              status: 'confirmed'
+            })
+            .eq('tx_hash', txResult.txHash);
+        }
+      );
 
       // Cast the returned data to proper type
       const typedPosition = {
@@ -239,14 +254,18 @@ export const useRealMarketMakingPositions = () => {
       }
 
       // Update position status in database
-      const { error } = await supabase
-        .from('market_making_positions')
-        .update({ 
-          status: 'closed', 
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', positionId)
-        .eq('user_wallet', address);
+      const { error } = await walletContextService.executeWithWalletContext(
+        address,
+        async () => {
+          return await supabase
+            .from('market_making_positions')
+            .update({ 
+              status: 'closed', 
+              updated_at: new Date().toISOString() 
+            })
+            .eq('id', positionId);
+        }
+      );
 
       if (error) {
         console.error('Error updating position:', error);
@@ -295,14 +314,18 @@ export const useRealMarketMakingPositions = () => {
     const newStatus = position.status === 'active' ? 'paused' : 'active';
 
     try {
-      const { error } = await supabase
-        .from('market_making_positions')
-        .update({ 
-          status: newStatus, 
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', positionId)
-        .eq('user_wallet', address);
+      const { error } = await walletContextService.executeWithWalletContext(
+        address,
+        async () => {
+          return await supabase
+            .from('market_making_positions')
+            .update({ 
+              status: newStatus, 
+              updated_at: new Date().toISOString() 
+            })
+            .eq('id', positionId);
+        }
+      );
 
       if (error) {
         console.error('Error toggling position:', error);

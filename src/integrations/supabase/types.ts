@@ -524,6 +524,10 @@ export type Database = {
           config_json: Json
         }[]
       }
+      set_current_user_wallet: {
+        Args: { wallet_address: string }
+        Returns: undefined
+      }
       toggle_strategy_status: {
         Args: { p_strategy_id: string; p_user_wallet: string }
         Returns: boolean

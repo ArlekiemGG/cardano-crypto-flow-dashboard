@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useWallet } from '@/contexts/ModernWalletContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { walletContextService } from '@/services/walletContextService';
 
 export interface MarketMakingStrategy {
   id: string;
@@ -32,11 +33,15 @@ export const useMarketMakingStrategies = () => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('market_making_strategies')
-        .select('*')
-        .eq('user_wallet', address)
-        .order('created_at', { ascending: false });
+      const { data, error } = await walletContextService.executeWithWalletContext(
+        address,
+        async () => {
+          return await supabase
+            .from('market_making_strategies')
+            .select('*')
+            .order('created_at', { ascending: false });
+        }
+      );
 
       if (error) {
         console.error('Error fetching strategies:', error);
@@ -69,14 +74,19 @@ export const useMarketMakingStrategies = () => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('market_making_strategies')
-        .insert({
-          ...strategy,
-          user_wallet: address
-        })
-        .select()
-        .single();
+      const { data, error } = await walletContextService.executeWithWalletContext(
+        address,
+        async () => {
+          return await supabase
+            .from('market_making_strategies')
+            .insert({
+              ...strategy,
+              user_wallet: address
+            })
+            .select()
+            .single();
+        }
+      );
 
       if (error) {
         console.error('Error creating strategy:', error);
@@ -117,14 +127,18 @@ export const useMarketMakingStrategies = () => {
     if (!strategy) return;
 
     try {
-      const { error } = await supabase
-        .from('market_making_strategies')
-        .update({ 
-          active: !strategy.active,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', strategyId)
-        .eq('user_wallet', address);
+      const { error } = await walletContextService.executeWithWalletContext(
+        address!,
+        async () => {
+          return await supabase
+            .from('market_making_strategies')
+            .update({ 
+              active: !strategy.active,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', strategyId);
+        }
+      );
 
       if (error) {
         console.error('Error toggling strategy:', error);

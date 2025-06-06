@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useWallet } from '@/contexts/ModernWalletContext';
+import { walletContextService } from '@/services/walletContextService';
 
 export interface RealMarketMakingStats {
   totalLiquidity: number;
@@ -31,10 +32,14 @@ export const useRealMarketMakingStats = () => {
 
     setIsLoading(true);
     try {
-      const { data: positions, error } = await supabase
-        .from('market_making_positions')
-        .select('*')
-        .eq('user_wallet', address);
+      const { data: positions, error } = await walletContextService.executeWithWalletContext(
+        address,
+        async () => {
+          return await supabase
+            .from('market_making_positions')
+            .select('*');
+        }
+      );
 
       if (error) {
         console.error('Error fetching stats:', error);
