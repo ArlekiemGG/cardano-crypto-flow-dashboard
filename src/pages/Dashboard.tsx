@@ -2,18 +2,32 @@
 import { MetricCard } from "@/components/MetricCard"
 import { BarChart3, TrendingUp, Bot, DollarSign, Activity, Zap } from "lucide-react"
 import { useRealTimeData } from "@/hooks/useRealTimeData"
-import { useMarketData } from "@/hooks/useMarketData"
+import { useRealTimeArbitrage } from "@/hooks/useRealTimeArbitrage"
 import { useWallet } from "@/contexts/ModernWalletContext"
 import { LiveArbitrageOpportunities } from "@/components/LiveArbitrageOpportunities"
 import { DEXConnectionStatus } from "@/components/DEXConnectionStatus"
+import { RealTimeTradingPanel } from "@/components/RealTimeTradingPanel"
 import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { realTimeMarketDataService } from "@/services/realTimeMarketDataService"
 
 export default function Dashboard() {
   const { marketData, isConnected } = useRealTimeData()
-  const { arbitrageOpportunities } = useMarketData()
+  const { 
+    totalOpportunities, 
+    highConfidenceOpportunities, 
+    avgProfitPercentage, 
+    totalPotentialProfit,
+    stats 
+  } = useRealTimeArbitrage()
   const { balance } = useWallet()
   const [portfolioValue, setPortfolioValue] = useState(0)
   const [dailyPnL, setDailyPnL] = useState(0)
+  const [marketStats, setMarketStats] = useState({
+    totalVolume24h: 0,
+    activePairs: 0,
+    dexCount: 0
+  })
 
   // Calculate portfolio value based on real wallet balance and ADA price
   useEffect(() => {
@@ -32,10 +46,19 @@ export default function Dashboard() {
     }
   }, [marketData, balance])
 
-  // Calculate real trading metrics
-  const totalVolume24h = marketData.reduce((sum, data) => sum + data.volume24h, 0)
-  const activePairs = marketData.length
-  const highConfidenceArbitrage = arbitrageOpportunities.filter(op => op.confidence === 'High').length
+  // Calculate real market statistics
+  useEffect(() => {
+    const allPrices = realTimeMarketDataService.getCurrentPrices()
+    const totalVolume = allPrices.reduce((sum, price) => sum + price.volume24h, 0)
+    const activePairs = new Set(allPrices.map(price => price.pair)).size
+    const dexCount = new Set(allPrices.map(price => price.dex)).size
+
+    setMarketStats({
+      totalVolume24h: totalVolume,
+      activePairs,
+      dexCount
+    })
+  }, [marketData])
 
   return (
     <div className="space-y-6">
@@ -53,8 +76,11 @@ export default function Dashboard() {
               <div className={`flex items-center space-x-2 ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
                 <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
                 <span className="text-sm font-medium">
-                  {isConnected ? 'DEX APIs Connected' : 'Connecting to DEXs...'}
+                  {isConnected ? `${marketStats.dexCount} DEXs Connected` : 'Connecting to DEXs...'}
                 </span>
+              </div>
+              <div className="text-sm text-gray-400">
+                Last scan: {stats.lastScanTime?.toLocaleTimeString() || 'Never'}
               </div>
             </div>
           </div>
@@ -88,18 +114,28 @@ export default function Dashboard() {
         />
         
         <MetricCard
-          title="24h Change"
-          value={`${dailyPnL >= 0 ? '+' : ''}${((dailyPnL / portfolioValue) * 100).toFixed(2)}%`}
-          change={`Based on real ADA price`}
-          changeType={dailyPnL >= 0 ? "positive" : "negative"}
+          title="Live Arbitrage Ops"
+          value={totalOpportunities.toString()}
+          change={`${highConfidenceOpportunities} high confidence`}
+          changeType="positive"
+          icon={Zap}
+          description="Real-time arbitrage detection"
+          gradient="gradient-success"
+        />
+        
+        <MetricCard
+          title="Potential Profit"
+          value={`₳ ${totalPotentialProfit.toFixed(1)}`}
+          change={`${avgProfitPercentage.toFixed(1)}% avg profit`}
+          changeType="positive"
           icon={TrendingUp}
-          description="Daily portfolio performance"
+          description="Total available profit"
           gradient="gradient-profit"
         />
         
         <MetricCard
           title="Active DEX Pairs"
-          value={activePairs.toString()}
+          value={marketStats.activePairs.toString()}
           change="Real-time data"
           changeType="positive"
           icon={Activity}
@@ -108,18 +144,8 @@ export default function Dashboard() {
         />
         
         <MetricCard
-          title="Live Arbitrage Ops"
-          value={arbitrageOpportunities.length.toString()}
-          change={`${highConfidenceArbitrage} high confidence`}
-          changeType="positive"
-          icon={Zap}
-          description="Real-time arbitrage detection"
-          gradient="gradient-success"
-        />
-        
-        <MetricCard
           title="24h DEX Volume"
-          value={`$${(totalVolume24h / 1000000).toFixed(1)}M`}
+          value={`$${(marketStats.totalVolume24h / 1000000).toFixed(1)}M`}
           change="All tracked DEXs"
           changeType="positive"
           icon={BarChart3}
@@ -129,14 +155,52 @@ export default function Dashboard() {
         
         <MetricCard
           title="Connected DEXs"
-          value="5"
-          change="SundaeSwap, Minswap, WingRiders..."
+          value={marketStats.dexCount.toString()}
+          change="Minswap, SundaeSwap, MuesliSwap..."
           changeType="positive"
           icon={Bot}
           description="Live DEX API connections"
           gradient="gradient-primary"
         />
       </div>
+
+      {/* Real-Time Trading Panel Preview */}
+      <Card className="glass">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center space-x-2">
+              <Zap className="h-5 w-5 text-crypto-primary" />
+              <span>Live Trading Opportunities</span>
+            </span>
+            <span className="text-sm text-gray-400">
+              {totalOpportunities} opportunities detected
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="p-4 rounded-lg bg-white/5 border border-white/10 text-center">
+              <div className="text-2xl font-bold text-crypto-primary">{totalOpportunities}</div>
+              <div className="text-sm text-gray-400">Total Opportunities</div>
+            </div>
+            
+            <div className="p-4 rounded-lg bg-white/5 border border-white/10 text-center">
+              <div className="text-2xl font-bold text-green-400">{highConfidenceOpportunities}</div>
+              <div className="text-sm text-gray-400">High Confidence</div>
+            </div>
+            
+            <div className="p-4 rounded-lg bg-white/5 border border-white/10 text-center">
+              <div className="text-2xl font-bold text-crypto-profit">₳ {totalPotentialProfit.toFixed(1)}</div>
+              <div className="text-sm text-gray-400">Potential Profit</div>
+            </div>
+            
+            <div className="p-4 rounded-lg bg-white/5 border border-white/10 text-center">
+              <div className="text-2xl font-bold text-crypto-secondary">{avgProfitPercentage.toFixed(1)}%</div>
+              <div className="text-sm text-gray-400">Avg Profit</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Live Data Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -164,36 +228,6 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Live Activity Feed */}
-      <div className="glass rounded-xl p-6">
-        <h2 className="text-xl font-semibold text-white mb-4">Live Trading Activity</h2>
-        <div className="space-y-4">
-          {arbitrageOpportunities.slice(0, 4).map((opportunity, index) => (
-            <div key={index} className="flex items-center justify-between p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors border border-white/5">
-              <div className="flex items-center space-x-4">
-                <div className="w-3 h-3 rounded-full bg-green-400 animate-pulse"></div>
-                <div>
-                  <p className="text-white font-medium">Arbitrage detected</p>
-                  <p className="text-gray-400 text-sm">{opportunity.pair} • {opportunity.dexA} → {opportunity.dexB}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-green-400 font-mono font-bold">
-                  +{opportunity.profitPercentage.toFixed(2)}%
-                </p>
-                <p className="text-gray-500 text-sm">Live opportunity</p>
-              </div>
-            </div>
-          ))}
-          {arbitrageOpportunities.length === 0 && (
-            <div className="text-center text-gray-400 py-8">
-              <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>Monitoring for arbitrage opportunities...</p>
-            </div>
-          )}
         </div>
       </div>
     </div>
