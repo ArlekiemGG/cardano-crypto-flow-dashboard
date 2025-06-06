@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { realTradingService } from '@/services/realTradingService';
 import { supabase } from '@/integrations/supabase/client';
@@ -79,6 +78,7 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
         // If we have a buy transaction but sell failed, record partial execution
         if (result.buyTxHash) {
           await supabase.from('trade_history').insert({
+            pair: opportunity.pair,
             trade_type: 'arbitrage',
             amount: opportunity.volumeAvailable,
             profit_loss: -opportunity.totalFees, // Record as loss due to fees

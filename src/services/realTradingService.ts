@@ -1,4 +1,3 @@
-
 import { LucidEvolution, UTxO } from '@lucid-evolution/lucid';
 import { initializeLucid } from '@/utils/modernWalletUtils';
 import { supabase } from '@/integrations/supabase/client';
@@ -301,6 +300,7 @@ export class RealTradingService {
   }): Promise<void> {
     try {
       await supabase.from('trade_history').insert({
+        pair: trade.pair,
         trade_type: 'arbitrage',
         amount: trade.amount,
         profit_loss: trade.profit,
