@@ -1,5 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { dataThrottlingService } from './dataThrottlingService';
+import { supabaseConflictResolver } from './supabaseConflictResolver';
 
 interface RealTimePrice {
   dex: string;
@@ -11,88 +13,106 @@ interface RealTimePrice {
 }
 
 export class DataFetchingService {
-  private lastFetchTime = 0;
-  private readonly MIN_FETCH_INTERVAL = 30000;
+  private isFetching = false;
+  private lastSuccessfulFetch = 0;
 
   async fetchSimplifiedData(): Promise<RealTimePrice[]> {
-    const now = Date.now();
-    
-    if (now - this.lastFetchTime < this.MIN_FETCH_INTERVAL) {
-      console.log('⏳ Skipping fetch - too soon since last update');
-      return [];
+    // Verificar throttling antes de proceder
+    if (!dataThrottlingService.canFetch('marketData')) {
+      return this.getCachedData();
     }
 
-    this.lastFetchTime = now;
+    if (this.isFetching) {
+      console.log('📊 Fetch ya en progreso, saltando...');
+      return this.getCachedData();
+    }
+
+    this.isFetching = true;
     
-    console.log('📊 Fetching simplified data (Blockfrost + DeFiLlama only)...');
-    const allPrices: RealTimePrice[] = [];
-
     try {
-      // Use the simplified edge function
-      const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
-        body: JSON.stringify({ action: 'fetch_all' })
-      });
+      console.log('📊 Iniciando fetch optimizado de datos...');
+      
+      // Solo llamar al edge function si han pasado suficientes minutos
+      const shouldCallEdgeFunction = dataThrottlingService.canFetch('defiLlama');
+      
+      if (shouldCallEdgeFunction) {
+        const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
+          body: JSON.stringify({ action: 'fetch_all' })
+        });
 
-      if (error) {
-        console.error('❌ Simplified edge function error:', error);
-        throw error;
+        if (error) {
+          console.warn('⚠️ Error en edge function, usando datos cacheados:', error);
+        } else {
+          console.log('✅ Edge function ejecutada exitosamente');
+          this.lastSuccessfulFetch = Date.now();
+        }
       }
 
-      console.log('✅ Simplified backend response:', data);
+      return await this.getCachedData();
 
-      // Get cached data from database
-      const { data: cachedData, error: cacheError } = await supabase
+    } catch (error) {
+      console.error('❌ Error en fetch optimizado:', error);
+      return await this.getCachedData();
+    } finally {
+      this.isFetching = false;
+    }
+  }
+
+  private async getCachedData(): Promise<RealTimePrice[]> {
+    try {
+      const { data: cachedData, error } = await supabase
         .from('market_data_cache')
         .select('*')
-        .gte('timestamp', new Date(Date.now() - 1800000).toISOString()) // Last 30 minutes
+        .gte('timestamp', new Date(Date.now() - 1800000).toISOString()) // Últimos 30 minutos
         .order('timestamp', { ascending: false });
 
-      if (cacheError) {
-        console.error('❌ Error fetching cached data:', cacheError);
+      if (error) {
+        console.error('❌ Error obteniendo datos cacheados:', error);
         return [];
       }
 
-      if (cachedData && cachedData.length > 0) {
-        const seenPairs = new Set<string>();
-        
-        cachedData.forEach(item => {
-          const pairKey = `${item.pair}-${item.source_dex}`;
-          if (!seenPairs.has(pairKey)) {
-            seenPairs.add(pairKey);
-            allPrices.push({
-              dex: item.source_dex,
-              pair: item.pair,
-              price: Number(item.price),
-              volume24h: Number(item.volume_24h) || 0,
-              liquidity: Number(item.market_cap) || 0,
-              lastUpdate: item.timestamp
-            });
-          }
-        });
-        
-        console.log(`📊 Loaded ${allPrices.length} simplified price entries`);
+      if (!cachedData || cachedData.length === 0) {
+        return [];
       }
 
-      console.log(`📈 Simplified data fetch completed: ${allPrices.length} prices from ${new Set(allPrices.map(p => p.dex)).size} sources`);
-      return allPrices;
+      const prices: RealTimePrice[] = [];
+      const seenPairs = new Set<string>();
+      
+      // Evitar duplicados usando Set
+      cachedData.forEach(item => {
+        const pairKey = `${item.pair}-${item.source_dex}`;
+        if (!seenPairs.has(pairKey)) {
+          seenPairs.add(pairKey);
+          prices.push({
+            dex: item.source_dex,
+            pair: item.pair,
+            price: Number(item.price),
+            volume24h: Number(item.volume_24h) || 0,
+            liquidity: Number(item.market_cap) || 0,
+            lastUpdate: item.timestamp
+          });
+        }
+      });
+      
+      console.log(`📊 Datos cacheados cargados: ${prices.length} precios únicos`);
+      return prices;
 
     } catch (error) {
-      console.error('❌ Error fetching simplified data:', error);
-      throw error;
+      console.error('❌ Error procesando datos cacheados:', error);
+      return [];
     }
   }
 
   canFetch(): boolean {
-    const now = Date.now();
-    return now - this.lastFetchTime >= this.MIN_FETCH_INTERVAL;
+    return !this.isFetching && dataThrottlingService.canFetch('marketData');
   }
 
   getLastFetchTime(): number {
-    return this.lastFetchTime;
+    return this.lastSuccessfulFetch;
   }
 
-  resetFetchTime(): void {
-    this.lastFetchTime = 0;
+  isCurrentlyFetching(): boolean {
+    return this.isFetching;
   }
 }
 

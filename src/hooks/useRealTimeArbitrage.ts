@@ -5,11 +5,12 @@ import { useArbitrageScanning } from './useArbitrageScanning';
 import { useArbitrageExecution } from './useArbitrageExecution';
 import { useArbitrageAutoScanning } from './useArbitrageAutoScanning';
 import { useArbitrageOpportunityUtils } from './useArbitrageOpportunityUtils';
+import { dataThrottlingService } from '@/services/dataThrottlingService';
 
 export const useRealTimeArbitrage = () => {
   const isInitializedRef = useRef(false);
+  const subscriptionRef = useRef<(() => void) | null>(null);
 
-  // Use the smaller, focused hooks
   const {
     opportunities,
     stats,
@@ -39,47 +40,50 @@ export const useRealTimeArbitrage = () => {
     if (isInitializedRef.current) return;
     isInitializedRef.current = true;
 
-    console.log('🚀 Initializing optimized real-time arbitrage monitoring...');
+    console.log('🚀 Inicializando monitoreo optimizado de arbitraje...');
     
     const initializeServices = async () => {
       try {
-        await realTimeMarketDataService.startRealTimeUpdates(60);
+        await realTimeMarketDataService.startRealTimeUpdates(90); // Aumentar intervalo a 90 segundos
         
         const unsubscribe = realTimeMarketDataService.subscribe((data) => {
-          if (data.length > 0) {
-            console.log('📊 Market data updated, scheduling arbitrage rescan...');
+          if (data.length > 0 && dataThrottlingService.canFetch('arbitrage')) {
+            console.log('📊 Datos actualizados, programando escaneo...');
+            // Usar timeout más largo para evitar bucles
             setTimeout(() => {
               if (!isScanning) {
                 performRealScan();
               }
-            }, 10000);
+            }, 20000); // 20 segundos de delay
           }
         });
 
-        // Delay the first auto-scan to allow data to load
+        subscriptionRef.current = unsubscribe;
+
+        // Primer escaneo con delay más largo
         setTimeout(() => {
-          performRealScan();
-        }, 5000);
+          if (dataThrottlingService.canFetch('arbitrage')) {
+            performRealScan();
+          }
+        }, 10000); // 10 segundos inicial
 
         return unsubscribe;
       } catch (error) {
-        console.error('❌ Error initializing services:', error);
+        console.error('❌ Error inicializando servicios optimizados:', error);
         return () => {};
       }
     };
 
-    let unsubscribe: (() => void) | null = null;
-    
-    initializeServices().then(unsub => {
-      unsubscribe = unsub;
-    });
+    initializeServices();
 
     return () => {
-      console.log('🧹 Cleaning up real-time arbitrage monitoring...');
+      console.log('🧹 Limpiando monitoreo optimizado de arbitraje...');
       cleanupAutoScanning();
-      if (unsubscribe) {
-        unsubscribe();
+      if (subscriptionRef.current) {
+        subscriptionRef.current();
+        subscriptionRef.current = null;
       }
+      dataThrottlingService.reset();
       isInitializedRef.current = false;
     };
   }, [cleanupAutoScanning, isScanning, performRealScan]);

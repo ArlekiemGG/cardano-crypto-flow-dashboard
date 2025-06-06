@@ -1,8 +1,7 @@
 
-import { connectionHealthService } from './connectionHealthService';
-import { subscriptionManagerService } from './subscriptionManagerService';
 import { dataFetchingService } from './dataFetchingService';
 import { intervalManagerService } from './intervalManagerService';
+import { dataThrottlingService } from './dataThrottlingService';
 
 interface RealTimePrice {
   dex: string;
@@ -13,124 +12,99 @@ interface RealTimePrice {
   lastUpdate: string;
 }
 
-export class RealTimeMarketDataService {
-  private isRunning = false;
+class RealTimeMarketDataService {
+  private subscribers = new Set<(data: RealTimePrice[]) => void>();
   private currentPrices: RealTimePrice[] = [];
-  private readonly UPDATE_INTERVAL = 45000; // 45 seconds for simplified architecture
+  private isServiceActive = false;
 
-  private debouncedFetch = this.debounce(this.performFetch.bind(this), 3000);
-
-  private debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
-    let timeout: NodeJS.Timeout;
-    return ((...args: any[]) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(this, args), wait);
-    }) as T;
-  }
-
-  async startRealTimeUpdates(intervalSeconds: number = 45): Promise<void> {
-    if (this.isRunning) {
-      console.log('🔄 Simplified real-time updates already running');
+  async startRealTimeUpdates(intervalSeconds: number = 90): Promise<void> {
+    if (this.isServiceActive) {
+      console.log('📊 Servicio ya activo, saltando inicialización...');
       return;
     }
 
-    this.isRunning = true;
-    console.log('🚀 Starting simplified real-time updates (Blockfrost + DeFiLlama only)...');
+    this.isServiceActive = true;
+    console.log(`🚀 Iniciando servicio optimizado (intervalo: ${intervalSeconds}s)...`);
+    
+    try {
+      // Fetch inicial
+      await this.fetchAndNotify();
 
-    // Initial fetch
-    this.debouncedFetch();
+      // Configurar actualizaciones periódicas con throttling
+      intervalManagerService.startUpdateInterval(async () => {
+        if (dataThrottlingService.canFetch('marketData')) {
+          await this.fetchAndNotify();
+        }
+      }, intervalSeconds * 1000);
 
-    // Set up periodic updates
-    const updateIntervalMs = Math.max(intervalSeconds * 1000, this.UPDATE_INTERVAL);
-    intervalManagerService.startUpdateInterval(() => {
-      if (dataFetchingService.canFetch()) {
-        this.debouncedFetch();
-      }
-    }, updateIntervalMs);
-
-    console.log(`✅ Simplified updates started with ${Math.max(intervalSeconds, 45)}s interval`);
+    } catch (error) {
+      console.error('❌ Error iniciando servicio optimizado:', error);
+      this.isServiceActive = false;
+    }
   }
 
-  private async performFetch(): Promise<void> {
+  private async fetchAndNotify(): Promise<void> {
+    if (!this.isServiceActive) return;
+
     try {
-      const allPrices = await dataFetchingService.fetchSimplifiedData();
-
-      if (allPrices.length > 0) {
-        // Update connection health
-        connectionHealthService.updateConnectionHealth(allPrices);
-
-        // Update current prices and notify subscribers
-        this.currentPrices = allPrices;
-        subscriptionManagerService.notifySubscribers(allPrices);
-
-        // Reset retry count on successful fetch
+      const prices = await dataFetchingService.fetchSimplifiedData();
+      
+      if (prices.length > 0) {
+        this.currentPrices = prices;
+        this.notifySubscribers(prices);
         intervalManagerService.resetRetryCount();
       }
+
     } catch (error) {
-      console.error('❌ Error in performFetch:', error);
-      this.handleUpdateError();
+      console.error('❌ Error en fetch optimizado:', error);
+      
+      const maxRetries = intervalManagerService.incrementRetryCount();
+      if (maxRetries) {
+        console.error('❌ Máximo de reintentos alcanzado, programando reconexión...');
+        intervalManagerService.scheduleReconnect(async () => {
+          await this.fetchAndNotify();
+        });
+      }
     }
   }
 
-  private handleUpdateError(): void {
-    const shouldReconnect = intervalManagerService.incrementRetryCount();
-
-    if (shouldReconnect) {
-      console.log('🔄 Max retries reached, scheduling reconnection...');
-      intervalManagerService.scheduleReconnect(() => this.performFetch());
-    }
-  }
-
-  stopRealTimeUpdates(): void {
-    if (!this.isRunning) return;
-
-    console.log('🛑 Stopping simplified real-time updates...');
-    this.isRunning = false;
-
-    intervalManagerService.cleanup();
-    subscriptionManagerService.clearSubscribers();
-
-    console.log('✅ Simplified updates stopped');
-  }
-
-  subscribe(callback: (data: RealTimePrice[]) => void): () => void {
-    const unsubscribe = subscriptionManagerService.subscribe(callback);
+  subscribe(callback: (data: RealTimePrice[]) => void) {
+    this.subscribers.add(callback);
     
+    // Enviar datos actuales inmediatamente si están disponibles
     if (this.currentPrices.length > 0) {
       callback(this.currentPrices);
     }
 
-    return unsubscribe;
+    return () => {
+      this.subscribers.delete(callback);
+    };
+  }
+
+  private notifySubscribers(data: RealTimePrice[]) {
+    this.subscribers.forEach(callback => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error('❌ Error notificando suscriptor:', error);
+      }
+    });
   }
 
   getCurrentPrices(): RealTimePrice[] {
-    return [...this.currentPrices];
-  }
-
-  getDEXPrices(dexName: string): RealTimePrice[] {
-    return this.currentPrices.filter(price => 
-      price.dex.toLowerCase() === dexName.toLowerCase()
-    );
-  }
-
-  getPairPrices(pairName: string): RealTimePrice[] {
-    return this.currentPrices.filter(price => 
-      price.pair.toLowerCase().includes(pairName.toLowerCase())
-    );
+    return this.currentPrices;
   }
 
   isConnected(): boolean {
-    return this.isRunning && this.currentPrices.length > 0;
+    return this.isServiceActive && this.currentPrices.length > 0;
   }
 
-  getConnectionHealth() {
-    return connectionHealthService.getConnectionHealth();
-  }
-
-  async forceRefresh(): Promise<void> {
-    console.log('🔄 Force refreshing simplified data...');
-    dataFetchingService.resetFetchTime();
-    await this.performFetch();
+  stop(): void {
+    console.log('🛑 Deteniendo servicio optimizado...');
+    this.isServiceActive = false;
+    intervalManagerService.cleanup();
+    this.subscribers.clear();
+    this.currentPrices = [];
   }
 }
 

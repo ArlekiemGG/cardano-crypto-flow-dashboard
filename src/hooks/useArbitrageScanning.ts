@@ -1,6 +1,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { arbitrageEngine } from '@/services/arbitrageEngine';
+import { dataThrottlingService } from '@/services/dataThrottlingService';
 
 interface RealArbitrageOpportunity {
   id: string;
@@ -32,8 +33,6 @@ interface ArbitrageStats {
   totalVolume: number;
 }
 
-const SCAN_COOLDOWN = 30000;
-
 export const useArbitrageScanning = () => {
   const [opportunities, setOpportunities] = useState<RealArbitrageOpportunity[]>([]);
   const [stats, setStats] = useState<ArbitrageStats>({
@@ -48,24 +47,21 @@ export const useArbitrageScanning = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [lastScan, setLastScan] = useState(new Date());
   
-  const lastScanRef = useRef<Date>(new Date());
+  const isScanningRef = useRef(false);
 
   const performRealScan = useCallback(async () => {
-    if (isScanning) return;
-    
-    const now = new Date();
-    const timeSinceLastScan = now.getTime() - lastScanRef.current.getTime();
-    
-    if (timeSinceLastScan < SCAN_COOLDOWN) {
-      console.log('⏳ Too soon since last scan, waiting...');
+    // Verificar throttling y estado de escaneo
+    if (!dataThrottlingService.canFetch('arbitrage') || isScanningRef.current) {
       return;
     }
     
+    isScanningRef.current = true;
     setIsScanning(true);
-    lastScanRef.current = now;
+    
+    const now = new Date();
     setLastScan(now);
     
-    console.log('🔍 Starting optimized arbitrage scan...');
+    console.log('🔍 Iniciando escaneo optimizado de arbitraje...');
     
     try {
       const realOpportunities = await arbitrageEngine.scanForArbitrageOpportunities();
@@ -91,14 +87,15 @@ export const useArbitrageScanning = () => {
       };
       setStats(newStats);
       
-      console.log(`✅ Arbitrage scan completed: ${formattedOpportunities.length} opportunities found`);
+      console.log(`✅ Escaneo completado: ${formattedOpportunities.length} oportunidades encontradas`);
       
     } catch (error) {
-      console.error('❌ Error during arbitrage scan:', error);
+      console.error('❌ Error durante escaneo de arbitraje:', error);
     } finally {
       setIsScanning(false);
+      isScanningRef.current = false;
     }
-  }, [isScanning]);
+  }, []);
 
   return {
     opportunities,
