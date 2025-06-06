@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRealTimeArbitrage } from '@/hooks/useRealTimeArbitrage';
@@ -149,7 +148,7 @@ export const RealTimeTradingPanel = () => {
                 <li>• All trades execute with REAL ADA from your connected wallet</li>
                 <li>• Transactions are irreversible once confirmed on blockchain</li>
                 <li>• Market conditions can change rapidly, causing losses</li>
-                <li>• Only HIGH confidence opportunities (>5 ADA profit) are shown</li>
+                <li>• Only HIGH confidence opportunities ({'>'}5 ADA profit) are shown</li>
                 <li>• Always verify opportunities before executing</li>
               </ul>
             </div>
