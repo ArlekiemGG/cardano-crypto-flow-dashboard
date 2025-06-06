@@ -16,16 +16,17 @@ export function Header() {
   
   // Use the optimized market data hook for real DEX data
   const { 
-    dexVolumes,
+    getTotalDexVolume24h,
+    getDEXCount,
     isLoading: dexLoading,
-    getTotalDexVolume24h
+    dataSource
   } = useOptimizedMarketData()
   
   // Get real total DEX volume
   const totalVolume24h = getTotalDexVolume24h()
   
   // Count active DEX pairs from real data
-  const activeDEXPairs = dexVolumes?.protocols?.length || 0
+  const activeDEXPairs = getDEXCount()
   
   // Format volume for display
   const formatVolume = (volume: number) => {
@@ -36,9 +37,12 @@ export function Header() {
     } else if (volume >= 1000) {
       return `$${(volume / 1000).toFixed(1)}K`;
     } else {
-      return volume > 0 ? `$${volume.toFixed(0)}` : 'Loading...';
+      return volume > 0 ? `$${volume.toFixed(0)}` : 'Cargando...';
     }
   };
+
+  // Determine if we have real data
+  const hasRealData = !dexLoading && dataSource !== 'native' && totalVolume24h > 0;
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
@@ -54,7 +58,7 @@ export function Header() {
             <span className="text-white font-mono">
               {formatVolume(totalVolume24h)}
             </span>
-            {totalVolume24h > 0 && (
+            {hasRealData && (
               <span className="text-xs text-green-400 ml-1">Real</span>
             )}
           </div>
@@ -63,7 +67,7 @@ export function Header() {
             <span className="text-gray-400">DEX: </span>
             <span className="text-crypto-primary font-mono">{activeDEXPairs}</span>
             <span className="text-xs text-gray-500 ml-1">
-              {activeDEXPairs > 0 ? 'Active' : 'Loading'}
+              {activeDEXPairs > 0 ? 'Activos' : 'Cargando'}
             </span>
           </div>
         </div>
@@ -73,18 +77,18 @@ export function Header() {
         {/* Network Indicator */}
         <NetworkIndicator />
 
-        {/* WebSocket Status - NEW! */}
+        {/* WebSocket Status - Mostrando datos reales */}
         <WebSocketStatus />
 
         {/* Real Data Connection Status */}
         <div className="flex items-center space-x-2">
-          {isFullyConnected && !dexLoading ? (
+          {hasRealData ? (
             <Wifi className="h-4 w-4 text-green-400" />
           ) : (
             <WifiOff className="h-4 w-4 text-red-400" />
           )}
-          <span className={`text-xs hidden sm:block ${isFullyConnected && !dexLoading ? 'text-green-400' : 'text-red-400'}`}>
-            {isFullyConnected && !dexLoading ? 'Live Data' : 'Connecting'}
+          <span className={`text-xs hidden sm:block ${hasRealData ? 'text-green-400' : 'text-red-400'}`}>
+            {hasRealData ? 'Datos Reales' : 'Conectando'}
           </span>
           <span className="text-xs text-gray-500">
             {connectedSources}/2

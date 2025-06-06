@@ -1,51 +1,38 @@
 
 import { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Activity, Clock } from 'lucide-react';
-import { realTimeWebSocketService } from '@/services/realTimeWebSocketService';
+import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData';
 
 interface ConnectionStatus {
   endpoint: string;
   connected: boolean;
-  reconnectAttempts: number;
+  dataAge: number;
   lastSeen?: Date;
 }
 
 export const WebSocketStatus = () => {
-  const [connections, setConnections] = useState<ConnectionStatus[]>([]);
+  const { isLoading, lastUpdate, dataSource } = useOptimizedMarketData();
   const [overallStatus, setOverallStatus] = useState<'connected' | 'partial' | 'disconnected'>('disconnected');
 
   useEffect(() => {
-    const updateStatus = () => {
-      const endpoints = ['price_updates', 'arbitrage_updates', 'dex_status'];
-      const statuses: ConnectionStatus[] = endpoints.map(endpoint => {
-        const status = realTimeWebSocketService.getConnectionStatus(endpoint);
-        return {
-          endpoint,
-          connected: status.connected,
-          reconnectAttempts: status.reconnectAttempts,
-          lastSeen: status.connected ? new Date() : undefined
-        };
-      });
+    if (isLoading) {
+      setOverallStatus('disconnected');
+      return;
+    }
 
-      setConnections(statuses);
+    // Calculate data freshness
+    const now = new Date();
+    const dataAge = now.getTime() - lastUpdate.getTime();
+    const isFresh = dataAge < 300000; // 5 minutes
 
-      // Determine overall status
-      const connectedCount = statuses.filter(s => s.connected).length;
-      if (connectedCount === statuses.length) {
-        setOverallStatus('connected');
-      } else if (connectedCount > 0) {
-        setOverallStatus('partial');
-      } else {
-        setOverallStatus('disconnected');
-      }
-    };
-
-    // Update status every 5 seconds
-    const interval = setInterval(updateStatus, 5000);
-    updateStatus(); // Initial update
-
-    return () => clearInterval(interval);
-  }, []);
+    if (isFresh && dataSource !== 'native') {
+      setOverallStatus('connected');
+    } else if (dataAge < 600000) { // 10 minutes
+      setOverallStatus('partial');
+    } else {
+      setOverallStatus('disconnected');
+    }
+  }, [isLoading, lastUpdate, dataSource]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -56,12 +43,15 @@ export const WebSocketStatus = () => {
     }
   };
 
-  const getStatusIcon = (connected: boolean) => {
-    return connected ? (
-      <Wifi className="h-3 w-3 text-green-400" />
-    ) : (
-      <WifiOff className="h-3 w-3 text-red-400" />
-    );
+  const getStatusText = () => {
+    if (isLoading) return 'Cargando...';
+    
+    switch (overallStatus) {
+      case 'connected': return 'Datos Reales';
+      case 'partial': return 'Datos Parciales';
+      case 'disconnected': return 'Sin Conexión';
+      default: return 'Desconocido';
+    }
   };
 
   return (
@@ -77,29 +67,22 @@ export const WebSocketStatus = () => {
         )}
         
         <span className={`text-xs ${getStatusColor(overallStatus)}`}>
-          {overallStatus === 'connected' ? 'Real-Time' : 
-           overallStatus === 'partial' ? 'Partial' : 'Offline'}
+          {getStatusText()}
         </span>
       </div>
 
-      {/* Detailed Connection Info (Hidden on mobile) */}
-      <div className="hidden md:flex items-center space-x-2">
-        {connections.map(conn => (
-          <div key={conn.endpoint} className="flex items-center space-x-1" title={conn.endpoint}>
-            {getStatusIcon(conn.connected)}
-            {conn.reconnectAttempts > 0 && (
-              <span className="text-xs text-orange-400">
-                {conn.reconnectAttempts}
-              </span>
-            )}
-          </div>
-        ))}
+      {/* Data Source Info */}
+      <div className="hidden md:flex items-center space-x-1">
+        <span className="text-xs text-gray-500">
+          {dataSource === 'defillama' ? 'DeFiLlama' : 
+           dataSource === 'mixed' ? 'Mixto' : 'Local'}
+        </span>
       </div>
 
       {/* Last Update Time */}
       <div className="flex items-center space-x-1 text-xs text-gray-500">
         <Clock className="h-3 w-3" />
-        <span>{new Date().toLocaleTimeString()}</span>
+        <span>{lastUpdate.toLocaleTimeString()}</span>
       </div>
     </div>
   );
