@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { realTimeMarketDataService } from './realTimeMarketDataService';
 
@@ -41,6 +40,10 @@ export class ArbitrageEngine {
   private readonly MIN_PROFIT_PERCENTAGE = 0.5; // More realistic threshold
   private readonly MIN_VOLUME_ADA = 100; // Conservative minimum volume
   private readonly MAX_SLIPPAGE = 5; // Conservative slippage tolerance
+
+  private normalizePair(pair: string): string {
+    return pair.toUpperCase().replace(/\s+/g, '').replace(/[\/\-]/g, '/');
+  }
 
   async scanForArbitrageOpportunities(): Promise<ArbitrageOpportunityReal[]> {
     console.log('🔍 Scanning for REAL arbitrage opportunities using live DEX data...');
