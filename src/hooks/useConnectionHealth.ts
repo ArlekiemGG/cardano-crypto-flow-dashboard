@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { realTimeMarketDataService } from '@/services/realTimeMarketDataService';
 import { optimizedDataService } from '@/services/optimizedDataService';
+import { CacheStats } from '@/services/optimized-data/types';
 
 export const useConnectionHealth = () => {
   const [connectionHealth, setConnectionHealth] = useState({
@@ -16,9 +17,16 @@ export const useConnectionHealth = () => {
       
       // Verificar la conexión de DeFiLlama usando optimizedDataService
       // Podemos verificar mediante las estadísticas de cache para ver si hay datos
-      const cacheStats = optimizedDataService.getCacheStats?.() || {};
+      const cacheStats: CacheStats = optimizedDataService.getCacheStats?.() || { 
+        sources: {},
+        total: 0,
+        valid: 0,
+        expired: 0,
+        hitRate: 0
+      };
+      
       const defiLlamaConnected = 
-        (cacheStats.sources?.defillama && cacheStats.sources.defillama > 0) ||
+        (cacheStats.sources && 'defillama' in cacheStats.sources && cacheStats.sources.defillama > 0) ||
         false;
       
       setConnectionHealth({
