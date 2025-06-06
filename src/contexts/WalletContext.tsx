@@ -1,6 +1,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { WalletApi as CardanoWalletApi } from '@/types/cardano';
+import { getAvailableWallets } from '@/utils/walletUtils';
+import { useWalletConnection } from '@/hooks/useWalletConnection';
+import { useBalanceManager } from '@/hooks/useBalanceManager';
 
 export interface WalletState {
   isConnected: boolean;
@@ -52,133 +55,51 @@ interface WalletProviderProps {
 
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [walletState, setWalletState] = useState<WalletState>(initialState);
+  const { isConnecting, error, connectWallet: connectWalletHook } = useWalletConnection();
+  const { balance, utxos, refreshBalance, checkMinimumBalance } = useBalanceManager(
+    walletState.walletApi,
+    walletState.isConnected
+  );
 
-  // Get available wallets from window.cardano
-  const getAvailableWallets = (): string[] => {
-    if (typeof window === 'undefined') return [];
-    
-    const availableWallets: string[] = [];
-    
-    // Check for common Cardano wallets
-    const walletNames = ['nami', 'eternl', 'flint', 'vespr', 'yoroi', 'gerowallet', 'nufi'];
-    
-    walletNames.forEach(walletName => {
-      if (window.cardano && window.cardano[walletName]) {
-        availableWallets.push(walletName);
-      }
-    });
-    
-    return availableWallets;
-  };
-
-  // Convert hex to address (simplified)
-  const hexToAddress = (hex: string): string => {
-    try {
-      // This is a simplified conversion - in production you'd use proper Cardano address libraries
-      return hex;
-    } catch (error) {
-      console.error('Error converting hex to address:', error);
-      return hex;
+  // Update wallet state with balance and utxos from the balance manager
+  useEffect(() => {
+    if (walletState.isConnected) {
+      setWalletState(prev => ({
+        ...prev,
+        balance,
+        utxos,
+      }));
     }
-  };
+  }, [balance, utxos, walletState.isConnected]);
 
-  // Convert lovelace to ADA
-  const lovelaceToAda = (lovelace: string): number => {
-    try {
-      return parseInt(lovelace, 16) / 1000000;
-    } catch (error) {
-      console.error('Error converting lovelace to ADA:', error);
-      return 0;
-    }
-  };
+  // Update wallet state with connection state
+  useEffect(() => {
+    setWalletState(prev => ({
+      ...prev,
+      isConnecting,
+      error,
+    }));
+  }, [isConnecting, error]);
 
-  // Connect to wallet using native Cardano wallet APIs
+  // Connect to wallet
   const connectWallet = async (walletName: string): Promise<void> => {
     try {
-      setWalletState(prev => ({ ...prev, isConnecting: true, error: null }));
-
-      if (!window.cardano || !window.cardano[walletName]) {
-        throw new Error(`${walletName} wallet not found. Please install the wallet extension.`);
-      }
-
-      // Enable wallet
-      const walletApi = await window.cardano[walletName].enable();
+      const connectionResult = await connectWalletHook(walletName);
       
-      console.log('Wallet API enabled:', walletApi);
-
-      // Get network ID
-      const networkId = await walletApi.getNetworkId();
-      const network = networkId === 1 ? 'Mainnet' : 'Testnet';
-
-      // Get wallet addresses
-      const usedAddresses = await walletApi.getUsedAddresses();
-      const unusedAddresses = await walletApi.getUnusedAddresses();
-      
-      let address = '';
-      if (usedAddresses && usedAddresses.length > 0) {
-        address = hexToAddress(usedAddresses[0]);
-      } else if (unusedAddresses && unusedAddresses.length > 0) {
-        address = hexToAddress(unusedAddresses[0]);
-      } else {
-        // Fallback: get change address
-        address = await walletApi.getChangeAddress();
-        address = hexToAddress(address);
-      }
-
-      // Get wallet balance
-      const balanceHex = await walletApi.getBalance();
-      const balance = lovelaceToAda(balanceHex);
-
-      // Get UTXOs
-      let utxos: any[] = [];
-      try {
-        const utxosHex = await walletApi.getUtxos();
-        utxos = utxosHex || [];
-      } catch (error) {
-        console.warn('Could not fetch UTXOs:', error);
-      }
-
-      // Get stake address
-      let stakeAddress: string | null = null;
-      try {
-        const rewardAddresses = await walletApi.getRewardAddresses();
-        if (rewardAddresses && rewardAddresses.length > 0) {
-          stakeAddress = hexToAddress(rewardAddresses[0]);
-        }
-      } catch (error) {
-        console.warn('Could not fetch stake address:', error);
-      }
-
-      // Save to localStorage for persistence
-      localStorage.setItem('connectedWallet', walletName);
-      localStorage.setItem('walletAddress', address);
-
       setWalletState(prev => ({
         ...prev,
         isConnected: true,
-        isConnecting: false,
         walletName,
-        walletApi,
-        address,
-        balance,
-        network,
-        utxos,
-        stakeAddress,
-        error: null,
+        walletApi: connectionResult.walletApi,
+        address: connectionResult.address,
+        balance: connectionResult.balance,
+        network: connectionResult.network,
+        utxos: connectionResult.utxos,
+        stakeAddress: connectionResult.stakeAddress,
       }));
-
-      console.log(`Successfully connected to ${walletName} wallet`);
-      console.log('Address:', address);
-      console.log('Balance:', balance, 'ADA');
-      console.log('Network:', network);
-      
     } catch (error) {
-      console.error('Wallet connection failed:', error);
-      setWalletState(prev => ({
-        ...prev,
-        isConnecting: false,
-        error: error instanceof Error ? error.message : 'Failed to connect wallet',
-      }));
+      // Error is already handled in the hook
+      throw error;
     }
   };
 
@@ -191,34 +112,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     console.log('Wallet disconnected');
   };
 
-  // Refresh balance
-  const refreshBalance = async (): Promise<void> => {
-    if (!walletState.walletApi || !walletState.isConnected) return;
-
-    try {
-      const balanceHex = await walletState.walletApi.getBalance();
-      const balance = lovelaceToAda(balanceHex);
-
-      const utxosHex = await walletState.walletApi.getUtxos();
-      const utxos = utxosHex || [];
-
-      setWalletState(prev => ({
-        ...prev,
-        balance,
-        utxos,
-      }));
-
-      console.log('Balance refreshed:', balance, 'ADA');
-    } catch (error) {
-      console.error('Failed to refresh balance:', error);
-    }
-  };
-
-  // Check minimum balance for premium access
-  const checkMinimumBalance = (minAda: number): boolean => {
-    return walletState.balance >= minAda;
-  };
-
   // Auto-reconnect on page load
   useEffect(() => {
     const savedWallet = localStorage.getItem('connectedWallet');
@@ -226,14 +119,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       connectWallet(savedWallet);
     }
   }, []);
-
-  // Refresh balance periodically
-  useEffect(() => {
-    if (walletState.isConnected) {
-      const interval = setInterval(refreshBalance, 30000); // Every 30 seconds
-      return () => clearInterval(interval);
-    }
-  }, [walletState.isConnected]);
 
   const contextValue: WalletContextType = {
     ...walletState,
