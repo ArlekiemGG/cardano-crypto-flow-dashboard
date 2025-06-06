@@ -86,15 +86,38 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }));
   }, [isConnecting, error]);
 
-  // Connect to wallet with manual authorization
+  // Connect to wallet with FORCED explicit authorization
   const connectWallet = async (walletName: string): Promise<void> => {
     try {
-      console.log('Initiating manual wallet connection for:', walletName);
+      console.log('=== STARTING EXPLICIT WALLET CONNECTION ===');
+      console.log('Target wallet:', walletName);
       
+      // CRITICAL: Clear any cached wallet data first
+      setWalletState(initialState);
+      
+      // Clear localStorage to prevent any auto-connection attempts
+      localStorage.removeItem('connectedWallet');
+      localStorage.removeItem('walletAddress');
+      
+      // Force a small delay to ensure state is cleared
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log('Requesting explicit authorization...');
       const connectionResult = await connectWalletHook(walletName);
       
-      console.log('Manual wallet authorization successful, setting state...');
+      console.log('=== WALLET AUTHORIZATION SUCCESSFUL ===');
       console.log('Connection result:', connectionResult);
+      console.log('Address format:', connectionResult.address);
+      
+      // Validate address format
+      if (!connectionResult.address) {
+        throw new Error('No address received from wallet');
+      }
+      
+      // Log address details for debugging
+      console.log('Received address:', connectionResult.address);
+      console.log('Address starts with addr1:', connectionResult.address.startsWith('addr1'));
+      console.log('Address length:', connectionResult.address.length);
       
       setWalletState(prev => ({
         ...prev,
@@ -109,7 +132,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         error: null,
       }));
 
-      // Save wallet session to database with real data ONLY after successful manual connection
+      // Save wallet session to database with real data ONLY after successful explicit connection
       await walletService.saveWalletSession({
         address: connectionResult.address,
         walletName,
@@ -117,18 +140,23 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         network: connectionResult.network,
       });
 
-      // Save to localStorage ONLY after successful manual authorization
-      localStorage.setItem('connectedWallet', walletName);
-      localStorage.setItem('walletAddress', connectionResult.address);
-
-      console.log('Wallet connected successfully with manual authorization:', connectionResult.address);
+      console.log('=== WALLET CONNECTED SUCCESSFULLY ===');
+      console.log('Final address in state:', connectionResult.address);
+      console.log('Network:', connectionResult.network);
+      console.log('Stake address:', connectionResult.stakeAddress);
       
     } catch (error) {
-      console.error('Manual wallet connection failed:', error);
+      console.error('=== WALLET CONNECTION FAILED ===');
+      console.error('Error details:', error);
+      
+      // Clear state on error
       setWalletState(prev => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Failed to connect wallet',
+        error: error instanceof Error ? error.message : 'Failed to connect wallet with explicit authorization',
         isConnected: false,
+        walletName: null,
+        walletApi: null,
+        address: null,
       }));
       throw error;
     }
@@ -136,19 +164,24 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   // Disconnect wallet
   const disconnectWallet = () => {
-    // Clear ALL stored data to prevent auto-reconnection
+    console.log('=== DISCONNECTING WALLET ===');
+    
+    // Clear ALL stored data to prevent any auto-reconnection
     localStorage.removeItem('connectedWallet');
     localStorage.removeItem('walletAddress');
     
+    // Reset to initial state
     setWalletState(initialState);
+    
     console.log('Wallet disconnected and all cached data cleared');
   };
 
-  // CRÍTICO: Eliminar auto-reconexión automática
-  // Los usuarios deben autorizar manualmente cada sesión por seguridad
+  // CRITICAL: NO AUTO-RECONNECTION
+  // Users must explicitly authorize each session for security
   useEffect(() => {
-    console.log('WalletProvider initialized - NO auto-reconnection for security');
-    // REMOVIDO: Auto-reconnection code para forzar autorización manual cada vez
+    console.log('WalletProvider initialized - NO auto-reconnection for security compliance');
+    console.log('All wallet connections require explicit user authorization');
+    // NO auto-reconnection code - this ensures security compliance
   }, []);
 
   const contextValue: WalletContextType = {
