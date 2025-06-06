@@ -35,11 +35,16 @@ class OptimizedDataService {
       console.log(`📊 Fetching prices from DeFiLlama: ${tokensString}`);
       const data = await this.apiClient.getCurrentPrices(tokens);
 
+      // Ensure data has the correct structure
+      const priceResponse: DeFiLlamaPriceResponse = {
+        coins: data?.coins || data || {}
+      };
+
       // Save to cache
-      this.cacheManager.set(cacheKey, data, 'defillama');
-      console.log(`✅ DeFiLlama prices cached: ${Object.keys(data.coins || {}).length} tokens`);
+      this.cacheManager.set(cacheKey, priceResponse, 'defillama');
+      console.log(`✅ DeFiLlama prices cached: ${Object.keys(priceResponse.coins).length} tokens`);
       this.isConnected = true;
-      return data;
+      return priceResponse;
 
     } catch (error) {
       console.error('❌ DeFiLlama prices error:', error);
