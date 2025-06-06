@@ -11,7 +11,7 @@ export const useOptimizedMarketData = () => {
   const dexVolumeData = useDEXVolumeData();
 
   return {
-    // Raw data
+    // Raw data from APIs
     prices: data.prices,
     protocols: data.protocols,
     dexVolumes: data.dexVolumes,
@@ -23,9 +23,12 @@ export const useOptimizedMarketData = () => {
     cacheStats,
     forceRefresh,
     
-    // Price methods
+    // Enhanced price methods with real data validation
     getADAPrice: priceData.getADAPrice,
+    getADAChange24h: priceData.getADAChange24h,
+    getADAVolume24h: priceData.getADAVolume24h,
     getTokenPrice: priceData.getTokenPrice,
+    hasRealPriceData: priceData.hasRealPriceData,
     
     // Protocol methods
     getTopProtocolsByTVL: protocolData.getTopProtocolsByTVL,
@@ -37,6 +40,19 @@ export const useOptimizedMarketData = () => {
     getDexVolumeByName: dexVolumeData.getDexVolumeByName,
     getTotalDexVolume24h: dexVolumeData.getTotalDexVolume24h,
     getTopDEXsByVolume: dexVolumeData.getTopDEXsByVolume,
-    getDEXCount: dexVolumeData.getDEXCount
+    getDEXCount: dexVolumeData.getDEXCount,
+    
+    // Real data validation helpers
+    isRealDataAvailable: () => {
+      return dataSource !== 'native' && 
+             priceData.hasRealPriceData() && 
+             dexVolumeData.getDEXCount() > 0;
+    },
+    
+    getDataQuality: () => {
+      if (dataSource === 'defillama') return 'excellent';
+      if (dataSource === 'mixed') return 'good';
+      return 'poor';
+    }
   };
 };

@@ -3,15 +3,8 @@ import { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Activity, Clock } from 'lucide-react';
 import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData';
 
-interface ConnectionStatus {
-  endpoint: string;
-  connected: boolean;
-  dataAge: number;
-  lastSeen?: Date;
-}
-
 export const WebSocketStatus = () => {
-  const { isLoading, lastUpdate, dataSource } = useOptimizedMarketData();
+  const { isLoading, lastUpdate, dataSource, cacheStats } = useOptimizedMarketData();
   const [overallStatus, setOverallStatus] = useState<'connected' | 'partial' | 'disconnected'>('disconnected');
 
   useEffect(() => {
@@ -20,14 +13,18 @@ export const WebSocketStatus = () => {
       return;
     }
 
-    // Calculate data freshness
+    // Calculate data freshness from real sources
     const now = new Date();
     const dataAge = now.getTime() - lastUpdate.getTime();
-    const isFresh = dataAge < 300000; // 5 minutes
+    const isFresh = dataAge < 300000; // 5 minutes for real-time data
+    const isPartialFresh = dataAge < 900000; // 15 minutes for acceptable data
 
-    if (isFresh && dataSource !== 'native') {
+    // Determine status based on real data sources and freshness
+    if (dataSource === 'defillama' && isFresh) {
       setOverallStatus('connected');
-    } else if (dataAge < 600000) { // 10 minutes
+    } else if (dataSource === 'mixed' && isPartialFresh) {
+      setOverallStatus('partial');
+    } else if (dataSource !== 'native' && isPartialFresh) {
       setOverallStatus('partial');
     } else {
       setOverallStatus('disconnected');
@@ -47,12 +44,16 @@ export const WebSocketStatus = () => {
     if (isLoading) return 'Cargando...';
     
     switch (overallStatus) {
-      case 'connected': return 'Datos Reales';
+      case 'connected': return 'Datos en Vivo';
       case 'partial': return 'Datos Parciales';
       case 'disconnected': return 'Sin Conexión';
       default: return 'Desconocido';
     }
   };
+
+  // Calculate hit rate from real cache stats
+  const hitRate = cacheStats?.hitRate || 0;
+  const totalRequests = Object.values(cacheStats?.sources || {}).reduce((a: number, b: number) => a + b, 0);
 
   return (
     <div className="flex items-center space-x-2">
@@ -61,7 +62,7 @@ export const WebSocketStatus = () => {
         {overallStatus === 'connected' ? (
           <Activity className="h-4 w-4 text-green-400 animate-pulse" />
         ) : overallStatus === 'partial' ? (
-          <Activity className="h-4 w-4 text-yellow-400" />
+          <Wifi className="h-4 w-4 text-yellow-400" />
         ) : (
           <WifiOff className="h-4 w-4 text-red-400" />
         )}
@@ -71,12 +72,17 @@ export const WebSocketStatus = () => {
         </span>
       </div>
 
-      {/* Data Source Info */}
+      {/* Real Data Source Info */}
       <div className="hidden md:flex items-center space-x-1">
         <span className="text-xs text-gray-500">
           {dataSource === 'defillama' ? 'DeFiLlama' : 
-           dataSource === 'mixed' ? 'Mixto' : 'Local'}
+           dataSource === 'mixed' ? 'APIs Mixtas' : 'Cache Local'}
         </span>
+        {totalRequests > 0 && (
+          <span className="text-xs text-gray-400">
+            ({(hitRate * 100).toFixed(0)}%)
+          </span>
+        )}
       </div>
 
       {/* Last Update Time */}

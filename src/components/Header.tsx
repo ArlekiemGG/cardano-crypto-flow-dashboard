@@ -14,19 +14,24 @@ export function Header() {
   const { connectedSources, isFullyConnected } = useConnectionHealth()
   const { isConnected: walletConnected } = useWallet()
   
-  // Use the optimized market data hook for real DEX data
+  // Use optimized market data for real DEX and protocol data
   const { 
     getTotalDexVolume24h,
     getDEXCount,
-    isLoading: dexLoading,
-    dataSource
+    getTopProtocolsByTVL,
+    isLoading: dataLoading,
+    dataSource,
+    lastUpdate
   } = useOptimizedMarketData()
   
-  // Get real total DEX volume
+  // Get real total DEX volume directly from DeFiLlama data
   const totalVolume24h = getTotalDexVolume24h()
   
-  // Count active DEX pairs from real data
-  const activeDEXPairs = getDEXCount()
+  // Count active DEX protocols from real data
+  const activeDEXCount = getDEXCount()
+  
+  // Get top protocols for additional validation
+  const topProtocols = getTopProtocolsByTVL(3)
   
   // Format volume for display
   const formatVolume = (volume: number) => {
@@ -41,33 +46,42 @@ export function Header() {
     }
   };
 
-  // Determine if we have real data
-  const hasRealData = !dexLoading && dataSource !== 'native' && totalVolume24h > 0;
+  // Determine if we have real data from external APIs
+  const hasRealData = !dataLoading && 
+                     dataSource !== 'native' && 
+                     totalVolume24h > 0 && 
+                     activeDEXCount > 0;
+
+  // Check data freshness (within 15 minutes)
+  const dataAge = new Date().getTime() - lastUpdate.getTime();
+  const isDataFresh = dataAge < 900000; // 15 minutes
+
+  const connectionStatus = hasRealData && isDataFresh;
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
       <div className="flex items-center space-x-4">
         <SidebarTrigger className="text-white hover:bg-white/10" />
         
-        {/* Real-Time Stats */}
+        {/* Real-Time Stats from External APIs */}
         <div className="hidden md:flex items-center space-x-6">
           <RealTimePrice />
           
           <div className="text-sm">
-            <span className="text-gray-400">24h Vol: </span>
+            <span className="text-gray-400">DEX Vol 24h: </span>
             <span className="text-white font-mono">
               {formatVolume(totalVolume24h)}
             </span>
-            {hasRealData && (
-              <span className="text-xs text-green-400 ml-1">Real</span>
+            {hasRealData && isDataFresh && (
+              <span className="text-xs text-green-400 ml-1">Live</span>
             )}
           </div>
           
           <div className="text-sm">
-            <span className="text-gray-400">DEX: </span>
-            <span className="text-crypto-primary font-mono">{activeDEXPairs}</span>
+            <span className="text-gray-400">Protocolos: </span>
+            <span className="text-crypto-primary font-mono">{activeDEXCount}</span>
             <span className="text-xs text-gray-500 ml-1">
-              {activeDEXPairs > 0 ? 'Activos' : 'Cargando'}
+              {topProtocols.length > 0 ? 'Activos' : 'Cargando'}
             </span>
           </div>
         </div>
@@ -77,18 +91,18 @@ export function Header() {
         {/* Network Indicator */}
         <NetworkIndicator />
 
-        {/* WebSocket Status - Mostrando datos reales */}
+        {/* Real-Time Data Status */}
         <WebSocketStatus />
 
-        {/* Real Data Connection Status */}
+        {/* External API Connection Status */}
         <div className="flex items-center space-x-2">
-          {hasRealData ? (
+          {connectionStatus ? (
             <Wifi className="h-4 w-4 text-green-400" />
           ) : (
             <WifiOff className="h-4 w-4 text-red-400" />
           )}
-          <span className={`text-xs hidden sm:block ${hasRealData ? 'text-green-400' : 'text-red-400'}`}>
-            {hasRealData ? 'Datos Reales' : 'Conectando'}
+          <span className={`text-xs hidden sm:block ${connectionStatus ? 'text-green-400' : 'text-red-400'}`}>
+            {connectionStatus ? 'APIs Conectadas' : 'Reconectando'}
           </span>
           <span className="text-xs text-gray-500">
             {connectedSources}/2

@@ -3,43 +3,39 @@ import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData';
 import { TrendingUp, TrendingDown, Wifi, WifiOff } from 'lucide-react';
 
 export const RealTimePrice = () => {
-  const { getADAPrice, protocols, isLoading, dataSource } = useOptimizedMarketData();
+  const { getADAPrice, prices, isLoading, dataSource, lastUpdate } = useOptimizedMarketData();
   
-  // Get real ADA price from DeFiLlama
+  // Get real ADA price directly from DeFiLlama/CoinGecko
   const adaPrice = getADAPrice();
   
-  // Calculate 24h change from protocols data (real calculation)
-  const calculateChange24h = () => {
-    if (!protocols || protocols.length === 0) return 0;
-    
-    // Find ADA/Cardano related protocols to get real market sentiment
-    const cardanoProtocols = protocols.filter(p => 
-      p.name.toLowerCase().includes('cardano') || 
-      p.name.toLowerCase().includes('ada')
-    );
-    
-    if (cardanoProtocols.length === 0) {
-      // Use global market trend from protocols TVL changes
-      const avgChange = protocols.slice(0, 5).reduce((sum, p) => {
-        const change = p.change_1d || 0;
-        return sum + change;
-      }, 0) / 5;
-      
-      return avgChange * 0.8; // Scale down for ADA
+  // Get real 24h change directly from price data
+  const getRealChange24h = () => {
+    const adaData = prices?.coins?.['coingecko:cardano'];
+    if (adaData?.change_24h && typeof adaData.change_24h === 'number') {
+      return adaData.change_24h;
     }
-    
-    // Use Cardano-specific protocols change
-    return cardanoProtocols[0].change_1d || 0;
+    return 0;
   };
   
-  const change24h = calculateChange24h();
+  // Get real volume directly from price data
+  const getRealVolume24h = () => {
+    const adaData = prices?.coins?.['coingecko:cardano'];
+    if (adaData?.volume_24h && typeof adaData.volume_24h === 'number') {
+      return adaData.volume_24h;
+    }
+    return 0;
+  };
+  
+  const change24h = getRealChange24h();
+  const volume24h = getRealVolume24h();
   const isPositive = change24h >= 0;
   
-  // Validate that we have real data
-  const hasValidData = adaPrice > 0.1 && adaPrice < 10 && !isLoading;
+  // Validate that we have real data from external APIs
+  const hasRealData = adaPrice > 0.1 && adaPrice < 10 && !isLoading && dataSource !== 'native';
   
-  // Calculate volume from protocols
-  const volume24h = protocols?.slice(0, 10).reduce((sum, p) => sum + (p.tvl || 0), 0) * 0.1 || 0;
+  // Data freshness check (within 10 minutes)
+  const dataAge = new Date().getTime() - lastUpdate.getTime();
+  const isDataFresh = dataAge < 600000; // 10 minutes
 
   // Format volume for display
   const formatVolume = (vol: number) => {
@@ -51,11 +47,13 @@ export const RealTimePrice = () => {
 
   return (
     <div className="flex items-center space-x-2">
-      <div className={`w-2 h-2 rounded-full ${hasValidData ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
+      <div className={`w-2 h-2 rounded-full ${
+        hasRealData && isDataFresh ? 'bg-green-400 animate-pulse' : 'bg-red-400'
+      }`}></div>
       
       <span className="text-gray-400">ADA:</span>
       
-      {hasValidData ? (
+      {hasRealData ? (
         <>
           <span className="text-white font-mono font-bold">
             ${adaPrice.toFixed(4)}
@@ -77,7 +75,7 @@ export const RealTimePrice = () => {
           )}
           
           <span className="text-xs text-green-400">
-            {dataSource === 'defillama' ? 'DeFiLlama' : 'Real'}
+            {dataSource === 'defillama' ? 'Real' : dataSource === 'mixed' ? 'Mixto' : 'Cache'}
           </span>
         </>
       ) : (
