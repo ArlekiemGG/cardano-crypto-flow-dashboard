@@ -3,6 +3,7 @@ import { useWallet } from "@/contexts/ModernWalletContext";
 import { usePortfolioCalculations } from "@/hooks/usePortfolioCalculations";
 import { useConnectionHealth } from "@/hooks/useConnectionHealth";
 import { MarketData } from "@/types/trading";
+import { WifiOff } from "lucide-react";
 
 interface HeroSectionProps {
   marketData: MarketData[];
@@ -15,7 +16,22 @@ interface HeroSectionProps {
 export const HeroSection = ({ marketData, isConnected, stats }: HeroSectionProps) => {
   const { balance } = useWallet();
   const portfolioCalculations = usePortfolioCalculations(marketData, balance);
-  const { connectedSources } = useConnectionHealth();
+  const { connectedSources, connectionHealth, isFullyConnected, isPartiallyConnected, isDisconnected } = useConnectionHealth();
+
+  // Determinar mensaje de estado según las conexiones
+  let statusMessage = "Conectando a fuentes de datos...";
+  let statusClass = "text-yellow-400";
+  
+  if (isFullyConnected) {
+    statusMessage = "2/2 Fuentes Conectadas";
+    statusClass = "text-green-400";
+  } else if (isPartiallyConnected) {
+    statusMessage = `${connectedSources}/2 Fuentes Conectadas`;
+    statusClass = "text-yellow-400";
+  } else if (isDisconnected) {
+    statusMessage = "Sin conexión a fuentes de datos";
+    statusClass = "text-red-400";
+  }
 
   return (
     <div className="glass rounded-2xl p-8 border border-white/10">
@@ -27,13 +43,38 @@ export const HeroSection = ({ marketData, isConnected, stats }: HeroSectionProps
           <p className="text-gray-400 text-lg max-w-2xl">
             Simplified real-time trading with Blockfrost and DeFiLlama integration for reliable Cardano market data.
           </p>
-          <div className="flex items-center space-x-4">
-            <div className={`flex items-center space-x-2 ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
-              <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+            <div className={`flex items-center space-x-2 ${statusClass}`}>
+              <div className={`w-3 h-3 rounded-full ${isDisconnected ? 'bg-red-400' : isFullyConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
               <span className="text-sm font-medium">
-                {isConnected ? `${connectedSources}/2 Sources Connected` : 'Connecting to data sources...'}
+                {statusMessage}
               </span>
             </div>
+            
+            {isPartiallyConnected && (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {connectionHealth.blockfrost ? (
+                  <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                    Blockfrost ✓
+                  </span>
+                ) : (
+                  <span className="px-2 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center">
+                    <WifiOff className="w-3 h-3 mr-1" /> Blockfrost
+                  </span>
+                )}
+                
+                {connectionHealth.defiLlama ? (
+                  <span className="px-2 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                    DeFiLlama ✓
+                  </span>
+                ) : (
+                  <span className="px-2 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center">
+                    <WifiOff className="w-3 h-3 mr-1" /> DeFiLlama
+                  </span>
+                )}
+              </div>
+            )}
+            
             <div className="text-sm text-gray-400">
               Last scan: {stats.lastScanTime?.toLocaleTimeString() || 'Never'}
             </div>

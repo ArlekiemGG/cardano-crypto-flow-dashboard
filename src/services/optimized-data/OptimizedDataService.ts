@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { CacheManager } from './CacheManager';
 import { DeFiLlamaAPIClient } from './DeFiLlamaAPIClient';
@@ -7,6 +6,7 @@ import { DeFiLlamaProtocol, DeFiLlamaPrice } from './types';
 class OptimizedDataService {
   private cacheManager: CacheManager;
   private apiClient: DeFiLlamaAPIClient;
+  private isConnected: boolean = false;
 
   constructor() {
     this.cacheManager = new CacheManager(5 * 60 * 1000); // 5 minutes TTL
@@ -38,10 +38,12 @@ class OptimizedDataService {
       // Save to cache
       this.cacheManager.set(cacheKey, data, 'defillama');
       console.log(`✅ DeFiLlama prices cached: ${Object.keys(data.coins || {}).length} tokens`);
+      this.isConnected = true;
       return data;
 
     } catch (error) {
       console.error('❌ DeFiLlama prices error:', error);
+      this.isConnected = false;
       
       // Fallback to native API
       const fallbackData = await this.fallbackToNativeAPI('prices', { tokens });
@@ -66,12 +68,14 @@ class OptimizedDataService {
 
       this.cacheManager.set(cacheKey, data, 'defillama');
       console.log(`✅ Cardano DEX volumes cached: ${data.protocols?.length || 0} protocols`);
+      this.isConnected = true;
       return data;
 
     } catch (error) {
       console.error('❌ DeFiLlama DEX volumes error:', error);
-      const fallbackData = await this.fallbackToNativeAPI('dex-volumes');
+      this.isConnected = false;
       
+      const fallbackData = await this.fallbackToNativeAPI('dex-volumes');
       this.cacheManager.set(cacheKey, fallbackData, 'native');
       return fallbackData;
     }
@@ -98,12 +102,14 @@ class OptimizedDataService {
 
       this.cacheManager.set(cacheKey, cardanoProtocols, 'defillama');
       console.log(`✅ Cardano protocols cached: ${cardanoProtocols.length} protocols`);
+      this.isConnected = true;
       return cardanoProtocols;
 
     } catch (error) {
       console.error('❌ DeFiLlama protocols error:', error);
-      const fallbackData = await this.fallbackToNativeAPI('protocols');
+      this.isConnected = false;
       
+      const fallbackData = await this.fallbackToNativeAPI('protocols');
       this.cacheManager.set(cacheKey, fallbackData || [], 'native');
       return fallbackData || [];
     }
@@ -172,6 +178,11 @@ class OptimizedDataService {
     ]);
     
     console.log('✅ Critical data refresh completed');
+  }
+  
+  // 🔌 Get connection status
+  isApiConnected(): boolean {
+    return this.isConnected;
   }
 }
 
