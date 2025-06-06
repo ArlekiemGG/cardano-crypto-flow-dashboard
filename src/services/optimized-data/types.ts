@@ -7,6 +7,10 @@ export interface DeFiLlamaPrice {
   timestamp: string;
 }
 
+export interface DeFiLlamaPriceResponse {
+  coins: Record<string, DeFiLlamaPrice>;
+}
+
 export interface DeFiLlamaProtocol {
   id: string;
   name: string;

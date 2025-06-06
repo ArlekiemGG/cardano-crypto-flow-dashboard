@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { CacheManager } from './CacheManager';
 import { DeFiLlamaAPIClient } from './DeFiLlamaAPIClient';
-import { DeFiLlamaProtocol, DeFiLlamaPrice } from './types';
+import { DeFiLlamaProtocol, DeFiLlamaPriceResponse } from './types';
 
 class OptimizedDataService {
   private cacheManager: CacheManager;
@@ -19,7 +19,7 @@ class OptimizedDataService {
   }
 
   // 🎯 Get current prices with cache and fallback
-  async getCurrentPrices(tokens: string[]): Promise<any> {
+  async getCurrentPrices(tokens: string[]): Promise<DeFiLlamaPriceResponse> {
     const tokensString = tokens.join(',');
     const cacheKey = `prices:${tokensString}`;
     
@@ -153,9 +153,23 @@ class OptimizedDataService {
       });
 
       if (error) throw error;
+      
+      // Transform the fallback data to match expected structure
+      if (dataType === 'prices') {
+        return {
+          coins: data || {}
+        };
+      }
+      
       return data;
     } catch (error) {
       console.error('❌ Fallback failed:', error);
+      
+      // Return empty structure for prices to prevent further errors
+      if (dataType === 'prices') {
+        return { coins: {} };
+      }
+      
       throw new Error(`Fallback failed for ${dataType}: ${error}`);
     }
   }
