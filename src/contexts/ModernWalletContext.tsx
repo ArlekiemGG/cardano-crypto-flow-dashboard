@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Lucid, Blockfrost, WalletApi } from '@lucid-evolution/lucid';
+import { Lucid, Blockfrost } from '@lucid-evolution/lucid';
 import { BlockfrostApi } from 'blockfrost-js';
 
 // Environment configuration
@@ -15,7 +15,7 @@ export interface WalletState {
   isConnected: boolean;
   isConnecting: boolean;
   walletName: string | null;
-  walletApi: WalletApi | null;
+  walletApi: any | null;
   lucid: Lucid | null;
   address: string | null;
   balance: number;
@@ -67,15 +67,20 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const initializeLucid = async (): Promise<Lucid> => {
     console.log('Initializing Lucid Evolution with Blockfrost...');
     
-    const blockfrost = new Blockfrost(
-      BLOCKFROST_API_URL,
-      BLOCKFROST_PROJECT_ID
-    );
+    try {
+      const blockfrost = new Blockfrost(
+        BLOCKFROST_API_URL,
+        BLOCKFROST_PROJECT_ID
+      );
 
-    const lucid = await Lucid.new(blockfrost, CARDANO_NETWORK);
-    console.log('Lucid Evolution initialized successfully');
-    
-    return lucid;
+      const lucid = await Lucid.new(blockfrost, CARDANO_NETWORK);
+      console.log('Lucid Evolution initialized successfully');
+      
+      return lucid;
+    } catch (error) {
+      console.error('Failed to initialize Lucid:', error);
+      throw new Error('Failed to initialize blockchain connection');
+    }
   };
 
   // Check if wallet is available
@@ -92,6 +97,18 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       const wallet = window.cardano[walletName];
       return wallet && typeof wallet.enable === 'function';
     });
+  };
+
+  // Convert hex address to bech32 if needed
+  const convertAddress = (hexAddress: string): string => {
+    // If already bech32, return as is
+    if (hexAddress.startsWith('addr')) {
+      return hexAddress;
+    }
+    
+    // For now, return hex address as is - proper conversion would require cardano-serialization-lib
+    console.warn('Address is in hex format, conversion needed:', hexAddress);
+    return hexAddress;
   };
 
   // Connect to wallet using Lucid Evolution
@@ -123,15 +140,61 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       // Select wallet in Lucid
       lucid.selectWallet(walletApi);
 
-      // Get wallet address
-      const address = await lucid.wallet.address();
+      // Get wallet address - try different methods
+      let address = '';
+      
+      try {
+        // Try Lucid's method first
+        address = await lucid.wallet.address();
+      } catch (error) {
+        console.warn('Lucid address method failed, trying wallet API directly:', error);
+        
+        // Fallback to wallet API methods
+        try {
+          const usedAddresses = await walletApi.getUsedAddresses();
+          if (usedAddresses && usedAddresses.length > 0) {
+            address = convertAddress(usedAddresses[0]);
+          }
+        } catch (error) {
+          console.warn('getUsedAddresses failed:', error);
+        }
+        
+        if (!address) {
+          try {
+            const changeAddress = await walletApi.getChangeAddress();
+            if (changeAddress) {
+              address = convertAddress(changeAddress);
+            }
+          } catch (error) {
+            console.warn('getChangeAddress failed:', error);
+          }
+        }
+      }
+
+      if (!address) {
+        throw new Error('Could not retrieve wallet address. Please try reconnecting.');
+      }
+
       console.log('Wallet address:', address);
 
       // Get initial balance
-      const utxos = await lucid.wallet.getUtxos();
-      const balance = utxos.reduce((total, utxo) => {
-        return total + Number(utxo.assets.lovelace) / 1000000;
-      }, 0);
+      let balance = 0;
+      try {
+        const utxos = await lucid.wallet.getUtxos();
+        balance = utxos.reduce((total, utxo) => {
+          return total + Number(utxo.assets.lovelace) / 1000000;
+        }, 0);
+      } catch (error) {
+        console.warn('Failed to get balance from Lucid, trying wallet API:', error);
+        
+        try {
+          const balanceHex = await walletApi.getBalance();
+          balance = parseInt(balanceHex, 16) / 1000000;
+        } catch (error) {
+          console.warn('Failed to get balance from wallet API:', error);
+          balance = 0; // Default to 0 if balance fetch fails
+        }
+      }
 
       console.log('Initial balance:', balance, 'ADA');
 
@@ -186,10 +249,25 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       console.log('Refreshing balance...');
       
-      const utxos = await walletState.lucid.wallet.getUtxos();
-      const balance = utxos.reduce((total, utxo) => {
-        return total + Number(utxo.assets.lovelace) / 1000000;
-      }, 0);
+      let balance = 0;
+      
+      try {
+        const utxos = await walletState.lucid.wallet.getUtxos();
+        balance = utxos.reduce((total, utxo) => {
+          return total + Number(utxo.assets.lovelace) / 1000000;
+        }, 0);
+      } catch (error) {
+        console.warn('Failed to refresh balance via Lucid, trying wallet API:', error);
+        
+        if (walletState.walletApi) {
+          try {
+            const balanceHex = await walletState.walletApi.getBalance();
+            balance = parseInt(balanceHex, 16) / 1000000;
+          } catch (error) {
+            console.warn('Failed to refresh balance via wallet API:', error);
+          }
+        }
+      }
 
       setWalletState(prev => ({
         ...prev,
