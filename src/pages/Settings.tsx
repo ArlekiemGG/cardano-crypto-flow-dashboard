@@ -2,8 +2,6 @@
 import { Wallet } from "lucide-react"
 import { useWallet } from "@/contexts/ModernWalletContext"
 import { useSettingsData } from "@/hooks/useSettingsData"
-import { AccountSettings } from "@/components/settings/AccountSettings"
-import { SecuritySettings } from "@/components/settings/SecuritySettings"
 import { NotificationSettings } from "@/components/settings/NotificationSettings"
 import { WalletSettings } from "@/components/settings/WalletSettings"
 import { TradingPreferences } from "@/components/settings/TradingPreferences"
@@ -12,8 +10,6 @@ export default function Settings() {
   const { isConnected } = useWallet();
   
   const {
-    userProfile,
-    setUserProfile,
     notifications,
     toggleNotification,
     tradingPrefs,
@@ -39,26 +35,17 @@ export default function Settings() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-white">Settings</h1>
-        <p className="text-gray-400 mt-2">Configure your trading preferences and account settings</p>
+        <p className="text-gray-400 mt-2">Configure your trading preferences and notifications</p>
       </div>
 
       {/* Settings Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AccountSettings 
-          userProfile={userProfile}
-          setUserProfile={setUserProfile}
-          onSave={saveUserSettings}
-          isLoading={isLoading}
-        />
-
-        <SecuritySettings />
+        <WalletSettings />
 
         <NotificationSettings 
           notifications={notifications}
           onToggle={toggleNotification}
         />
-
-        <WalletSettings />
       </div>
 
       {/* Trading Preferences */}

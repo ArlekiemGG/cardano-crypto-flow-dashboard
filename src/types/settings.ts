@@ -12,13 +12,7 @@ export interface TradingPreferences {
   autoExecuteThreshold: number;
 }
 
-export interface UserProfile {
-  email: string;
-  username: string;
-}
-
 export interface SettingsData {
-  profile?: UserProfile;
   notifications?: NotificationSettings;
   tradingPreferences?: TradingPreferences;
   walletName?: string;

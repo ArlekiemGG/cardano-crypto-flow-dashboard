@@ -3,13 +3,12 @@ import { useState, useEffect } from 'react';
 import { useWallet } from '@/contexts/ModernWalletContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { NotificationSettings, TradingPreferences, UserProfile, SettingsData } from '@/types/settings';
+import { NotificationSettings, TradingPreferences, SettingsData } from '@/types/settings';
 
 export const useSettingsData = () => {
   const { isConnected, address, walletName, network } = useWallet();
   const { toast } = useToast();
   
-  const [userProfile, setUserProfile] = useState<UserProfile>({ email: '', username: '' });
   const [notifications, setNotifications] = useState<NotificationSettings>({
     tradeAlerts: true,
     arbitrageOpportunities: true,
@@ -45,9 +44,6 @@ export const useSettingsData = () => {
       if (data?.settings_json) {
         const settings = data.settings_json as SettingsData;
         
-        if (settings.profile) {
-          setUserProfile(settings.profile);
-        }
         if (settings.notifications) {
           setNotifications(settings.notifications);
         }
@@ -73,7 +69,6 @@ export const useSettingsData = () => {
     setIsLoading(true);
     try {
       const settingsData: SettingsData = {
-        profile: userProfile,
         notifications,
         tradingPreferences: tradingPrefs,
         walletName,
@@ -116,8 +111,6 @@ export const useSettingsData = () => {
   };
 
   return {
-    userProfile,
-    setUserProfile,
     notifications,
     toggleNotification,
     tradingPrefs,
