@@ -17,9 +17,25 @@ export const useRealTimeData = () => {
     }
   }, [isLoading, isConnected]);
 
-  // Return real market data directly without any artificial modifications
+  // Filter to only return ADA data with real CoinGecko price
+  const processedMarketData = marketData.map(data => {
+    // For ADA specifically, ensure we're using the real CoinGecko price
+    if (data.symbol === 'ADA') {
+      // Find CoinGecko data specifically
+      const coinGeckoData = marketData.find(item => 
+        item.symbol === 'ADA' && item.lastUpdate && 
+        item.lastUpdate.includes('CoinGecko')
+      );
+      
+      if (coinGeckoData) {
+        return coinGeckoData;
+      }
+    }
+    return data;
+  });
+
   return {
-    marketData: marketData,
+    marketData: processedMarketData,
     isConnected: connectionStatus === 'connected',
     isLoading: connectionStatus === 'connecting',
     lastUpdate,

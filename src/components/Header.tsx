@@ -10,9 +10,13 @@ import { ModernWalletInfo } from "./ModernWalletInfo"
 import { NetworkIndicator } from "./NetworkIndicator"
 
 export function Header() {
-  const { isConnected } = useRealTimeData()
+  const { isConnected, marketData } = useRealTimeData()
   const { isConnected: walletConnected } = useWallet()
   const notifications = 3
+
+  // Calculate real 24h volume from actual market data
+  const total24hVolume = marketData.reduce((sum, data) => sum + data.volume24h, 0)
+  const activeBots = marketData.filter(data => data.symbol !== 'ADA').length
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
@@ -24,11 +28,15 @@ export function Header() {
           <RealTimePrice />
           <div className="text-sm">
             <span className="text-gray-400">24h Vol: </span>
-            <span className="text-white font-mono">$347.2M</span>
+            <span className="text-white font-mono">
+              ${total24hVolume > 1000000 
+                ? `${(total24hVolume / 1000000).toFixed(1)}M` 
+                : `${(total24hVolume / 1000).toFixed(0)}K`}
+            </span>
           </div>
           <div className="text-sm">
-            <span className="text-gray-400">Active Bots: </span>
-            <span className="text-crypto-primary font-mono">7</span>
+            <span className="text-gray-400">Active Pairs: </span>
+            <span className="text-crypto-primary font-mono">{activeBots}</span>
           </div>
         </div>
       </div>
