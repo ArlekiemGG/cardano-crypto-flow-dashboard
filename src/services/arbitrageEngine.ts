@@ -18,6 +18,7 @@ interface ArbitrageOpportunityReal {
   slippageRisk: number;
   liquidityScore: number;
   timestamp: string;
+  executionReady?: boolean;
 }
 
 interface DEXFeeStructure {
@@ -200,7 +201,8 @@ export class ArbitrageEngine {
               timeToExpiry: 180, // 3 minutes for real markets
               slippageRisk,
               liquidityScore,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              executionReady: confidence === 'HIGH' && netProfitPercentage > 1.5 && slippageRisk < 3
             });
           }
         }
