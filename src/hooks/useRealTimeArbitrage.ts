@@ -40,36 +40,39 @@ export const useRealTimeArbitrage = () => {
     if (isInitializedRef.current) return;
     isInitializedRef.current = true;
 
-    console.log('🚀 Inicializando monitoreo optimizado de arbitraje...');
+    console.log('🚀 Inicializando monitoreo de arbitraje con configuración mejorada...');
     
     const initializeServices = async () => {
       try {
-        await realTimeMarketDataService.startRealTimeUpdates(90); // Aumentar intervalo a 90 segundos
+        // Forzar reset de throttling para testing
+        dataThrottlingService.forceReset();
+        
+        await realTimeMarketDataService.startRealTimeUpdates(60); // 60 segundos
         
         const unsubscribe = realTimeMarketDataService.subscribe((data) => {
-          if (data.length > 0 && dataThrottlingService.canFetch('arbitrage')) {
-            console.log('📊 Datos actualizados, programando escaneo...');
-            // Usar timeout más largo para evitar bucles
+          if (data.length > 0) {
+            console.log('📊 Datos de mercado actualizados, programando escaneo...');
+            // Escaneo más frecuente para pruebas
             setTimeout(() => {
               if (!isScanning) {
+                console.log('🔍 Ejecutando escaneo automático...');
                 performRealScan();
               }
-            }, 20000); // 20 segundos de delay
+            }, 5000); // 5 segundos de delay
           }
         });
 
         subscriptionRef.current = unsubscribe;
 
-        // Primer escaneo con delay más largo
+        // Primer escaneo inmediato
+        console.log('🔍 Ejecutando primer escaneo inmediatamente...');
         setTimeout(() => {
-          if (dataThrottlingService.canFetch('arbitrage')) {
-            performRealScan();
-          }
-        }, 10000); // 10 segundos inicial
+          performRealScan();
+        }, 2000); // 2 segundos inicial
 
         return unsubscribe;
       } catch (error) {
-        console.error('❌ Error inicializando servicios optimizados:', error);
+        console.error('❌ Error inicializando servicios:', error);
         return () => {};
       }
     };
@@ -77,16 +80,29 @@ export const useRealTimeArbitrage = () => {
     initializeServices();
 
     return () => {
-      console.log('🧹 Limpiando monitoreo optimizado de arbitraje...');
+      console.log('🧹 Limpiando monitoreo de arbitraje...');
       cleanupAutoScanning();
       if (subscriptionRef.current) {
         subscriptionRef.current();
         subscriptionRef.current = null;
       }
-      dataThrottlingService.reset();
       isInitializedRef.current = false;
     };
   }, [cleanupAutoScanning, isScanning, performRealScan]);
+
+  // Función de escaneo manual mejorada
+  const performManualScan = async () => {
+    console.log('🔍 ESCANEO MANUAL INICIADO - Forzando reset de throttling...');
+    dataThrottlingService.forceReset('arbitrage');
+    dataThrottlingService.forceReset('marketData');
+    
+    try {
+      await performRealScan();
+      console.log('✅ Escaneo manual completado');
+    } catch (error) {
+      console.error('❌ Error en escaneo manual:', error);
+    }
+  };
 
   return {
     opportunities,
@@ -97,8 +113,8 @@ export const useRealTimeArbitrage = () => {
     executingTrades,
     lastScan,
     
-    performRealScan,
-    performScan: performRealScan,
+    performRealScan: performManualScan, // Usar la versión mejorada
+    performScan: performManualScan,
     executeArbitrage,
     simulateExecution,
     autoExecuteHighConfidence,
