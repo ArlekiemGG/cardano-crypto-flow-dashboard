@@ -23,7 +23,7 @@ export const useTradingStrategies = (userWallet?: string) => {
   const ensureUserExists = async (walletAddress: string) => {
     try {
       // Use the RPC function to handle user creation safely
-      const { error } = await supabase.rpc('ensure_user_exists', {
+      const { error } = await supabase.rpc('ensure_user_exists' as any, {
         p_wallet_address: walletAddress
       });
 

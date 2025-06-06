@@ -321,6 +321,10 @@ export type Database = {
         }
         Returns: string
       }
+      ensure_user_exists: {
+        Args: { p_wallet_address: string }
+        Returns: undefined
+      }
       get_user_trading_strategies: {
         Args: { p_user_wallet: string }
         Returns: {
