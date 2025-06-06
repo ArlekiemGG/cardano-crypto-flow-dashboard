@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRealMarketMakingPositions } from "@/hooks/useRealMarketMakingPositions";
 import { useOptimizedMarketData } from "@/hooks/useOptimizedMarketData";
+import { realCardanoDEXService } from "@/services/realCardanoDEXService";
 
 interface AddLiquidityModalProps {
   open: boolean;
@@ -19,6 +20,8 @@ export const AddLiquidityModal = ({ open, onOpenChange, onSuccess }: AddLiquidit
   const [selectedDex, setSelectedDex] = useState("Minswap");
   const [tokenAAmount, setTokenAAmount] = useState<number>(0);
   const [tokenBAmount, setTokenBAmount] = useState<number>(0);
+  const [estimatedFee, setEstimatedFee] = useState<number>(0);
+  const [isEstimating, setIsEstimating] = useState(false);
   const { addLiquidity, isLoading } = useRealMarketMakingPositions();
   const { getADAPrice } = useOptimizedMarketData();
 
@@ -31,12 +34,27 @@ export const AddLiquidityModal = ({ open, onOpenChange, onSuccess }: AddLiquidit
     "COPI/ADA"
   ];
 
-  const availableDEXs = [
-    "Minswap",
-    "SundaeSwap",
-    "MuesliSwap",
-    "WingRiders"
-  ];
+  const availableDEXs = realCardanoDEXService.getSupportedDEXs();
+
+  // Estimate transaction fee when DEX changes
+  useEffect(() => {
+    const estimateFee = async () => {
+      if (!selectedDex) return;
+      
+      setIsEstimating(true);
+      try {
+        const fee = await realCardanoDEXService.estimateTransactionFee(selectedDex, 'add_liquidity');
+        setEstimatedFee(fee);
+      } catch (error) {
+        console.error('Error estimating fee:', error);
+        setEstimatedFee(0.5); // Fallback fee
+      } finally {
+        setIsEstimating(false);
+      }
+    };
+
+    estimateFee();
+  }, [selectedDex]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +91,10 @@ export const AddLiquidityModal = ({ open, onOpenChange, onSuccess }: AddLiquidit
     const valueA = selectedPair.startsWith('ADA') ? tokenAAmount * adaPrice : tokenAAmount;
     const valueB = selectedPair.endsWith('ADA') ? tokenBAmount * adaPrice : tokenBAmount;
     return valueA + valueB;
+  };
+
+  const totalCost = () => {
+    return estimatedValue() + estimatedFee;
   };
 
   return (
@@ -152,16 +174,40 @@ export const AddLiquidityModal = ({ open, onOpenChange, onSuccess }: AddLiquidit
           </div>
 
           {(tokenAAmount > 0 || tokenBAmount > 0) && (
-            <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-              <div className="text-sm text-gray-400 mb-2">Position Summary</div>
+            <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-2">
+              <div className="text-sm text-gray-400 mb-2">Transaction Summary</div>
+              
               <div className="flex justify-between items-center">
-                <span className="text-white">Estimated Value:</span>
+                <span className="text-white text-sm">Liquidity Value:</span>
                 <span className="text-crypto-primary font-mono">
                   ${estimatedValue().toFixed(2)}
                 </span>
               </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-white text-sm">Network Fee:</span>
+                <span className="text-orange-400 font-mono">
+                  {isEstimating ? '...' : `${estimatedFee.toFixed(2)} ADA`}
+                </span>
+              </div>
+              
+              <div className="border-t border-white/10 pt-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-white font-medium">Total Cost:</span>
+                  <span className="text-crypto-primary font-mono font-bold">
+                    ${totalCost().toFixed(2)}
+                  </span>
+                </div>
+              </div>
             </div>
           )}
+
+          <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <div className="text-xs text-blue-400">
+              🔒 This will create a real on-chain transaction on {selectedDex}. 
+              Make sure you have sufficient ADA for network fees.
+            </div>
+          </div>
 
           <div className="flex gap-3 pt-4">
             <Button
@@ -175,10 +221,10 @@ export const AddLiquidityModal = ({ open, onOpenChange, onSuccess }: AddLiquidit
             
             <Button
               type="submit"
-              disabled={!tokenAAmount || !tokenBAmount || isLoading}
+              disabled={!tokenAAmount || !tokenBAmount || isLoading || isEstimating}
               className="flex-1 bg-crypto-primary hover:bg-crypto-primary/90"
             >
-              {isLoading ? "Adding..." : "Add Liquidity"}
+              {isLoading ? "Processing..." : "Add Liquidity"}
             </Button>
           </div>
         </form>
