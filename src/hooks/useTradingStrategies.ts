@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -113,6 +112,34 @@ export const useTradingStrategies = (userWallet?: string) => {
     }
   };
 
+  const updateStrategy = async (strategyId: string, updates: Record<string, any>) => {
+    if (!userWallet) return;
+
+    try {
+      const { error } = await supabase
+        .from('trading_strategies')
+        .update(updates)
+        .eq('id', strategyId)
+        .eq('user_wallet', userWallet);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Success",
+        description: "Strategy updated successfully"
+      });
+      
+      fetchStrategies();
+    } catch (error) {
+      console.error('Error updating strategy:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update strategy",
+        variant: "destructive"
+      });
+    }
+  };
+
   const toggleStrategy = async (strategyId: string) => {
     if (!userWallet) return;
 
@@ -148,6 +175,7 @@ export const useTradingStrategies = (userWallet?: string) => {
     strategies,
     isLoading,
     createStrategy,
+    updateStrategy,
     toggleStrategy,
     refreshStrategies: fetchStrategies
   };

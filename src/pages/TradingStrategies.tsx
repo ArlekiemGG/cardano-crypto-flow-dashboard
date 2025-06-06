@@ -1,17 +1,19 @@
-
 import { useState } from "react"
 import { MetricCard } from "@/components/MetricCard"
 import { Bot, Play, Pause, Settings, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useTradingStrategies } from "@/hooks/useTradingStrategies"
 import { CreateStrategyModal } from "@/components/trading/CreateStrategyModal"
+import { StrategySettingsModal } from "@/components/trading/StrategySettingsModal"
 import { useWallet } from "@/contexts/ModernWalletContext"
 
 export default function TradingStrategies() {
-  const { address } = useWallet(); // Using the correct context
-  const { strategies, isLoading, createStrategy, toggleStrategy } = useTradingStrategies(address);
+  const { address } = useWallet();
+  const { strategies, isLoading, createStrategy, updateStrategy, toggleStrategy } = useTradingStrategies(address);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [selectedStrategyForSettings, setSelectedStrategyForSettings] = useState<any>(null);
 
   // Calculate metrics from real strategies
   const activeStrategies = strategies.filter(s => s.active).length;
@@ -52,6 +54,15 @@ export default function TradingStrategies() {
   const handleUseTemplate = (template: any) => {
     setSelectedTemplate(template);
     setIsCreateModalOpen(true);
+  };
+
+  const handleOpenSettings = (strategy: any) => {
+    setSelectedStrategyForSettings(strategy);
+    setIsSettingsModalOpen(true);
+  };
+
+  const handleUpdateStrategy = (strategyId: string, updates: Record<string, any>) => {
+    updateStrategy(strategyId, updates);
   };
 
   const formatProfit = (profit: number) => {
@@ -188,6 +199,7 @@ export default function TradingStrategies() {
                         size="sm" 
                         variant="outline" 
                         className="border-white/20 text-white hover:bg-white/10"
+                        onClick={() => handleOpenSettings(strategy)}
                       >
                         <Settings className="h-4 w-4" />
                       </Button>
@@ -251,6 +263,18 @@ export default function TradingStrategies() {
         onCreateStrategy={handleCreateStrategy}
         selectedTemplate={selectedTemplate}
       />
+
+      {selectedStrategyForSettings && (
+        <StrategySettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => {
+            setIsSettingsModalOpen(false);
+            setSelectedStrategyForSettings(null);
+          }}
+          strategy={selectedStrategyForSettings}
+          onUpdateStrategy={handleUpdateStrategy}
+        />
+      )}
     </div>
   )
 }
