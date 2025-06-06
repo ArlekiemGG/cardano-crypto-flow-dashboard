@@ -28,7 +28,7 @@ export function Header() {
         <div className="hidden md:flex items-center space-x-6">
           <RealTimePrice />
           <div className="text-sm">
-            <span className="text-gray-400">24h Volume: </span>
+            <span className="text-gray-400">24h ADA Volume: </span>
             <span className="text-white font-mono">
               {ada24hVolume > 0 
                 ? ada24hVolume > 1000000000 
