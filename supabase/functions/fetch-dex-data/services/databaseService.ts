@@ -25,8 +25,8 @@ export async function clearOldCachedData(supabaseClient: any): Promise<void> {
 
 export async function cacheADAPrice(supabaseClient: any, price: number): Promise<void> {
   try {
-    // Usar upsert para evitar conflictos
-    await supabaseClient
+    // Usar upsert para evitar conflictos de duplicados
+    const { error } = await supabaseClient
       .from('market_data_cache')
       .upsert({
         pair: 'ADA/USD',
@@ -36,11 +36,14 @@ export async function cacheADAPrice(supabaseClient: any, price: number): Promise
         volume_24h: 0,
         market_cap: 0
       }, {
-        onConflict: 'pair,source_dex',
-        ignoreDuplicates: false
+        onConflict: 'pair,source_dex'
       });
       
-    console.log(`✅ Precio ADA cacheado: $${price}`);
+    if (error) {
+      console.error('Error en upsert ADA:', error);
+    } else {
+      console.log(`✅ Precio ADA cacheado: $${price}`);
+    }
   } catch (error) {
     console.warn('⚠️ Error cacheando precio ADA:', error);
   }
@@ -50,7 +53,7 @@ export async function cacheProtocolData(supabaseClient: any, protocol: any): Pro
   try {
     if (!protocol.name || !protocol.tvl) return;
 
-    await supabaseClient
+    const { error } = await supabaseClient
       .from('market_data_cache')
       .upsert({
         pair: `${protocol.name}/TVL`,
@@ -60,10 +63,12 @@ export async function cacheProtocolData(supabaseClient: any, protocol: any): Pro
         volume_24h: protocol.change_1d || 0,
         market_cap: protocol.tvl || 0
       }, {
-        onConflict: 'pair,source_dex',
-        ignoreDuplicates: false
+        onConflict: 'pair,source_dex'
       });
 
+    if (error) {
+      console.error(`Error en upsert protocolo ${protocol.name}:`, error);
+    }
   } catch (error) {
     console.warn(`⚠️ Error cacheando protocolo ${protocol.name}:`, error);
   }
@@ -73,7 +78,7 @@ export async function cacheDEXVolume(supabaseClient: any, dex: any): Promise<voi
   try {
     if (!dex.name || !dex.total24h) return;
 
-    await supabaseClient
+    const { error } = await supabaseClient
       .from('market_data_cache')
       .upsert({
         pair: `${dex.name}/Volume`,
@@ -83,10 +88,12 @@ export async function cacheDEXVolume(supabaseClient: any, dex: any): Promise<voi
         volume_24h: dex.total24h || 0,
         market_cap: 0
       }, {
-        onConflict: 'pair,source_dex',
-        ignoreDuplicates: false
+        onConflict: 'pair,source_dex'
       });
 
+    if (error) {
+      console.error(`Error en upsert DEX ${dex.name}:`, error);
+    }
   } catch (error) {
     console.warn(`⚠️ Error cacheando volumen DEX ${dex.name}:`, error);
   }
@@ -94,7 +101,7 @@ export async function cacheDEXVolume(supabaseClient: any, dex: any): Promise<voi
 
 export async function cacheNetworkData(supabaseClient: any, networkData: any): Promise<void> {
   try {
-    await supabaseClient
+    const { error } = await supabaseClient
       .from('market_data_cache')
       .upsert({
         pair: 'CARDANO/NETWORK',
@@ -104,11 +111,14 @@ export async function cacheNetworkData(supabaseClient: any, networkData: any): P
         volume_24h: 0,
         market_cap: networkData.supply?.total || 0
       }, {
-        onConflict: 'pair,source_dex',
-        ignoreDuplicates: false
+        onConflict: 'pair,source_dex'
       });
 
-    console.log('✅ Datos de red Blockfrost cacheados');
+    if (error) {
+      console.error('Error en upsert datos de red:', error);
+    } else {
+      console.log('✅ Datos de red Blockfrost cacheados');
+    }
   } catch (error) {
     console.warn('⚠️ Error cacheando datos de red:', error);
   }
