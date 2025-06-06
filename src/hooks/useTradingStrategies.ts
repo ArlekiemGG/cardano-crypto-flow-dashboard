@@ -19,6 +19,39 @@ export const useTradingStrategies = (userWallet?: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  // Function to ensure user exists in the users table
+  const ensureUserExists = async (walletAddress: string) => {
+    try {
+      // Check if user exists
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('wallet_address')
+        .eq('wallet_address', walletAddress)
+        .single();
+
+      if (!existingUser) {
+        // Create user if doesn't exist
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            wallet_address: walletAddress,
+            is_active: true,
+            settings_json: {}
+          });
+
+        if (insertError) {
+          console.error('Error creating user:', insertError);
+          throw new Error('Failed to create user record');
+        }
+        
+        console.log('User created successfully:', walletAddress);
+      }
+    } catch (error) {
+      console.error('Error ensuring user exists:', error);
+      throw error;
+    }
+  };
+
   const fetchStrategies = async () => {
     if (!userWallet) return;
     
@@ -63,6 +96,9 @@ export const useTradingStrategies = (userWallet?: string) => {
     if (!userWallet) return null;
 
     try {
+      // Ensure user exists before creating strategy
+      await ensureUserExists(userWallet);
+      
       const { data, error } = await supabase.rpc('create_trading_strategy', {
         p_user_wallet: userWallet,
         p_name: name,
