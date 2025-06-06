@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 
 export default function MarketMaking() {
   const [showAddModal, setShowAddModal] = useState(false);
-  const { positions, isLoading, getTotalStats } = useMarketMaking();
+  const { positions, isLoading, togglePosition, removeLiquidity, getTotalStats } = useMarketMaking();
   const stats = getTotalStats();
 
   return (
@@ -91,6 +91,8 @@ export default function MarketMaking() {
             <ActivePositionsTable 
               positions={positions} 
               isLoading={isLoading}
+              onTogglePosition={togglePosition}
+              onRemoveLiquidity={removeLiquidity}
             />
           </TabsContent>
 
@@ -117,8 +119,8 @@ export default function MarketMaking() {
         </Tabs>
 
         <AddLiquidityModal 
-          isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
+          open={showAddModal}
+          onOpenChange={setShowAddModal}
         />
       </div>
     </ProtectedRoute>
