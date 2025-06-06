@@ -142,24 +142,48 @@ export const useTradingStrategies = (userWallet?: string) => {
   };
 
   const deleteStrategy = async (strategyId: string) => {
-    if (!userWallet) return;
+    console.log('=== DELETE STRATEGY CALLED ===');
+    console.log('Strategy ID:', strategyId);
+    console.log('User Wallet:', userWallet);
+    
+    if (!userWallet) {
+      console.log('ERROR: No user wallet provided');
+      return;
+    }
+
+    if (!strategyId) {
+      console.log('ERROR: No strategy ID provided');
+      return;
+    }
 
     try {
-      console.log('Deleting strategy:', strategyId, 'for user:', userWallet);
+      console.log('Starting deletion process...');
+      console.log('Current strategies count before deletion:', strategies.length);
       
       // Update local state immediately for better UX
-      setStrategies(prev => prev.filter(s => s.id !== strategyId));
+      const originalStrategies = [...strategies];
+      console.log('Backing up original strategies');
       
-      const { error } = await supabase
+      setStrategies(prev => {
+        const filtered = prev.filter(s => s.id !== strategyId);
+        console.log('Updated local state, new count:', filtered.length);
+        return filtered;
+      });
+      
+      console.log('Making Supabase delete request...');
+      const { data, error } = await supabase
         .from('trading_strategies')
         .delete()
         .eq('id', strategyId)
         .eq('user_wallet', userWallet);
 
+      console.log('Supabase response - data:', data);
+      console.log('Supabase response - error:', error);
+
       if (error) {
         console.error('Database error deleting strategy:', error);
-        // Revert local state if deletion failed
-        fetchStrategies();
+        console.log('Reverting local state due to error');
+        setStrategies(originalStrategies);
         throw error;
       }
       
@@ -170,10 +194,12 @@ export const useTradingStrategies = (userWallet?: string) => {
         description: "Strategy deleted successfully"
       });
       
+      console.log('Refreshing strategies to ensure consistency...');
       // Refresh strategies to ensure consistency
       await fetchStrategies();
+      console.log('=== DELETE STRATEGY COMPLETED ===');
     } catch (error) {
-      console.error('Error deleting strategy:', error);
+      console.error('Error in deleteStrategy function:', error);
       toast({
         title: "Error",
         description: "Failed to delete strategy",

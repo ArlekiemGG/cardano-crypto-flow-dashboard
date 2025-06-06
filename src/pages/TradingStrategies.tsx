@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { MetricCard } from "@/components/MetricCard"
 import { Bot, Play, Pause, Settings, Plus, Trash2 } from "lucide-react"
@@ -77,17 +76,26 @@ export default function TradingStrategies() {
     updateStrategy(strategyId, updates);
   };
 
-  const formatProfit = (profit: number) => {
-    const sign = profit >= 0 ? '+' : '';
-    return `${sign}₳ ${profit.toFixed(2)}`;
-  };
-
   const handleDeleteStrategy = (strategyId: string) => {
-    deleteStrategy(strategyId);
+    console.log('=== COMPONENT DELETE HANDLER CALLED ===');
+    console.log('Strategy ID to delete:', strategyId);
+    console.log('Available deleteStrategy function:', typeof deleteStrategy);
+    
+    if (typeof deleteStrategy === 'function') {
+      console.log('Calling deleteStrategy function...');
+      deleteStrategy(strategyId);
+    } else {
+      console.error('deleteStrategy is not a function!', deleteStrategy);
+    }
   };
 
   const handleToggleStrategy = (strategyId: string) => {
     toggleStrategy(strategyId);
+  };
+
+  const formatProfit = (profit: number) => {
+    const sign = profit >= 0 ? '+' : '';
+    return `${sign}₳ ${profit.toFixed(2)}`;
   };
 
   if (!address) {
@@ -232,6 +240,9 @@ export default function TradingStrategies() {
                             size="sm" 
                             variant="outline"
                             className="border-red-500/20 text-red-400 hover:bg-red-500/10 hover:text-red-400"
+                            onClick={() => {
+                              console.log('Delete button clicked for strategy:', strategy.id, strategy.name);
+                            }}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -247,7 +258,10 @@ export default function TradingStrategies() {
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
                               className="bg-red-500 hover:bg-red-600"
-                              onClick={() => handleDeleteStrategy(strategy.id)}
+                              onClick={() => {
+                                console.log('Delete confirmation clicked for strategy:', strategy.id);
+                                handleDeleteStrategy(strategy.id);
+                              }}
                             >
                               Delete
                             </AlertDialogAction>
