@@ -1,33 +1,9 @@
 
 import { useState, useEffect } from 'react';
 import { useWallet } from '@/contexts/ModernWalletContext';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { realCardanoDEXService } from '@/services/realCardanoDEXService';
-import { WalletContextService } from '@/services/walletContextService';
-
-export interface RealMarketMakingPosition {
-  id: string;
-  user_wallet: string;
-  pair: string;
-  dex: string;
-  liquidity_provided: number;
-  token_a_amount: number;
-  token_b_amount: number;
-  current_spread: number;
-  volume_24h: number;
-  fees_earned: number;
-  impermanent_loss: number;
-  apy: number;
-  status: 'active' | 'paused' | 'closed';
-  pool_address?: string;
-  lp_token_amount?: number;
-  entry_price_a: number;
-  entry_price_b: number;
-  last_rebalance?: string;
-  created_at: string;
-  updated_at: string;
-}
+import { MarketMakingPositionsService } from '@/services/marketMakingPositionsService';
+import type { RealMarketMakingPosition, PositionCreationParams } from '@/types/marketMakingTypes';
 
 export const useRealMarketMakingPositions = () => {
   const [positions, setPositions] = useState<RealMarketMakingPosition[]>([]);
@@ -35,43 +11,17 @@ export const useRealMarketMakingPositions = () => {
   const { isConnected, address } = useWallet();
   const { toast } = useToast();
 
-  // Fetch positions from database with proper wallet context
   const fetchPositions = async () => {
     if (!isConnected || !address) return;
 
     setIsLoading(true);
     try {
-      const { data, error } = await WalletContextService.executeWithWalletContext(
-        address,
-        async () => {
-          return await supabase
-            .from('market_making_positions')
-            .select('*')
-            .order('created_at', { ascending: false });
-        }
-      );
-
-      if (error) {
-        console.error('Error fetching positions:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch market making positions",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Cast the data to proper types
-      const typedPositions = (data || []).map(position => ({
-        ...position,
-        status: position.status as 'active' | 'paused' | 'closed'
-      })) as RealMarketMakingPosition[];
-
-      setPositions(typedPositions);
+      const fetchedPositions = await MarketMakingPositionsService.fetchPositions(address);
+      setPositions(fetchedPositions);
     } catch (error) {
       console.error('Error fetching positions:', error);
       toast({
-        title: "Error", 
+        title: "Error",
         description: "Failed to fetch market making positions",
         variant: "destructive"
       });
@@ -80,7 +30,6 @@ export const useRealMarketMakingPositions = () => {
     }
   };
 
-  // Add new liquidity position with real Cardano transaction
   const addLiquidity = async (
     pair: string,
     dex: string,
@@ -98,10 +47,10 @@ export const useRealMarketMakingPositions = () => {
       return;
     }
 
-    if (!realCardanoDEXService.isDEXSupported(dex)) {
+    if (tokenAAmount <= 0 || tokenBAmount <= 0) {
       toast({
-        title: "Unsupported DEX",
-        description: `${dex} is not currently supported`,
+        title: "Invalid Amount",
+        description: "Token amounts must be greater than zero",
         variant: "destructive"
       });
       return;
@@ -109,107 +58,32 @@ export const useRealMarketMakingPositions = () => {
 
     setIsLoading(true);
     try {
-      // Estimate transaction fee
-      const estimatedFee = await realCardanoDEXService.estimateTransactionFee(dex, 'add_liquidity');
-      
-      toast({
-        title: "Transaction Starting",
-        description: `Estimated fee: ${estimatedFee.toFixed(2)} ADA`,
-      });
-
-      // Execute the real Cardano transaction
-      const txResult = await realCardanoDEXService.addLiquidityToPool(
-        dex,
+      const params: PositionCreationParams = {
         pair,
+        dex,
         tokenAAmount,
         tokenBAmount,
-        address,
         priceA,
         priceB
-      );
+      };
 
-      if (!txResult.success) {
-        toast({
-          title: "Transaction Failed",
-          description: txResult.error || "Failed to submit transaction",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Create position record in database with wallet context
-      const liquidityProvided = tokenAAmount + (tokenBAmount * priceB / priceA);
+      const result = await MarketMakingPositionsService.createPosition(params, address);
       
-      const { data, error } = await WalletContextService.executeWithWalletContext(
-        address,
-        async () => {
-          return await supabase
-            .from('market_making_positions')
-            .insert({
-              user_wallet: address,
-              pair,
-              dex,
-              liquidity_provided: liquidityProvided,
-              token_a_amount: tokenAAmount,
-              token_b_amount: tokenBAmount,
-              entry_price_a: priceA,
-              entry_price_b: priceB,
-              current_spread: Math.random() * 0.5 + 0.1, // Will be updated by price monitoring
-              volume_24h: 0,
-              fees_earned: 0,
-              impermanent_loss: 0,
-              apy: 0,
-              status: 'active'
-            })
-            .select()
-            .single();
-        }
-      );
-
-      if (error) {
-        console.error('Error creating position:', error);
+      if (result.success && result.position) {
+        setPositions(prev => [result.position!, ...prev]);
+        
         toast({
-          title: "Error",
-          description: "Transaction submitted but failed to create position record",
-          variant: "destructive"
+          title: "Success",
+          description: `Added liquidity to ${pair} on ${dex}`,
         });
-        return;
+      } else {
+        throw new Error(result.error || 'Failed to create position');
       }
-
-      // Update transaction record with position ID
-      await WalletContextService.executeWithWalletContext(
-        address,
-        async () => {
-          return await supabase
-            .from('market_making_transactions')
-            .update({ 
-              position_id: data.id,
-              status: 'confirmed'
-            })
-            .eq('tx_hash', txResult.txHash);
-        }
-      );
-
-      // Cast the returned data to proper type
-      const typedPosition = {
-        ...data,
-        status: data.status as 'active' | 'paused' | 'closed'
-      } as RealMarketMakingPosition;
-
-      setPositions(prev => [typedPosition, ...prev]);
-      
-      toast({
-        title: "Success",
-        description: `Liquidity added to ${pair} on ${dex}. TX: ${txResult.txHash?.slice(0, 8)}...`,
-      });
-
-      // Start monitoring transaction status
-      monitorTransaction(txResult.txHash!);
     } catch (error) {
       console.error('Error adding liquidity:', error);
       toast({
         title: "Error",
-        description: "Failed to add liquidity",
+        description: error instanceof Error ? error.message : "Failed to add liquidity",
         variant: "destructive"
       });
     } finally {
@@ -217,86 +91,28 @@ export const useRealMarketMakingPositions = () => {
     }
   };
 
-  // Remove liquidity position with real Cardano transaction
   const removeLiquidity = async (positionId: string) => {
-    if (!isConnected || !address) return;
+    if (!address) return;
 
     setIsLoading(true);
     try {
-      const position = positions.find(p => p.id === positionId);
-      if (!position) {
-        toast({
-          title: "Error",
-          description: "Position not found",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Estimate transaction fee
-      const estimatedFee = await realCardanoDEXService.estimateTransactionFee(position.dex, 'remove_liquidity');
+      const result = await MarketMakingPositionsService.removePosition(positionId, address);
       
-      toast({
-        title: "Transaction Starting",
-        description: `Removing liquidity. Estimated fee: ${estimatedFee.toFixed(2)} ADA`,
-      });
-
-      // Execute the real Cardano transaction
-      const txResult = await realCardanoDEXService.removeLiquidityFromPool(positionId, address);
-
-      if (!txResult.success) {
+      if (result.success) {
+        setPositions(prev => prev.filter(p => p.id !== positionId));
+        
         toast({
-          title: "Transaction Failed",
-          description: txResult.error || "Failed to submit transaction",
-          variant: "destructive"
+          title: "Success",
+          description: "Liquidity removed successfully",
         });
-        return;
+      } else {
+        throw new Error(result.error || 'Failed to remove position');
       }
-
-      // Update position status in database
-      const { error } = await WalletContextService.executeWithWalletContext(
-        address,
-        async () => {
-          return await supabase
-            .from('market_making_positions')
-            .update({ 
-              status: 'closed', 
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', positionId);
-        }
-      );
-
-      if (error) {
-        console.error('Error updating position:', error);
-        toast({
-          title: "Error",
-          description: "Transaction submitted but failed to update position",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      setPositions(prev => 
-        prev.map(p => 
-          p.id === positionId 
-            ? { ...p, status: 'closed' as const }
-            : p
-        )
-      );
-      
-      toast({
-        title: "Success",
-        description: `Liquidity removed. TX: ${txResult.txHash?.slice(0, 8)}...`,
-      });
-
-      // Start monitoring transaction status
-      monitorTransaction(txResult.txHash!);
     } catch (error) {
       console.error('Error removing liquidity:', error);
       toast({
         title: "Error",
-        description: "Failed to remove liquidity",
+        description: error instanceof Error ? error.message : "Failed to remove liquidity",
         variant: "destructive"
       });
     } finally {
@@ -304,100 +120,67 @@ export const useRealMarketMakingPositions = () => {
     }
   };
 
-  // Toggle position status
   const togglePosition = async (positionId: string) => {
-    if (!isConnected || !address) return;
-
-    const position = positions.find(p => p.id === positionId);
-    if (!position) return;
-
-    const newStatus = position.status === 'active' ? 'paused' : 'active';
+    if (!address) return;
 
     try {
-      const { error } = await WalletContextService.executeWithWalletContext(
-        address,
-        async () => {
-          return await supabase
-            .from('market_making_positions')
-            .update({ 
-              status: newStatus, 
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', positionId);
-        }
-      );
-
-      if (error) {
-        console.error('Error toggling position:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update position status",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      setPositions(prev => 
-        prev.map(p => 
-          p.id === positionId 
-            ? { ...p, status: newStatus }
-            : p
-        )
-      );
+      const result = await MarketMakingPositionsService.togglePositionStatus(positionId, address);
       
-      toast({
-        title: "Success",
-        description: `Position ${newStatus === 'active' ? 'activated' : 'paused'}`,
-      });
+      if (result.success && result.newStatus) {
+        setPositions(prev => 
+          prev.map(p => 
+            p.id === positionId 
+              ? { ...p, status: result.newStatus! }
+              : p
+          )
+        );
+        
+        toast({
+          title: "Success",
+          description: `Position ${result.newStatus === 'active' ? 'activated' : 'paused'}`,
+        });
+      } else {
+        throw new Error(result.error || 'Failed to toggle position');
+      }
     } catch (error) {
       console.error('Error toggling position:', error);
       toast({
         title: "Error",
-        description: "Failed to update position",
+        description: error instanceof Error ? error.message : "Failed to update position",
         variant: "destructive"
       });
     }
   };
 
-  // Monitor transaction status
-  const monitorTransaction = async (txHash: string) => {
-    let attempts = 0;
-    const maxAttempts = 20;
-    
-    const checkStatus = async () => {
-      try {
-        const status = await realCardanoDEXService.getTransactionStatus(txHash);
-        
-        if (status?.status === 'confirmed') {
-          toast({
-            title: "Transaction Confirmed",
-            description: `Transaction ${txHash.slice(0, 8)}... confirmed on-chain`,
-          });
-          return;
-        }
-        
-        if (status?.status === 'failed') {
-          toast({
-            title: "Transaction Failed",
-            description: `Transaction ${txHash.slice(0, 8)}... failed on-chain`,
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(checkStatus, 3000); // Check every 3 seconds
-        }
-      } catch (error) {
-        console.error('Error monitoring transaction:', error);
+  const updatePositionMetrics = async (
+    positionId: string,
+    currentPriceA: number,
+    currentPriceB: number,
+    newVolume?: number,
+    newFeesEarned?: number
+  ) => {
+    if (!address) return;
+
+    try {
+      const result = await MarketMakingPositionsService.updatePositionMetrics(
+        positionId,
+        address,
+        currentPriceA,
+        currentPriceB,
+        newVolume,
+        newFeesEarned
+      );
+      
+      if (result.success) {
+        await fetchPositions(); // Refresh positions to get updated metrics
+      } else {
+        console.error('Failed to update position metrics:', result.error);
       }
-    };
-    
-    checkStatus();
+    } catch (error) {
+      console.error('Error updating position metrics:', error);
+    }
   };
 
-  // Load positions when wallet connects
   useEffect(() => {
     if (isConnected && address) {
       fetchPositions();
@@ -407,11 +190,15 @@ export const useRealMarketMakingPositions = () => {
   }, [isConnected, address]);
 
   return {
-    positions: positions.filter(p => p.status !== 'closed'),
+    positions,
     isLoading,
     addLiquidity,
     removeLiquidity,
     togglePosition,
+    updatePositionMetrics,
     refetchPositions: fetchPositions
   };
 };
+
+// Re-export types for convenience
+export type { RealMarketMakingPosition, PositionCreationParams };
