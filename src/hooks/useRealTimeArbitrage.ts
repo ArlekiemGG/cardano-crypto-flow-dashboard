@@ -27,6 +27,7 @@ export const useRealTimeArbitrage = () => {
 
   const {
     scanInterval,
+    isAutoScanning,
     startAutoScanning,
     stopAutoScanning,
     cleanup: cleanupAutoScanning
@@ -55,9 +56,10 @@ export const useRealTimeArbitrage = () => {
           }
         });
 
+        // Delay the first auto-scan to allow data to load
         setTimeout(() => {
-          startAutoScanning(scanInterval);
-        }, 15000);
+          performRealScan();
+        }, 5000);
 
         return unsubscribe;
       } catch (error) {
@@ -80,13 +82,14 @@ export const useRealTimeArbitrage = () => {
       }
       isInitializedRef.current = false;
     };
-  }, []);
+  }, [cleanupAutoScanning, isScanning, performRealScan]);
 
   return {
     opportunities,
     stats,
     isScanning,
     scanInterval,
+    isAutoScanning,
     executingTrades,
     lastScan,
     

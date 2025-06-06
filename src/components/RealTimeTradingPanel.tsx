@@ -17,11 +17,11 @@ export const RealTimeTradingPanel = () => {
     performRealScan,
     startAutoScanning,
     stopAutoScanning,
+    isAutoScanning,
     executingTrades,
     getExecutableOpportunities
   } = useRealTimeArbitrage();
 
-  const [autoTrading, setAutoTrading] = useState(false);
   const [minProfitThreshold, setMinProfitThreshold] = useState(1.5);
   const [marketDataConnected, setMarketDataConnected] = useState(false);
 
@@ -54,20 +54,33 @@ export const RealTimeTradingPanel = () => {
   };
 
   const handleAutoTrading = () => {
-    if (autoTrading) {
-      setAutoTrading(false);
+    if (isAutoScanning) {
       stopAutoScanning();
       toast.info('Auto trading disabled');
     } else {
-      setAutoTrading(true);
-      startAutoScanning(15);
+      startAutoScanning(15); // Set to scan every 15 seconds
       toast.success('Auto trading enabled - monitoring for opportunities');
+      
+      // Force an immediate scan when auto-trading is turned on
+      performRealScan().catch(error => {
+        console.error('Error performing initial scan:', error);
+      });
     }
   };
 
   const handleAutoExecuteAll = async () => {
     toast.info('Executing all high-confidence opportunities...');
-    await autoExecuteHighConfidence();
+    try {
+      const result = await autoExecuteHighConfidence();
+      if (result && result.executed > 0) {
+        toast.success(`Executed ${result.successful} of ${result.executed} opportunities`);
+      } else {
+        toast.info('No executable opportunities found');
+      }
+    } catch (error) {
+      toast.error('Error executing opportunities');
+      console.error('Error in auto-execute:', error);
+    }
   };
 
   const executableOpportunities = getExecutableOpportunities();
@@ -78,7 +91,7 @@ export const RealTimeTradingPanel = () => {
       <TradingControlPanel
         stats={stats}
         isScanning={isScanning}
-        autoTrading={autoTrading}
+        autoTrading={isAutoScanning}
         executableOpportunitiesCount={executableOpportunities.length}
         minProfitThreshold={minProfitThreshold}
         marketDataConnected={marketDataConnected}
