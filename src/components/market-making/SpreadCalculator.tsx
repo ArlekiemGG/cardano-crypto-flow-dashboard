@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,13 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calculator, TrendingUp } from "lucide-react";
-import { useMarketMaking } from "@/hooks/useMarketMaking";
+import { useSpreadCalculations } from "@/hooks/useSpreadCalculations";
 
 export const SpreadCalculator = () => {
   const [selectedPair, setSelectedPair] = useState("ADA/USDC");
   const [amount, setAmount] = useState<number>(1000);
   const [calculation, setCalculation] = useState<any>(null);
-  const { calculateSpread } = useMarketMaking();
+  const { calculateSpread } = useSpreadCalculations();
 
   const availablePairs = [
     "ADA/USDC",

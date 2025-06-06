@@ -1,9 +1,8 @@
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Play, Pause, Trash2, TrendingUp, TrendingDown } from "lucide-react";
-import { MarketMakingPosition } from "@/hooks/useMarketMaking";
+import { MarketMakingPosition } from "@/hooks/useMarketMakingPositions";
 
 interface ActivePositionsTableProps {
   positions: MarketMakingPosition[];
