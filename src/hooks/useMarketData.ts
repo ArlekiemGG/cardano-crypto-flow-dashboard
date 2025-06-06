@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MarketData, ArbitrageOpportunity } from '@/types/trading';
@@ -16,82 +17,81 @@ export const useMarketData = () => {
   const fetchMarketData = async () => {
     try {
       setIsLoading(true);
-      console.log('📊 Fetching market data from database...');
+      console.log('📊 Fetching REAL market data from database...');
       
-      // Fetch recent data from cache (last 30 minutes)
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      // Get fresh data from the last 15 minutes to ensure real-time accuracy
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
       
       const { data: cachedData, error } = await supabase
         .from('market_data_cache')
         .select('*')
-        .gte('timestamp', thirtyMinutesAgo)
+        .gte('timestamp', fifteenMinutesAgo)
         .order('timestamp', { ascending: false });
 
       if (error) {
-        console.error('❌ Error fetching market data:', error);
+        console.error('❌ Error fetching real market data:', error);
         setIsConnected(false);
         return;
       }
 
       if (cachedData && cachedData.length > 0) {
-        // Process and organize data - get unique pairs with most recent data
-        const pairMap = new Map<string, any>();
+        console.log(`📊 Processing ${cachedData.length} real data entries...`);
         
-        // Prioritize DeFiLlama data for pricing
-        cachedData.forEach(item => {
-          const key = `${item.pair}-${item.source_dex}`;
-          if (!pairMap.has(key) || new Date(item.timestamp) > new Date(pairMap.get(key).timestamp)) {
-            pairMap.set(key, item);
-          }
+        // Process real market data with priority for external APIs
+        const processedData: MarketData[] = [];
+        const seenPairs = new Map<string, any>();
+
+        // Sort by data quality: CoinGecko > DeFiLlama > others
+        const sortedData = cachedData.sort((a, b) => {
+          const sourceRanking = (source: string) => {
+            if (source === 'CoinGecko') return 3;
+            if (source === 'DeFiLlama') return 2;
+            return 1;
+          };
+          return sourceRanking(b.source_dex) - sourceRanking(a.source_dex);
         });
 
-        // Convert to MarketData format and filter for relevant data
-        const processedData: MarketData[] = [];
-        const uniquePairs = new Map<string, MarketData>();
-
-        pairMap.forEach((item) => {
-          // Only process ADA-related pairs and valid price data
+        sortedData.forEach((item) => {
+          // Process ADA data specifically with real validation
           if (item.pair && (item.pair.includes('ADA') || item.pair.includes('CARDANO')) && item.price > 0) {
-            let symbol = 'ADA';
+            const pairKey = 'ADA'; // Normalize to ADA
             
-            // Extract symbol properly
-            if (item.pair.includes('ADA/USD') || item.pair.includes('ADA-USD')) {
-              symbol = 'ADA';
-            } else if (item.pair.toLowerCase().includes('cardano')) {
-              symbol = 'ADA';
-            }
-
-            const marketDataItem: MarketData = {
-              symbol,
-              price: Number(item.price) || 0,
-              change24h: Number(item.change_24h) || 0,
-              volume24h: Number(item.volume_24h) || 0,
-              marketCap: Number(item.market_cap) || 0,
-              lastUpdate: item.timestamp
-            };
-
-            // Only keep the most recent and valid data per symbol
-            if (marketDataItem.price > 0 && marketDataItem.price < 100) { // Reasonable price range for ADA
-              const existing = uniquePairs.get(symbol);
-              if (!existing || new Date(marketDataItem.lastUpdate) > new Date(existing.lastUpdate)) {
-                uniquePairs.set(symbol, marketDataItem);
+            // Only accept real price data (not mock $1.0000)
+            if (item.price !== 1 && item.price > 0.1 && item.price < 10) {
+              const existing = seenPairs.get(pairKey);
+              
+              // Use the most recent and reliable data
+              if (!existing || 
+                  new Date(item.timestamp) > new Date(existing.timestamp) ||
+                  (item.source_dex === 'CoinGecko' && existing.source_dex !== 'CoinGecko')) {
+                
+                seenPairs.set(pairKey, {
+                  symbol: 'ADA',
+                  price: Number(item.price),
+                  change24h: Number(item.change_24h) || 0,
+                  volume24h: Number(item.volume_24h) || 0,
+                  marketCap: Number(item.market_cap) || 0,
+                  lastUpdate: item.timestamp,
+                  source: item.source_dex
+                });
               }
             }
           }
         });
 
-        const finalData = Array.from(uniquePairs.values());
+        // Convert map to array
+        const finalData = Array.from(seenPairs.values());
         
         if (finalData.length > 0) {
           setMarketData(finalData);
           setIsConnected(true);
-          console.log(`✅ Market data loaded: ${finalData.length} unique items`, finalData);
+          console.log(`✅ REAL market data loaded:`, finalData);
         } else {
-          console.log('⚠️ No valid market data found, triggering refresh...');
+          console.log('⚠️ No valid real market data found, triggering refresh...');
           await triggerDataRefresh();
         }
       } else {
-        console.log('📊 No cached data found, triggering edge function...');
+        console.log('📊 No recent data found, triggering edge function...');
         await triggerDataRefresh();
       }
 
@@ -106,7 +106,7 @@ export const useMarketData = () => {
 
   const triggerDataRefresh = async () => {
     try {
-      console.log('🔄 Triggering data refresh via edge function...');
+      console.log('🔄 Triggering REAL data refresh via edge function...');
       const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
         body: JSON.stringify({ action: 'fetch_all' })
       });
@@ -114,14 +114,14 @@ export const useMarketData = () => {
       if (error) {
         console.error('❌ Edge function error:', error);
       } else {
-        console.log('✅ Edge function completed:', data);
-        // Wait a bit and then fetch the updated data
+        console.log('✅ Real data refresh completed:', data);
+        // Wait for fresh data and then fetch
         setTimeout(() => {
           fetchMarketData();
         }, 3000);
       }
     } catch (error) {
-      console.error('❌ Error triggering data refresh:', error);
+      console.error('❌ Error triggering real data refresh:', error);
     }
   };
 
@@ -131,17 +131,17 @@ export const useMarketData = () => {
       return;
     }
 
-    console.log('🚀 Initializing market data service...');
+    console.log('🚀 Initializing REAL market data service...');
     isInitializedRef.current = true;
     
-    // Initial fetch
+    // Initial fetch of real data
     fetchMarketData();
 
-    // Set up periodic updates every 2 minutes
+    // Set up periodic updates every 3 minutes for real-time data
     intervalRef.current = setInterval(() => {
-      console.log('🔄 Periodic market data refresh...');
+      console.log('🔄 Periodic REAL market data refresh...');
       fetchMarketData();
-    }, 120000);
+    }, 180000);
 
     // Clean up any existing channel
     if (channelRef.current) {
@@ -153,9 +153,9 @@ export const useMarketData = () => {
       }
     }
 
-    // Set up real-time subscription for cache updates
+    // Set up real-time subscription for fresh data updates
     channelRef.current = supabase
-      .channel(`market_data_changes_${Date.now()}`) // Unique channel name
+      .channel(`real_market_data_${Date.now()}`)
       .on('postgres_changes', 
         { 
           event: '*', 
@@ -163,17 +163,17 @@ export const useMarketData = () => {
           table: 'market_data_cache' 
         }, 
         (payload) => {
-          console.log('📊 Real-time market data update:', payload);
+          console.log('📊 Real-time market data update received:', payload);
           // Debounce the refresh to avoid too many updates
           setTimeout(() => {
             fetchMarketData();
-          }, 1000);
+          }, 2000);
         }
       );
 
     // Subscribe to the channel
     channelRef.current.subscribe((status: string) => {
-      console.log('📊 Subscription status:', status);
+      console.log('📊 Real-time subscription status:', status);
     });
 
     return () => {

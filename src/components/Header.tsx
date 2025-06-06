@@ -10,21 +10,20 @@ import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData'
 import { RealTimePrice } from "@/components/RealTimePrice"
 
 export function Header() {
-  const { connectedSources } = useConnectionHealth()
+  const { connectedSources, isFullyConnected } = useConnectionHealth()
   const { isConnected: walletConnected } = useWallet()
   
-  // Use the optimized market data hook for DeFiLlama data
+  // Use the optimized market data hook for real DEX data
   const { 
     dexVolumes,
-    isLoading,
-    dataSource,
+    isLoading: dexLoading,
     getTotalDexVolume24h
   } = useOptimizedMarketData()
   
-  // Get total DEX volume from DeFiLlama
+  // Get real total DEX volume
   const totalVolume24h = getTotalDexVolume24h()
   
-  // Count active DEX pairs from DeFiLlama data
+  // Count active DEX pairs from real data
   const activeDEXPairs = dexVolumes?.protocols?.length || 0
   
   // Format volume for display
@@ -36,7 +35,7 @@ export function Header() {
     } else if (volume >= 1000) {
       return `$${(volume / 1000).toFixed(1)}K`;
     } else {
-      return `$${volume.toFixed(0)}`;
+      return volume > 0 ? `$${volume.toFixed(0)}` : 'Loading...';
     }
   };
 
@@ -48,19 +47,23 @@ export function Header() {
         {/* Real-Time Stats */}
         <div className="hidden md:flex items-center space-x-6">
           <RealTimePrice />
+          
           <div className="text-sm">
             <span className="text-gray-400">24h Vol: </span>
             <span className="text-white font-mono">
-              {totalVolume24h > 0 
-                ? formatVolume(totalVolume24h)
-                : 'Loading...'
-              }
+              {formatVolume(totalVolume24h)}
             </span>
+            {totalVolume24h > 0 && (
+              <span className="text-xs text-green-400 ml-1">Real</span>
+            )}
           </div>
+          
           <div className="text-sm">
-            <span className="text-gray-400">DEX Pairs: </span>
+            <span className="text-gray-400">DEX: </span>
             <span className="text-crypto-primary font-mono">{activeDEXPairs}</span>
-            <span className="text-xs text-gray-500 ml-1">(Active)</span>
+            <span className="text-xs text-gray-500 ml-1">
+              {activeDEXPairs > 0 ? 'Active' : 'Loading'}
+            </span>
           </div>
         </div>
       </div>
@@ -69,15 +72,18 @@ export function Header() {
         {/* Network Indicator */}
         <NetworkIndicator />
 
-        {/* DeFiLlama Connection Status */}
+        {/* Real Data Connection Status */}
         <div className="flex items-center space-x-2">
-          {!isLoading ? (
+          {isFullyConnected && !dexLoading ? (
             <Wifi className="h-4 w-4 text-green-400" />
           ) : (
             <WifiOff className="h-4 w-4 text-red-400" />
           )}
-          <span className={`text-xs hidden sm:block ${!isLoading ? 'text-green-400' : 'text-red-400'}`}>
-            {!isLoading ? 'DeFiLlama Live' : 'Disconnected'}
+          <span className={`text-xs hidden sm:block ${isFullyConnected && !dexLoading ? 'text-green-400' : 'text-red-400'}`}>
+            {isFullyConnected && !dexLoading ? 'Live Data' : 'Connecting'}
+          </span>
+          <span className="text-xs text-gray-500">
+            {connectedSources}/2
           </span>
         </div>
 
