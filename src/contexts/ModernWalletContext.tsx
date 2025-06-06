@@ -289,14 +289,22 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     return walletState.balance >= minAda;
   };
 
-  // Disconnect wallet
+  // Disconnect wallet - COMPLETELY clear state without persistence
   const disconnectWallet = () => {
-    console.log('=== DISCONNECTING WALLET ===');
+    console.log('=== DISCONNECTING WALLET - NO PERSISTENCE ===');
     setWalletState(initialState);
-    console.log('Wallet disconnected');
+    
+    // Clear any potential localStorage data
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('walletConnection');
+      localStorage.removeItem('connectedWallet');
+      localStorage.removeItem('walletSession');
+    }
+    
+    console.log('Wallet disconnected completely - no session saved');
   };
 
-  // Auto-refresh balance every 30 seconds
+  // Auto-refresh balance every 30 seconds only when connected
   useEffect(() => {
     if (!walletState.isConnected) return;
 
@@ -307,12 +315,43 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     return () => clearInterval(interval);
   }, [walletState.isConnected, walletState.lucid]);
 
-  // Initialize without auto-reconnection (no persistence)
+  // Clear wallet state on page/tab close
   useEffect(() => {
-    console.log('Modern WalletProvider initialized - 2025 configuration (NO PERSISTENCE)');
+    const handleBeforeUnload = () => {
+      console.log('Page unloading - clearing wallet state');
+      setWalletState(initialState);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log('Tab hidden - wallet will disconnect when tab closes');
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Initialize with NO persistence - NEVER auto-reconnect
+  useEffect(() => {
+    console.log('=== MODERN WALLET PROVIDER INITIALIZED ===');
+    console.log('Configuration: NO PERSISTENCE, NO AUTO-RECONNECTION');
+    
     const availableWallets = getAvailableWallets();
     console.log('Available wallets:', availableWallets);
-    console.log('Wallet connection will NOT persist across browser sessions');
+    console.log('Wallet will ALWAYS disconnect when browser tab closes');
+    
+    // Ensure no lingering session data
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('walletConnection');
+      localStorage.removeItem('connectedWallet');
+      localStorage.removeItem('walletSession');
+    }
   }, []);
 
   const contextValue: WalletContextType = {

@@ -4,7 +4,6 @@ import type { WalletApi as CardanoWalletApi } from '@/types/cardano';
 import { getAvailableWallets } from '@/utils/walletUtils';
 import { useWalletConnection } from '@/hooks/useWalletConnection';
 import { useBalanceManager } from '@/hooks/useBalanceManager';
-import { walletService } from '@/services/walletService';
 
 export interface WalletState {
   isConnected: boolean;
@@ -119,17 +118,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         error: null,
       }));
 
-      // Save session with real data
-      await walletService.saveWalletSession({
-        address: connectionResult.address,
-        walletName,
-        stakeAddress: connectionResult.stakeAddress,
-        network: connectionResult.network,
-      });
-
-      console.log('=== WALLET SESSION SAVED ===');
+      // DO NOT save session - no persistence
+      console.log('=== WALLET CONNECTED WITHOUT PERSISTENCE ===');
       console.log('Address:', connectionResult.address);
       console.log('Network:', connectionResult.network);
+      console.log('Session will NOT be saved or restored');
       
     } catch (error) {
       console.error('=== WALLET CONNECTION FAILED ===');
@@ -147,20 +140,59 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
   };
 
-  // Disconnect wallet
+  // Disconnect wallet - COMPLETELY clear state without persistence
   const disconnectWallet = () => {
-    console.log('=== DISCONNECTING WALLET ===');
+    console.log('=== DISCONNECTING WALLET - NO PERSISTENCE ===');
     setWalletState(initialState);
-    console.log('Wallet disconnected');
+    
+    // Clear any potential localStorage data
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('walletConnection');
+      localStorage.removeItem('connectedWallet');
+      localStorage.removeItem('walletSession');
+    }
+    
+    console.log('Wallet disconnected completely - no session saved');
   };
 
-  // No auto-reconnection for security
+  // Clear wallet state on page/tab close
   useEffect(() => {
-    console.log('WalletProvider initialized - NO auto-reconnection');
+    const handleBeforeUnload = () => {
+      console.log('Page unloading - clearing wallet state');
+      setWalletState(initialState);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log('Tab hidden - wallet will disconnect when tab closes');
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Initialize with NO persistence - NEVER auto-reconnect
+  useEffect(() => {
+    console.log('=== WALLET PROVIDER INITIALIZED ===');
+    console.log('Configuration: NO PERSISTENCE, NO AUTO-RECONNECTION');
     
     // Check if wallets are available
     const availableWallets = getAvailableWallets();
     console.log('Available wallets on startup:', availableWallets);
+    console.log('Wallet will ALWAYS disconnect when browser tab closes');
+    
+    // Ensure no lingering session data
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('walletConnection');
+      localStorage.removeItem('connectedWallet');
+      localStorage.removeItem('walletSession');
+    }
   }, []);
 
   const contextValue: WalletContextType = {
