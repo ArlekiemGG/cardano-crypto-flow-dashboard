@@ -14,13 +14,10 @@ export function Header() {
   const { isConnected: walletConnected } = useWallet()
   const notifications = 3
 
-  // Get real 24h volume from actual CoinGecko data (not hardcoded)
+  // Get real 24h volume from actual CoinGecko data
   const adaData = marketData.find(data => data.symbol === 'ADA')
-  const real24hVolume = adaData?.volume24h || 0
-  
-  // For DEX pairs count, this would be for native Cardano asset trading pairs
-  // (not just ADA pairs, but other native Cardano assets trading on DEXs)
-  const activeDEXPairs = 0 // Will be populated when DEX data for native assets is implemented
+  const ada24hVolume = adaData?.volume24h || 0
+  const adaMarketCap = adaData?.marketCap || 0
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
@@ -31,20 +28,24 @@ export function Header() {
         <div className="hidden md:flex items-center space-x-6">
           <RealTimePrice />
           <div className="text-sm">
-            <span className="text-gray-400">24h Vol: </span>
+            <span className="text-gray-400">24h Volume: </span>
             <span className="text-white font-mono">
-              {real24hVolume > 0 
-                ? real24hVolume > 1000000000 
-                  ? `$${(real24hVolume / 1000000000).toFixed(1)}B`
-                  : `$${(real24hVolume / 1000000).toFixed(1)}M`
+              {ada24hVolume > 0 
+                ? ada24hVolume > 1000000000 
+                  ? `$${(ada24hVolume / 1000000000).toFixed(1)}B`
+                  : `$${(ada24hVolume / 1000000).toFixed(1)}M`
                 : 'Loading...'
               }
             </span>
           </div>
           <div className="text-sm">
-            <span className="text-gray-400">DEX Pairs: </span>
-            <span className="text-crypto-primary font-mono">{activeDEXPairs}</span>
-            <span className="text-xs text-gray-500 ml-1">(Native Assets)</span>
+            <span className="text-gray-400">Market Cap: </span>
+            <span className="text-crypto-primary font-mono">
+              {adaMarketCap > 0 
+                ? `$${(adaMarketCap / 1000000000).toFixed(1)}B`
+                : 'Loading...'
+              }
+            </span>
           </div>
         </div>
       </div>
