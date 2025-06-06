@@ -129,6 +129,188 @@ export type Database = {
         }
         Relationships: []
       }
+      market_making_positions: {
+        Row: {
+          apy: number
+          created_at: string
+          current_spread: number
+          dex: string
+          entry_price_a: number
+          entry_price_b: number
+          fees_earned: number
+          id: string
+          impermanent_loss: number
+          last_rebalance: string | null
+          liquidity_provided: number
+          lp_token_amount: number | null
+          pair: string
+          pool_address: string | null
+          status: string
+          token_a_amount: number
+          token_b_amount: number
+          updated_at: string
+          user_wallet: string
+          volume_24h: number
+        }
+        Insert: {
+          apy?: number
+          created_at?: string
+          current_spread?: number
+          dex: string
+          entry_price_a: number
+          entry_price_b: number
+          fees_earned?: number
+          id?: string
+          impermanent_loss?: number
+          last_rebalance?: string | null
+          liquidity_provided: number
+          lp_token_amount?: number | null
+          pair: string
+          pool_address?: string | null
+          status?: string
+          token_a_amount: number
+          token_b_amount: number
+          updated_at?: string
+          user_wallet: string
+          volume_24h?: number
+        }
+        Update: {
+          apy?: number
+          created_at?: string
+          current_spread?: number
+          dex?: string
+          entry_price_a?: number
+          entry_price_b?: number
+          fees_earned?: number
+          id?: string
+          impermanent_loss?: number
+          last_rebalance?: string | null
+          liquidity_provided?: number
+          lp_token_amount?: number | null
+          pair?: string
+          pool_address?: string | null
+          status?: string
+          token_a_amount?: number
+          token_b_amount?: number
+          updated_at?: string
+          user_wallet?: string
+          volume_24h?: number
+        }
+        Relationships: []
+      }
+      market_making_strategies: {
+        Row: {
+          active: boolean
+          auto_compound: boolean
+          config_json: Json | null
+          created_at: string
+          dex: string
+          id: string
+          max_spread: number
+          min_spread: number
+          name: string
+          pair: string
+          rebalance_threshold: number
+          strategy_type: string
+          updated_at: string
+          user_wallet: string
+        }
+        Insert: {
+          active?: boolean
+          auto_compound?: boolean
+          config_json?: Json | null
+          created_at?: string
+          dex: string
+          id?: string
+          max_spread?: number
+          min_spread?: number
+          name: string
+          pair: string
+          rebalance_threshold?: number
+          strategy_type: string
+          updated_at?: string
+          user_wallet: string
+        }
+        Update: {
+          active?: boolean
+          auto_compound?: boolean
+          config_json?: Json | null
+          created_at?: string
+          dex?: string
+          id?: string
+          max_spread?: number
+          min_spread?: number
+          name?: string
+          pair?: string
+          rebalance_threshold?: number
+          strategy_type?: string
+          updated_at?: string
+          user_wallet?: string
+        }
+        Relationships: []
+      }
+      market_making_transactions: {
+        Row: {
+          amount_a: number | null
+          amount_b: number | null
+          confirmed_at: string | null
+          created_at: string
+          error_message: string | null
+          gas_fee: number | null
+          id: string
+          metadata_json: Json | null
+          position_id: string
+          price_a: number | null
+          price_b: number | null
+          status: string
+          transaction_type: string
+          tx_hash: string | null
+          user_wallet: string
+        }
+        Insert: {
+          amount_a?: number | null
+          amount_b?: number | null
+          confirmed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          gas_fee?: number | null
+          id?: string
+          metadata_json?: Json | null
+          position_id: string
+          price_a?: number | null
+          price_b?: number | null
+          status?: string
+          transaction_type: string
+          tx_hash?: string | null
+          user_wallet: string
+        }
+        Update: {
+          amount_a?: number | null
+          amount_b?: number | null
+          confirmed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          gas_fee?: number | null
+          id?: string
+          metadata_json?: Json | null
+          position_id?: string
+          price_a?: number | null
+          price_b?: number | null
+          status?: string
+          transaction_type?: string
+          tx_hash?: string | null
+          user_wallet?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_making_transactions_position_id_fkey"
+            columns: ["position_id"]
+            isOneToOne: false
+            referencedRelation: "market_making_positions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portfolio_metrics: {
         Row: {
           assets_allocation: Json | null

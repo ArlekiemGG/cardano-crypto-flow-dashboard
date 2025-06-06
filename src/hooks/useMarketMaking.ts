@@ -1,12 +1,14 @@
 
 import { useWallet } from '@/contexts/ModernWalletContext';
-import { useMarketMakingPositions } from './useMarketMakingPositions';
+import { useRealMarketMakingPositions } from './useRealMarketMakingPositions';
 import { useSpreadCalculations } from './useSpreadCalculations';
-import { useMarketMakingStats } from './useMarketMakingStats';
+import { useRealMarketMakingStats } from './useRealMarketMakingStats';
+import { useMarketMakingStrategies } from './useMarketMakingStrategies';
 
 // Re-export types for backward compatibility
-export type { MarketMakingPosition } from './useMarketMakingPositions';
+export type { RealMarketMakingPosition as MarketMakingPosition } from './useRealMarketMakingPositions';
 export type { SpreadCalculation } from './useSpreadCalculations';
+export type { MarketMakingStrategy } from './useMarketMakingStrategies';
 
 export const useMarketMaking = () => {
   const { isConnected } = useWallet();
@@ -15,20 +17,34 @@ export const useMarketMaking = () => {
     isLoading,
     addLiquidity,
     removeLiquidity,
-    togglePosition
-  } = useMarketMakingPositions();
+    togglePosition,
+    refetchPositions
+  } = useRealMarketMakingPositions();
   
   const { calculateSpread } = useSpreadCalculations();
-  const { getTotalStats } = useMarketMakingStats(positions);
+  const { stats } = useRealMarketMakingStats();
+  const { strategies } = useMarketMakingStrategies();
+
+  const getTotalStats = () => stats;
 
   return {
     positions,
     isLoading,
     calculateSpread,
-    addLiquidity,
+    addLiquidity: (pair: string, amount: number) => {
+      // For backwards compatibility, convert single amount to tokenA/tokenB amounts
+      // In a real implementation, this would need proper token amounts and prices
+      const tokenAAmount = amount * 0.5;
+      const tokenBAmount = amount * 0.5;
+      const priceA = 1.0; // Mock price
+      const priceB = 1.0; // Mock price
+      return addLiquidity(pair, 'Minswap', tokenAAmount, tokenBAmount, priceA, priceB);
+    },
     removeLiquidity,
     togglePosition,
     getTotalStats,
-    isConnected
+    isConnected,
+    strategies,
+    refetchPositions
   };
 };

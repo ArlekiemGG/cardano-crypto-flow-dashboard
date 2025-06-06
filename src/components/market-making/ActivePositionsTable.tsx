@@ -1,11 +1,12 @@
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Play, Pause, Trash2, TrendingUp, TrendingDown } from "lucide-react";
-import { MarketMakingPosition } from "@/hooks/useMarketMakingPositions";
+import { RealMarketMakingPosition } from "@/hooks/useRealMarketMakingPositions";
 
 interface ActivePositionsTableProps {
-  positions: MarketMakingPosition[];
+  positions: RealMarketMakingPosition[];
   onTogglePosition: (id: string) => void;
   onRemoveLiquidity: (id: string) => void;
   isLoading: boolean;
@@ -33,7 +34,7 @@ export const ActivePositionsTable = ({
   return (
     <Card className="glass">
       <CardHeader>
-        <CardTitle className="text-white">Active Positions</CardTitle>
+        <CardTitle className="text-white">Active Positions ({positions.length})</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -85,17 +86,17 @@ export const ActivePositionsTable = ({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-gray-400 mb-1">Liquidity</p>
-                  <p className="text-white font-mono">₳ {position.liquidityProvided.toLocaleString()}</p>
+                  <p className="text-white font-mono">₳ {position.liquidity_provided.toLocaleString()}</p>
                 </div>
                 
                 <div>
                   <p className="text-xs text-gray-400 mb-1">Current Spread</p>
-                  <p className="text-white font-mono">{position.currentSpread.toFixed(3)}%</p>
+                  <p className="text-white font-mono">{(position.current_spread * 100).toFixed(3)}%</p>
                 </div>
                 
                 <div>
                   <p className="text-xs text-gray-400 mb-1">24h Volume</p>
-                  <p className="text-white font-mono">₳ {position.volume24h.toLocaleString()}</p>
+                  <p className="text-white font-mono">₳ {position.volume_24h.toLocaleString()}</p>
                 </div>
                 
                 <div>
@@ -113,17 +114,36 @@ export const ActivePositionsTable = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/10">
+              <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-white/10">
                 <div>
                   <p className="text-xs text-gray-400 mb-1">Fees Earned</p>
-                  <p className="text-green-400 font-mono">₳ {position.feesEarned.toFixed(2)}</p>
+                  <p className="text-green-400 font-mono">₳ {position.fees_earned.toFixed(2)}</p>
                 </div>
                 
                 <div>
                   <p className="text-xs text-gray-400 mb-1">Impermanent Loss</p>
-                  <p className={`font-mono ${position.impermanentLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    ₳ {position.impermanentLoss.toFixed(2)}
+                  <p className={`font-mono ${position.impermanent_loss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ₳ {position.impermanent_loss.toFixed(2)}
                   </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Position Age</p>
+                  <p className="text-white font-mono text-sm">
+                    {new Date(position.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-white/10">
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Token A Amount</p>
+                  <p className="text-white font-mono text-sm">{position.token_a_amount.toFixed(2)} {position.pair.split('/')[0]}</p>
+                </div>
+                
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Token B Amount</p>
+                  <p className="text-white font-mono text-sm">{position.token_b_amount.toFixed(2)} {position.pair.split('/')[1]}</p>
                 </div>
               </div>
             </div>
