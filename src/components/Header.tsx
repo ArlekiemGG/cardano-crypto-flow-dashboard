@@ -8,19 +8,31 @@ import { useWallet } from "@/contexts/ModernWalletContext"
 import { ModernWalletConnector } from "./ModernWalletConnector"
 import { ModernWalletInfo } from "./ModernWalletInfo"
 import { NetworkIndicator } from "./NetworkIndicator"
+import { useQuery } from "@tanstack/react-query"
+import { dexService } from "@/services/dexService"
 
 export function Header() {
   const { isConnected, marketData } = useRealTimeData()
   const { isConnected: walletConnected } = useWallet()
   const notifications = 3
 
+  // Get real DEX pairs count
+  const { data: allDexPrices = [] } = useQuery({
+    queryKey: ['all-dex-prices-header'],
+    queryFn: () => dexService.getAllDEXPrices(),
+    refetchInterval: 30000,
+    staleTime: 15000
+  })
+
   // Get real 24h volume from actual CoinGecko data (not hardcoded)
   const adaData = marketData.find(data => data.symbol === 'ADA')
   const real24hVolume = adaData?.volume24h || 0
   
-  // For DEX pairs count, this would be for native Cardano asset trading pairs
-  // (not just ADA pairs, but other native Cardano assets trading on DEXs)
-  const activeDEXPairs = 0 // Will be populated when DEX data for native assets is implemented
+  // Count active DEX pairs from real data
+  const activeDEXPairs = allDexPrices.filter(price => 
+    price.volume24h > 100 && // Only count pairs with meaningful volume
+    new Date(price.lastUpdate).getTime() > Date.now() - 3600000 // Updated within last hour
+  ).length
 
   return (
     <header className="h-16 border-b border-white/10 bg-black/40 backdrop-blur-xl px-4 flex items-center justify-between">
@@ -44,7 +56,7 @@ export function Header() {
           <div className="text-sm">
             <span className="text-gray-400">DEX Pairs: </span>
             <span className="text-crypto-primary font-mono">{activeDEXPairs}</span>
-            <span className="text-xs text-gray-500 ml-1">(Native Assets)</span>
+            <span className="text-xs text-gray-500 ml-1">(Active)</span>
           </div>
         </div>
       </div>
