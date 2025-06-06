@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useWallet } from '@/contexts/ModernWalletContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { walletContextService } from '@/services/walletContextService';
+import { WalletContextService } from '@/services/walletContextService';
 
 export interface MarketMakingStrategy {
   id: string;
@@ -33,7 +33,7 @@ export const useMarketMakingStrategies = () => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await walletContextService.executeWithWalletContext(
+      const { data, error } = await WalletContextService.executeWithWalletContext(
         address,
         async () => {
           return await supabase
@@ -74,7 +74,7 @@ export const useMarketMakingStrategies = () => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await walletContextService.executeWithWalletContext(
+      const { data, error } = await WalletContextService.executeWithWalletContext(
         address,
         async () => {
           return await supabase
@@ -127,7 +127,7 @@ export const useMarketMakingStrategies = () => {
     if (!strategy) return;
 
     try {
-      const { error } = await walletContextService.executeWithWalletContext(
+      const { error } = await WalletContextService.executeWithWalletContext(
         address!,
         async () => {
           return await supabase

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useWallet } from '@/contexts/ModernWalletContext';
-import { walletContextService } from '@/services/walletContextService';
+import { WalletContextService } from '@/services/walletContextService';
 
 export interface RealMarketMakingStats {
   totalLiquidity: number;
@@ -32,7 +32,7 @@ export const useRealMarketMakingStats = () => {
 
     setIsLoading(true);
     try {
-      const { data: positions, error } = await walletContextService.executeWithWalletContext(
+      const { data: positions, error } = await WalletContextService.executeWithWalletContext(
         address,
         async () => {
           return await supabase

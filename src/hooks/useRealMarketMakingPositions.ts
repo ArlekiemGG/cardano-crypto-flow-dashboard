@@ -4,7 +4,7 @@ import { useWallet } from '@/contexts/ModernWalletContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { realCardanoDEXService } from '@/services/realCardanoDEXService';
-import { walletContextService } from '@/services/walletContextService';
+import { WalletContextService } from '@/services/walletContextService';
 
 export interface RealMarketMakingPosition {
   id: string;
@@ -41,7 +41,7 @@ export const useRealMarketMakingPositions = () => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await walletContextService.executeWithWalletContext(
+      const { data, error } = await WalletContextService.executeWithWalletContext(
         address,
         async () => {
           return await supabase
@@ -140,7 +140,7 @@ export const useRealMarketMakingPositions = () => {
       // Create position record in database with wallet context
       const liquidityProvided = tokenAAmount + (tokenBAmount * priceB / priceA);
       
-      const { data, error } = await walletContextService.executeWithWalletContext(
+      const { data, error } = await WalletContextService.executeWithWalletContext(
         address,
         async () => {
           return await supabase
@@ -177,7 +177,7 @@ export const useRealMarketMakingPositions = () => {
       }
 
       // Update transaction record with position ID
-      await walletContextService.executeWithWalletContext(
+      await WalletContextService.executeWithWalletContext(
         address,
         async () => {
           return await supabase
@@ -254,7 +254,7 @@ export const useRealMarketMakingPositions = () => {
       }
 
       // Update position status in database
-      const { error } = await walletContextService.executeWithWalletContext(
+      const { error } = await WalletContextService.executeWithWalletContext(
         address,
         async () => {
           return await supabase
@@ -314,7 +314,7 @@ export const useRealMarketMakingPositions = () => {
     const newStatus = position.status === 'active' ? 'paused' : 'active';
 
     try {
-      const { error } = await walletContextService.executeWithWalletContext(
+      const { error } = await WalletContextService.executeWithWalletContext(
         address,
         async () => {
           return await supabase

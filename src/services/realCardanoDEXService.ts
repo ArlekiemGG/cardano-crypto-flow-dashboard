@@ -1,5 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { walletContextService } from '@/services/walletContextService';
+import { WalletContextService } from '@/services/walletContextService';
 
 export interface CardanoTransaction {
   txHash: string;
@@ -43,7 +44,7 @@ export class RealCardanoDEXService {
       const mockTxHash = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       // Store the transaction in our database with wallet context
-      const { error: txError } = await walletContextService.executeWithWalletContext(
+      const { error: txError } = await WalletContextService.executeWithWalletContext(
         walletAddress,
         async () => {
           return await supabase
@@ -93,7 +94,7 @@ export class RealCardanoDEXService {
       console.log(`🔄 Removing liquidity for position ${positionId}...`);
       
       // Get position details with wallet context
-      const { data: position, error: positionError } = await walletContextService.executeWithWalletContext(
+      const { data: position, error: positionError } = await WalletContextService.executeWithWalletContext(
         walletAddress,
         async () => {
           return await supabase
@@ -112,7 +113,7 @@ export class RealCardanoDEXService {
       const mockTxHash = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       // Store the transaction with wallet context
-      const { error: txError } = await walletContextService.executeWithWalletContext(
+      const { error: txError } = await WalletContextService.executeWithWalletContext(
         walletAddress,
         async () => {
           return await supabase
