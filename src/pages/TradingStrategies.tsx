@@ -1,3 +1,4 @@
+
 import { useState } from "react"
 import { MetricCard } from "@/components/MetricCard"
 import { Bot, Play, Pause, Settings, Plus, Trash2 } from "lucide-react"
@@ -83,6 +84,10 @@ export default function TradingStrategies() {
 
   const handleDeleteStrategy = (strategyId: string) => {
     deleteStrategy(strategyId);
+  };
+
+  const handleToggleStrategy = (strategyId: string) => {
+    toggleStrategy(strategyId);
   };
 
   if (!address) {
@@ -210,21 +215,23 @@ export default function TradingStrategies() {
                     </div>
                     
                     <div className="flex space-x-2">
+                      {/* Settings Button - Fixed styling */}
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        className="border-white/20 text-white hover:bg-white/10"
+                        className="border-white/20 text-white hover:bg-white/10 hover:text-white"
                         onClick={() => handleOpenSettings(strategy)}
                       >
                         <Settings className="h-4 w-4" />
                       </Button>
                       
+                      {/* Delete Button - Added */}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button 
                             size="sm" 
                             variant="outline"
-                            className="border-red-500/20 text-red-400 hover:bg-red-500/10"
+                            className="border-red-500/20 text-red-400 hover:bg-red-500/10 hover:text-red-400"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -248,13 +255,15 @@ export default function TradingStrategies() {
                         </AlertDialogContent>
                       </AlertDialog>
                       
+                      {/* Play/Pause Button - Enhanced with proper tooltip */}
                       <Button 
                         size="sm"
                         className={strategy.active 
-                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
-                          : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30' 
+                          : 'bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30'
                         }
-                        onClick={() => toggleStrategy(strategy.id)}
+                        onClick={() => handleToggleStrategy(strategy.id)}
+                        title={strategy.active ? 'Pause strategy execution' : 'Start strategy execution'}
                       >
                         {strategy.active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                       </Button>
