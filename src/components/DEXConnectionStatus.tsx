@@ -1,58 +1,60 @@
 
-import { useMarketData } from '@/hooks/useMarketData';
-import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wifi, WifiOff, Activity, CheckCircle } from 'lucide-react';
-import { dexService } from '@/services/dexService';
+import { Activity, CheckCircle, WifiOff } from 'lucide-react';
+import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData';
 
 export const DEXConnectionStatus = () => {
-  const { isConnected, lastUpdate } = useMarketData();
+  const { 
+    dexVolumes, 
+    isLoading, 
+    lastUpdate, 
+    getTopDEXsByVolume,
+    getTotalDexVolume24h
+  } = useOptimizedMarketData();
+  
+  // Get DEX data from DeFiLlama
+  const topDEXs = getTopDEXsByVolume(10);
+  const totalVolume = getTotalDexVolume24h();
+  
+  // Format volume for display
+  const formatVolume = (volume: number) => {
+    if (volume >= 1000000000) {
+      return `₳ ${(volume / 1000000000).toFixed(1)}B`;
+    } else if (volume >= 1000000) {
+      return `₳ ${(volume / 1000000).toFixed(1)}M`;
+    } else if (volume >= 1000) {
+      return `₳ ${(volume / 1000).toFixed(1)}K`;
+    } else {
+      return `₳ ${volume.toFixed(0)}`;
+    }
+  };
+  
+  // Cardano DEXs we want to display
+  const cardanoDEXs = [
+    'Minswap', 
+    'SundaeSwap', 
+    'MuesliSwap', 
+    'WingRiders', 
+    'VyFinance'
+  ];
 
-  // Fetch real DEX volumes
-  const { data: dexVolumes = [], isLoading: volumesLoading } = useQuery({
-    queryKey: ['dex-volumes'],
-    queryFn: () => dexService.getRealVolumes(),
-    refetchInterval: 30000, // Refresh every 30 seconds
-    staleTime: 15000
-  });
-
-  // Get all cached DEX data for connection status
-  const { data: allDexData = [], isLoading: dataLoading } = useQuery({
-    queryKey: ['all-dex-prices'],
-    queryFn: () => dexService.getAllDEXPrices(),
-    refetchInterval: 30000,
-    staleTime: 15000
-  });
-
-  // Calculate volumes by DEX from cached data
-  const volumesByDex = dexVolumes.reduce((acc, { dex, totalVolume }) => {
-    acc[dex] = totalVolume;
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Check which DEXs have recent data
-  const dexConnectionStatus = ['Minswap', 'SundaeSwap', 'MuesliSwap', 'WingRiders', 'VyFinance'].map(dexName => {
-    const hasRecentData = allDexData.some(data => 
-      data.dex === dexName && 
-      new Date(data.lastUpdate).getTime() > Date.now() - 300000 // 5 minutes
+  // Map DEX data from DeFiLlama to our UI format
+  const dexConnectionStatus = cardanoDEXs.map(dexName => {
+    // Find the DEX in our DeFiLlama data
+    const dexData = topDEXs.find(dex => 
+      dex.name.toLowerCase().includes(dexName.toLowerCase())
     );
     
-    const volume = volumesByDex[dexName] || 0;
+    // Check if we have data for this DEX
+    const hasData = dexData && dexData.total24h > 0;
+    const volume = dexData ? dexData.total24h : 0;
     
     return {
       name: dexName,
-      status: hasRecentData,
-      volume: volume > 0 ? (
-        volume > 1000000 
-          ? `₳ ${(volume / 1000000).toFixed(1)}M`
-          : volume > 1000
-          ? `₳ ${(volume / 1000).toFixed(0)}K`
-          : `₳ ${volume.toFixed(0)}`
-      ) : 'No data'
+      status: hasData,
+      volume: hasData ? formatVolume(volume) : 'No data'
     };
   });
-
-  const isLoading = volumesLoading || dataLoading;
 
   return (
     <Card className="glass">
@@ -86,16 +88,14 @@ export const DEXConnectionStatus = () => {
           <div className="mt-4 pt-3 border-t border-white/10">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-400">Last Update:</span>
-              <span className="text-white">{lastUpdate.toLocaleTimeString()}</span>
+              <span className="text-white">{lastUpdate?.toLocaleTimeString() || 'Updating...'}</span>
             </div>
-            {dexVolumes.length > 0 && (
-              <div className="flex items-center justify-between text-sm mt-1">
-                <span className="text-gray-400">Total DEX Volume:</span>
-                <span className="text-crypto-primary font-mono">
-                  ₳ {(dexVolumes.reduce((sum, { totalVolume }) => sum + totalVolume, 0) / 1000000).toFixed(1)}M
-                </span>
-              </div>
-            )}
+            <div className="flex items-center justify-between text-sm mt-1">
+              <span className="text-gray-400">Total DEX Volume:</span>
+              <span className="text-crypto-primary font-mono">
+                {totalVolume > 0 ? formatVolume(totalVolume) : 'Loading...'}
+              </span>
+            </div>
           </div>
         </div>
       </CardContent>
