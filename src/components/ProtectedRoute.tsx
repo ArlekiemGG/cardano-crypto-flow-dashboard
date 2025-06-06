@@ -1,17 +1,18 @@
 
 import React from 'react';
 import { useWallet } from '@/contexts/ModernWalletContext';
-import { ModernWalletConnector } from './ModernWalletConnector';
-import { Loader2, Wallet } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireMinimumBalance?: number;
+  showConnectionScreen?: boolean;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
-  requireMinimumBalance // Not used for now, but kept for future implementation
+  requireMinimumBalance,
+  showConnectionScreen = true
 }) => {
   const { 
     isConnected, 
@@ -31,13 +32,18 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Show wallet connection required
-  if (!isConnected) {
+  // If not connected and we should show connection screen, return null to let parent handle it
+  if (!isConnected && !showConnectionScreen) {
+    return null;
+  }
+
+  // Show default wallet connection required (this shouldn't show when showConnectionScreen=false)
+  if (!isConnected && showConnectionScreen) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-black p-6">
         <div className="max-w-md w-full text-center glass rounded-2xl p-8 border border-white/10">
           <div className="w-20 h-20 bg-gradient-to-br from-crypto-primary to-crypto-secondary rounded-full flex items-center justify-center mx-auto mb-6">
-            <Wallet className="w-10 h-10 text-white" />
+            <Loader2 className="w-10 h-10 text-white" />
           </div>
           
           <h1 className="text-3xl font-bold text-white mb-4">
@@ -48,10 +54,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             Connect your Cardano wallet to access this trading platform. 
             We use Lucid Evolution for secure blockchain interactions.
           </p>
-
-          <div className="mb-6">
-            <ModernWalletConnector />
-          </div>
 
           <div className="text-sm text-gray-500 space-y-2 bg-black/40 rounded-lg p-4">
             <h4 className="text-white font-medium mb-2">2025 Features:</h4>
