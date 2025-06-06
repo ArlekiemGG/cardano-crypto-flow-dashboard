@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { CacheManager } from './CacheManager';
 import { DeFiLlamaAPIClient } from './DeFiLlamaAPIClient';
@@ -35,10 +36,18 @@ class OptimizedDataService {
       console.log(`📊 Fetching prices from DeFiLlama: ${tokensString}`);
       const data = await this.apiClient.getCurrentPrices(tokens);
 
-      // Ensure data has the correct structure
-      const priceResponse: DeFiLlamaPriceResponse = {
-        coins: data?.coins || data || {}
-      };
+      // Handle the API response properly - it might be a direct coins object or wrapped
+      let priceResponse: DeFiLlamaPriceResponse;
+      
+      if (data && typeof data === 'object' && 'coins' in data) {
+        // Data is already in DeFiLlamaPriceResponse format
+        priceResponse = data as DeFiLlamaPriceResponse;
+      } else {
+        // Data is a direct price object or needs to be wrapped
+        priceResponse = {
+          coins: data || {}
+        };
+      }
 
       // Save to cache
       this.cacheManager.set(cacheKey, priceResponse, 'defillama');
