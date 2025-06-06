@@ -1,4 +1,3 @@
-
 import { MetricCard } from "@/components/MetricCard"
 import { BarChart3, TrendingUp, Bot, DollarSign, Activity, Zap } from "lucide-react"
 import { useRealTimeData } from "@/hooks/useRealTimeData"
@@ -22,7 +21,6 @@ export default function Dashboard() {
   } = useRealTimeArbitrage()
   const { balance } = useWallet()
   
-  // Memoized calculations to prevent infinite re-renders
   const portfolioCalculations = useMemo(() => {
     const adaData = marketData.find(data => data.symbol === 'ADA')
     const adaPrice = adaData?.price || 0.63
@@ -50,12 +48,11 @@ export default function Dashboard() {
     }
   }, [marketData]) // Only recalculate when marketData changes
 
-  // Connection health status
+  // Fix connection health state to match what the service returns
   const [connectionHealth, setConnectionHealth] = useState({
-    minswap: false,
-    sundaeswap: false,
     muesliswap: false,
-    wingriders: false,
+    defiLlama: false,
+    taptools: false,
     coingecko: false
   })
 
@@ -90,7 +87,7 @@ export default function Dashboard() {
               <div className={`flex items-center space-x-2 ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
                 <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
                 <span className="text-sm font-medium">
-                  {isConnected ? `${connectedDEXs}/5 DEXs Connected` : 'Connecting to DEXs...'}
+                  {isConnected ? `${connectedDEXs}/4 DEXs Connected` : 'Connecting to DEXs...'}
                 </span>
               </div>
               <div className="text-sm text-gray-400">
@@ -169,8 +166,8 @@ export default function Dashboard() {
         
         <MetricCard
           title="Connected DEXs"
-          value={`${connectedDEXs}/5`}
-          change="Minswap, SundaeSwap, MuesliSwap..."
+          value={`${connectedDEXs}/4`}
+          change="MuesliSwap, DeFiLlama, TapTools..."
           changeType={connectedDEXs > 2 ? "positive" : "negative"}
           icon={Bot}
           description="Live DEX API connections"

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { arbitrageEngine } from '@/services/arbitrageEngine';
 import { realTimeMarketDataService } from '@/services/realTimeMarketDataService';
@@ -171,6 +170,52 @@ export const useRealTimeArbitrage = () => {
     }
   }, [opportunities, executingTrades]);
 
+  // Add missing simulateExecution function
+  const simulateExecution = useCallback(async (opportunityId: string) => {
+    const opportunity = opportunities.find(opp => opp.id === opportunityId);
+    if (!opportunity) {
+      return { success: false, error: 'Opportunity not found' };
+    }
+
+    try {
+      const simulationResult = await arbitrageEngine.simulateTradeExecution(opportunity);
+      return {
+        success: simulationResult.success,
+        estimatedProfit: simulationResult.estimatedProfit,
+        estimatedSlippage: simulationResult.estimatedSlippage,
+        timeEstimate: simulationResult.timeEstimate || 30
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Simulation failed'
+      };
+    }
+  }, [opportunities]);
+
+  // Add missing autoExecuteHighConfidence function
+  const autoExecuteHighConfidence = useCallback(async () => {
+    const highConfidenceOps = opportunities.filter(opp => 
+      opp.confidence === 'HIGH' && 
+      opp.executionReady && 
+      !executingTrades.has(opp.id)
+    );
+
+    console.log(`🤖 Auto-executing ${highConfidenceOps.length} high confidence opportunities...`);
+
+    const results = await Promise.allSettled(
+      highConfidenceOps.map(opp => executeArbitrage(opp.id))
+    );
+
+    const successful = results.filter(result => 
+      result.status === 'fulfilled' && result.value.success
+    ).length;
+
+    console.log(`✅ Auto-execution completed: ${successful}/${highConfidenceOps.length} successful`);
+
+    return { executed: highConfidenceOps.length, successful };
+  }, [opportunities, executingTrades, executeArbitrage]);
+
   // Memoized auto scanning function
   const startAutoScanning = useCallback((intervalSeconds: number = 60) => {
     console.log(`🤖 Starting OPTIMIZED automatic arbitrage scanning every ${intervalSeconds} seconds`);
@@ -297,6 +342,8 @@ export const useRealTimeArbitrage = () => {
     performRealScan,
     performScan: performRealScan,
     executeArbitrage,
+    simulateExecution,
+    autoExecuteHighConfidence,
     startAutoScanning,
     startAutoScan: startAutoScanning,
     stopAutoScanning,
