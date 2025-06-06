@@ -26,6 +26,15 @@ interface UserProfile {
   username: string;
 }
 
+interface SettingsData {
+  profile?: UserProfile;
+  notifications?: NotificationSettings;
+  tradingPreferences?: TradingPreferences;
+  walletName?: string;
+  network?: string;
+  lastUpdated?: string;
+}
+
 export default function Settings() {
   const { 
     isConnected, 
@@ -76,7 +85,9 @@ export default function Settings() {
       }
 
       if (data?.settings_json) {
-        const settings = data.settings_json;
+        // Type assertion to handle the Json type from Supabase
+        const settings = data.settings_json as SettingsData;
+        
         if (settings.profile) {
           setUserProfile(settings.profile);
         }
@@ -104,7 +115,7 @@ export default function Settings() {
 
     setIsLoading(true);
     try {
-      const settingsData = {
+      const settingsData: SettingsData = {
         profile: userProfile,
         notifications,
         tradingPreferences: tradingPrefs,
@@ -117,7 +128,7 @@ export default function Settings() {
         .from('users')
         .upsert({
           wallet_address: address,
-          settings_json: settingsData,
+          settings_json: settingsData as any, // Type assertion for Json compatibility
           last_login: new Date().toISOString(),
           is_active: true,
         });
