@@ -8,6 +8,7 @@ import { ModernWalletInfo } from "./ModernWalletInfo"
 import { NetworkIndicator } from "./NetworkIndicator"
 import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData'
 import { RealTimePrice } from "@/components/RealTimePrice"
+import { WebSocketStatus } from "@/components/WebSocketStatus"
 
 export function Header() {
   const { connectedSources, isFullyConnected } = useConnectionHealth()
@@ -71,6 +72,9 @@ export function Header() {
       <div className="flex items-center space-x-4">
         {/* Network Indicator */}
         <NetworkIndicator />
+
+        {/* WebSocket Status - NEW! */}
+        <WebSocketStatus />
 
         {/* Real Data Connection Status */}
         <div className="flex items-center space-x-2">
