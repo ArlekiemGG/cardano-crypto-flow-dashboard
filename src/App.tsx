@@ -5,8 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { WalletProvider } from "@/contexts/WalletContext";
-import { WalletGuard } from "@/components/WalletGuard";
+import { WalletProvider } from "@/contexts/ModernWalletContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Header } from "@/components/Header";
 import Dashboard from "./pages/Dashboard";
@@ -26,7 +26,7 @@ const App = () => (
       <Sonner />
       <WalletProvider>
         <BrowserRouter>
-          <WalletGuard>
+          <ProtectedRoute requireMinimumBalance={100}>
             <SidebarProvider>
               <div className="min-h-screen flex w-full bg-gradient-to-br from-black via-gray-900 to-black">
                 <AppSidebar />
@@ -46,7 +46,7 @@ const App = () => (
                 </div>
               </div>
             </SidebarProvider>
-          </WalletGuard>
+          </ProtectedRoute>
         </BrowserRouter>
       </WalletProvider>
     </TooltipProvider>

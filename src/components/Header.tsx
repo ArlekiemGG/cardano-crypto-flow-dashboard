@@ -4,9 +4,9 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { RealTimePrice } from "@/components/RealTimePrice"
 import { useRealTimeData } from "@/hooks/useRealTimeData"
-import { useWallet } from "@/contexts/WalletContext"
-import { WalletConnector } from "./WalletConnector"
-import { WalletInfo } from "./WalletInfo"
+import { useWallet } from "@/contexts/ModernWalletContext"
+import { ModernWalletConnector } from "./ModernWalletConnector"
+import { ModernWalletInfo } from "./ModernWalletInfo"
 import { NetworkIndicator } from "./NetworkIndicator"
 
 export function Header() {
@@ -59,8 +59,8 @@ export function Header() {
           )}
         </Button>
 
-        {/* Wallet Connection */}
-        {walletConnected ? <WalletInfo /> : <WalletConnector />}
+        {/* Modern Wallet Connection */}
+        {walletConnected ? <ModernWalletInfo /> : <ModernWalletConnector />}
       </div>
     </header>
   )
