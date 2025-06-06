@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MarketData, ArbitrageOpportunity } from '@/types/trading';
@@ -35,41 +34,61 @@ export const useMarketData = () => {
       }
 
       if (cachedData && cachedData.length > 0) {
-        // Process and organize data
-        const processedData: MarketData[] = [];
+        // Process and organize data - get unique pairs with most recent data
         const pairMap = new Map<string, any>();
         
+        // Prioritize DeFiLlama data for pricing
         cachedData.forEach(item => {
-          if (!pairMap.has(item.pair) || new Date(item.timestamp) > new Date(pairMap.get(item.pair).timestamp)) {
-            pairMap.set(item.pair, item);
+          const key = `${item.pair}-${item.source_dex}`;
+          if (!pairMap.has(key) || new Date(item.timestamp) > new Date(pairMap.get(key).timestamp)) {
+            pairMap.set(key, item);
           }
         });
 
-        // Convert to MarketData format
-        pairMap.forEach((item, pair) => {
-          if (pair.includes('ADA') || pair.includes('CARDANO') || pair.toLowerCase().includes('cardano')) {
-            const symbol = pair.includes('ADA/USD') ? 'ADA' : 
-                          pair.includes('CARDANO') ? 'ADA' : 
-                          pair.split('/')[0];
+        // Convert to MarketData format and filter for relevant data
+        const processedData: MarketData[] = [];
+        const uniquePairs = new Map<string, MarketData>();
+
+        pairMap.forEach((item) => {
+          // Only process ADA-related pairs and valid price data
+          if (item.pair && (item.pair.includes('ADA') || item.pair.includes('CARDANO')) && item.price > 0) {
+            let symbol = 'ADA';
             
-            processedData.push({
+            // Extract symbol properly
+            if (item.pair.includes('ADA/USD') || item.pair.includes('ADA-USD')) {
+              symbol = 'ADA';
+            } else if (item.pair.toLowerCase().includes('cardano')) {
+              symbol = 'ADA';
+            }
+
+            const marketDataItem: MarketData = {
               symbol,
               price: Number(item.price) || 0,
               change24h: Number(item.change_24h) || 0,
               volume24h: Number(item.volume_24h) || 0,
               marketCap: Number(item.market_cap) || 0,
               lastUpdate: item.timestamp
-            });
+            };
+
+            // Only keep the most recent and valid data per symbol
+            if (marketDataItem.price > 0 && marketDataItem.price < 100) { // Reasonable price range for ADA
+              const existing = uniquePairs.get(symbol);
+              if (!existing || new Date(marketDataItem.lastUpdate) > new Date(existing.lastUpdate)) {
+                uniquePairs.set(symbol, marketDataItem);
+              }
+            }
           }
         });
 
-        if (processedData.length > 0) {
-          setMarketData(processedData);
+        const finalData = Array.from(uniquePairs.values());
+        
+        if (finalData.length > 0) {
+          setMarketData(finalData);
           setIsConnected(true);
-          console.log(`✅ Market data loaded: ${processedData.length} items`);
+          console.log(`✅ Market data loaded: ${finalData.length} unique items`, finalData);
         } else {
-          console.log('⚠️ No relevant market data found, triggering refresh...');
-          triggerDataRefresh();
+          console.log('⚠️ No valid market data found, triggering refresh...');
+          await triggerDataRefresh();
         }
       } else {
         console.log('📊 No cached data found, triggering edge function...');
