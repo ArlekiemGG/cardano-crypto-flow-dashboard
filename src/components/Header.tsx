@@ -9,10 +9,12 @@ import { ModernWalletConnector } from "./ModernWalletConnector"
 import { ModernWalletInfo } from "./ModernWalletInfo"
 import { NetworkIndicator } from "./NetworkIndicator"
 import { useOptimizedMarketData } from '@/hooks/useOptimizedMarketData'
+import { useToast } from "@/hooks/use-toast"
 
 export function Header() {
   const { connectedSources } = useConnectionHealth()
   const { isConnected: walletConnected } = useWallet()
+  const { toast } = useToast()
   const notifications = 3
   
   // Use the optimized market data hook for DeFiLlama data
@@ -40,6 +42,18 @@ export function Header() {
     } else {
       return `$${volume.toFixed(0)}`;
     }
+  };
+
+  // Handle notifications click
+  const handleNotificationsClick = () => {
+    toast({
+      title: "Notificaciones",
+      description: `Tienes ${notifications} notificaciones nuevas:
+      • Nueva oportunidad de arbitraje detectada
+      • Precio de ADA actualizado: $0.6413
+      • Conexión a DeFiLlama estable`,
+      duration: 5000,
+    });
   };
 
   return (
@@ -84,7 +98,12 @@ export function Header() {
         </div>
 
         {/* Notifications */}
-        <Button variant="ghost" size="sm" className="relative text-gray-400 hover:text-white hover:bg-white/10">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="relative text-gray-400 hover:text-white hover:bg-white/10"
+          onClick={handleNotificationsClick}
+        >
           <Bell className="h-4 w-4" />
           {notifications > 0 && (
             <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
