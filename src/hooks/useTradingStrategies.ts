@@ -11,7 +11,7 @@ interface TradingStrategy {
   profit_loss: number;
   total_trades: number;
   created_at: string;
-  config_json: Record<string, any>;
+  config_json: any; // Changed from Record<string, any> to any to be compatible with Supabase Json type
 }
 
 export const useTradingStrategies = (userWallet?: string) => {
@@ -29,7 +29,20 @@ export const useTradingStrategies = (userWallet?: string) => {
       });
 
       if (error) throw error;
-      setStrategies(data || []);
+      
+      // Transform the data to ensure type compatibility
+      const transformedData: TradingStrategy[] = (data || []).map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        strategy_type: item.strategy_type,
+        active: item.active,
+        profit_loss: item.profit_loss,
+        total_trades: item.total_trades,
+        created_at: item.created_at,
+        config_json: item.config_json || {}
+      }));
+
+      setStrategies(transformedData);
     } catch (error) {
       console.error('Error fetching strategies:', error);
       toast({

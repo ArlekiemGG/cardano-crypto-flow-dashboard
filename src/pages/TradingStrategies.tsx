@@ -5,10 +5,10 @@ import { Bot, Play, Pause, Settings, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useTradingStrategies } from "@/hooks/useTradingStrategies"
 import { CreateStrategyModal } from "@/components/trading/CreateStrategyModal"
-import { useModernWalletConnection } from "@/hooks/useModernWalletConnection"
+import { useWallet } from "@/contexts/ModernWalletContext"
 
 export default function TradingStrategies() {
-  const { address } = useModernWalletConnection();
+  const { address } = useWallet(); // Using the correct context
   const { strategies, isLoading, createStrategy, toggleStrategy } = useTradingStrategies(address);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
