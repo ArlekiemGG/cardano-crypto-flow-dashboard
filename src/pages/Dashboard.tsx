@@ -39,21 +39,19 @@ export default function Dashboard() {
     const allPrices = realTimeMarketDataService.getCurrentPrices()
     const totalVolume = allPrices.reduce((sum, price) => sum + price.volume24h, 0)
     const activePairs = new Set(allPrices.map(price => price.pair)).size
-    const dexCount = new Set(allPrices.map(price => price.dex)).size
+    const dexCount = 2 // Simplified: Blockfrost + DeFiLlama
 
     return {
       totalVolume24h: totalVolume,
       activePairs,
       dexCount
     }
-  }, [marketData]) // Only recalculate when marketData changes
+  }, [marketData])
 
-  // Fix connection health state to match what the service returns
+  // Simplified connection health for Blockfrost + DeFiLlama only
   const [connectionHealth, setConnectionHealth] = useState({
-    muesliswap: false,
-    defiLlama: false,
-    taptools: false,
-    coingecko: false
+    blockfrost: false,
+    defiLlama: false
   })
 
   // Update connection health periodically
@@ -64,12 +62,12 @@ export default function Dashboard() {
     }
 
     updateHealth()
-    const interval = setInterval(updateHealth, 30000) // Check every 30 seconds
+    const interval = setInterval(updateHealth, 30000)
 
     return () => clearInterval(interval)
   }, [])
 
-  const connectedDEXs = Object.values(connectionHealth).filter(Boolean).length
+  const connectedSources = Object.values(connectionHealth).filter(Boolean).length
 
   return (
     <div className="space-y-6">
@@ -81,13 +79,13 @@ export default function Dashboard() {
               Cardano Pro Trading Suite
             </h1>
             <p className="text-gray-400 text-lg max-w-2xl">
-              Real-time automated trading with live DEX integration, arbitrage detection, and professional portfolio management on Cardano.
+              Simplified real-time trading with Blockfrost and DeFiLlama integration for reliable Cardano market data.
             </p>
             <div className="flex items-center space-x-4">
               <div className={`flex items-center space-x-2 ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
                 <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
                 <span className="text-sm font-medium">
-                  {isConnected ? `${connectedDEXs}/4 DEXs Connected` : 'Connecting to DEXs...'}
+                  {isConnected ? `${connectedSources}/2 Sources Connected` : 'Connecting to data sources...'}
                 </span>
               </div>
               <div className="text-sm text-gray-400">
@@ -95,6 +93,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+          
           <div className="mt-6 lg:mt-0">
             <div className="p-6 rounded-xl bg-gradient-to-br from-crypto-primary/20 to-crypto-secondary/20 border border-crypto-primary/30 glow">
               <div className="text-center">
@@ -145,32 +144,32 @@ export default function Dashboard() {
         />
         
         <MetricCard
-          title="Active DEX Pairs"
+          title="Active Data Pairs"
           value={marketStats.activePairs.toString()}
-          change="Real-time data"
+          change="Live DeFi data"
           changeType="positive"
           icon={Activity}
-          description="Live trading pairs across DEXs"
+          description="Live pairs from Blockfrost + DeFiLlama"
           gradient="gradient-secondary"
         />
         
         <MetricCard
-          title="24h DEX Volume"
+          title="24h DeFi Volume"
           value={`$${(marketStats.totalVolume24h / 1000000).toFixed(1)}M`}
-          change="All tracked DEXs"
+          change="All Cardano DeFi"
           changeType="positive"
           icon={BarChart3}
-          description="Total volume across platforms"
+          description="Total volume across Cardano protocols"
           gradient="gradient-profit"
         />
         
         <MetricCard
-          title="Connected DEXs"
-          value={`${connectedDEXs}/4`}
-          change="MuesliSwap, DeFiLlama, TapTools..."
-          changeType={connectedDEXs > 2 ? "positive" : "negative"}
+          title="Data Sources"
+          value={`${connectedSources}/2`}
+          change="Blockfrost + DeFiLlama"
+          changeType={connectedSources > 1 ? "positive" : "negative"}
           icon={Bot}
-          description="Live DEX API connections"
+          description="Simplified, reliable data architecture"
           gradient="gradient-primary"
         />
       </div>
@@ -221,7 +220,7 @@ export default function Dashboard() {
 
       {/* Real Market Data Section */}
       <div className="glass rounded-xl p-6">
-        <h2 className="text-xl font-semibold text-white mb-4">Live Market Data</h2>
+        <h2 className="text-xl font-semibold text-white mb-4">Simplified Market Data (Blockfrost + DeFiLlama)</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {marketData.slice(0, 6).map((data, index) => (
             <div key={`${data.symbol}-${index}`} className="p-4 rounded-lg bg-white/5 border border-white/10">

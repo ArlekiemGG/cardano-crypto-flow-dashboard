@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 interface RealTimePrice {
@@ -15,22 +16,19 @@ export class RealTimeMarketDataService {
   private reconnectInterval: NodeJS.Timeout | null = null;
   private subscribers: Array<(data: RealTimePrice[]) => void> = [];
   private currentPrices: RealTimePrice[] = [];
-  private readonly UPDATE_INTERVAL = 60000; // Aumentado a 60 segundos para evitar rate limits
-  private readonly RECONNECT_INTERVAL = 120000; // Aumentado a 2 minutos
+  private readonly UPDATE_INTERVAL = 45000; // 45 seconds for simplified architecture
+  private readonly RECONNECT_INTERVAL = 120000;
   private retryCount = 0;
   private readonly MAX_RETRIES = 3;
   private lastFetchTime = 0;
-  private readonly MIN_FETCH_INTERVAL = 30000; // Mínimo 30 segundos entre fetches
+  private readonly MIN_FETCH_INTERVAL = 30000;
 
   private connectionHealth = {
-    muesliswap: false,
-    defiLlama: false,
-    taptools: false,
-    coingecko: false
+    blockfrost: false,
+    defiLlama: false
   };
 
-  // Debounced fetch usando callback estable
-  private debouncedFetch = this.debounce(this.fetchAllRealData.bind(this), 5000);
+  private debouncedFetch = this.debounce(this.fetchSimplifiedData.bind(this), 3000);
 
   private debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
     let timeout: NodeJS.Timeout;
@@ -40,19 +38,19 @@ export class RealTimeMarketDataService {
     }) as T;
   }
 
-  async startRealTimeUpdates(intervalSeconds: number = 60) {
+  async startRealTimeUpdates(intervalSeconds: number = 45) {
     if (this.isRunning) {
-      console.log('🔄 Real-time updates already running');
+      console.log('🔄 Simplified real-time updates already running');
       return;
     }
 
     this.isRunning = true;
-    console.log('🚀 Starting OPTIMIZED real-time market data updates...');
+    console.log('🚀 Starting simplified real-time updates (Blockfrost + DeFiLlama only)...');
 
-    // Initial fetch con debounce
+    // Initial fetch
     this.debouncedFetch();
 
-    // Set up periodic updates con intervalo más largo
+    // Set up periodic updates
     this.updateInterval = setInterval(() => {
       const now = Date.now();
       if (now - this.lastFetchTime >= this.MIN_FETCH_INTERVAL) {
@@ -60,13 +58,12 @@ export class RealTimeMarketDataService {
       }
     }, Math.max(intervalSeconds * 1000, this.UPDATE_INTERVAL));
 
-    console.log(`✅ Optimized real-time updates started with ${Math.max(intervalSeconds, 60)}s interval`);
+    console.log(`✅ Simplified updates started with ${Math.max(intervalSeconds, 45)}s interval`);
   }
 
-  private async fetchAllRealData() {
+  private async fetchSimplifiedData() {
     const now = Date.now();
     
-    // Prevenir fetches muy frecuentes
     if (now - this.lastFetchTime < this.MIN_FETCH_INTERVAL) {
       console.log('⏳ Skipping fetch - too soon since last update');
       return;
@@ -74,23 +71,23 @@ export class RealTimeMarketDataService {
 
     this.lastFetchTime = now;
     
-    console.log('📊 Fetching OPTIMIZED data using backend-first architecture...');
+    console.log('📊 Fetching simplified data (Blockfrost + DeFiLlama only)...');
     const allPrices: RealTimePrice[] = [];
 
     try {
-      // Usar el edge function optimizado
+      // Use the simplified edge function
       const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
         body: JSON.stringify({ action: 'fetch_all' })
       });
 
       if (error) {
-        console.error('❌ Edge function error:', error);
+        console.error('❌ Simplified edge function error:', error);
         throw error;
       }
 
-      console.log('✅ Backend response:', data);
+      console.log('✅ Simplified backend response:', data);
 
-      // Get cached data from database (populated by optimized edge function)
+      // Get cached data from database
       const { data: cachedData, error: cacheError } = await supabase
         .from('market_data_cache')
         .select('*')
@@ -103,7 +100,6 @@ export class RealTimeMarketDataService {
       }
 
       if (cachedData && cachedData.length > 0) {
-        // Process cached data without duplicates
         const seenPairs = new Set<string>();
         
         cachedData.forEach(item => {
@@ -121,10 +117,10 @@ export class RealTimeMarketDataService {
           }
         });
         
-        console.log(`📊 Loaded ${allPrices.length} unique cached price entries`);
+        console.log(`📊 Loaded ${allPrices.length} simplified price entries`);
       }
 
-      // Update connection health based on available data sources
+      // Update connection health
       this.updateConnectionHealth(allPrices);
 
       // Update current prices and notify subscribers
@@ -134,10 +130,10 @@ export class RealTimeMarketDataService {
       // Reset retry count on successful fetch
       this.retryCount = 0;
 
-      console.log(`📈 Total OPTIMIZED prices fetched: ${allPrices.length} from ${new Set(allPrices.map(p => p.dex)).size} sources`);
+      console.log(`📈 Simplified data fetch completed: ${allPrices.length} prices from ${new Set(allPrices.map(p => p.dex)).size} sources`);
 
     } catch (error) {
-      console.error('❌ Error fetching optimized market data:', error);
+      console.error('❌ Error fetching simplified data:', error);
       this.handleUpdateError();
     }
   }
@@ -146,10 +142,8 @@ export class RealTimeMarketDataService {
     const dexSources = new Set(prices.map(p => p.dex.toLowerCase()));
     
     this.connectionHealth = {
-      muesliswap: dexSources.has('muesliswap'),
-      defiLlama: dexSources.has('defillama'),
-      taptools: dexSources.has('taptools'),
-      coingecko: dexSources.has('coingecko')
+      blockfrost: dexSources.has('blockfrost'),
+      defiLlama: dexSources.has('defillama')
     };
   }
 
@@ -169,7 +163,7 @@ export class RealTimeMarketDataService {
     this.reconnectInterval = setInterval(async () => {
       try {
         console.log('🔄 Attempting to reconnect...');
-        await this.fetchAllRealData();
+        await this.fetchSimplifiedData();
         
         if (this.reconnectInterval) {
           clearInterval(this.reconnectInterval);
@@ -186,7 +180,7 @@ export class RealTimeMarketDataService {
   stopRealTimeUpdates() {
     if (!this.isRunning) return;
 
-    console.log('🛑 Stopping optimized real-time market data updates...');
+    console.log('🛑 Stopping simplified real-time updates...');
     this.isRunning = false;
 
     if (this.updateInterval) {
@@ -199,19 +193,16 @@ export class RealTimeMarketDataService {
       this.reconnectInterval = null;
     }
 
-    console.log('✅ Optimized real-time updates stopped');
+    console.log('✅ Simplified updates stopped');
   }
 
-  // Método subscribe optimizado con callback estable
   subscribe(callback: (data: RealTimePrice[]) => void) {
     this.subscribers.push(callback);
     
-    // Send current data immediately if available
     if (this.currentPrices.length > 0) {
       callback(this.currentPrices);
     }
 
-    // Return unsubscribe function
     return () => {
       this.subscribers = this.subscribers.filter(sub => sub !== callback);
     };
@@ -252,9 +243,9 @@ export class RealTimeMarketDataService {
   }
 
   async forceRefresh() {
-    console.log('🔄 Force refreshing optimized market data...');
-    this.lastFetchTime = 0; // Reset throttle
-    await this.fetchAllRealData();
+    console.log('🔄 Force refreshing simplified data...');
+    this.lastFetchTime = 0;
+    await this.fetchSimplifiedData();
   }
 }
 
