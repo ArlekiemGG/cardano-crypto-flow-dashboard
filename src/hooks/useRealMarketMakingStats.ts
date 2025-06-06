@@ -24,17 +24,17 @@ export const useRealMarketMakingStats = () => {
     profitLoss: 0
   });
   const [isLoading, setIsLoading] = useState(false);
-  const { isConnected, walletAddress } = useWallet();
+  const { isConnected, address } = useWallet();
 
   const fetchStats = async () => {
-    if (!isConnected || !walletAddress) return;
+    if (!isConnected || !address) return;
 
     setIsLoading(true);
     try {
       const { data: positions, error } = await supabase
         .from('market_making_positions')
         .select('*')
-        .eq('user_wallet', walletAddress);
+        .eq('user_wallet', address);
 
       if (error) {
         console.error('Error fetching stats:', error);
@@ -84,10 +84,10 @@ export const useRealMarketMakingStats = () => {
   };
 
   useEffect(() => {
-    if (isConnected && walletAddress) {
+    if (isConnected && address) {
       fetchStats();
     }
-  }, [isConnected, walletAddress]);
+  }, [isConnected, address]);
 
   return {
     stats,

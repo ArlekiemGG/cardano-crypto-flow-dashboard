@@ -30,19 +30,19 @@ export interface RealMarketMakingPosition {
 export const useRealMarketMakingPositions = () => {
   const [positions, setPositions] = useState<RealMarketMakingPosition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { isConnected, walletAddress } = useWallet();
+  const { isConnected, address } = useWallet();
   const { toast } = useToast();
 
   // Fetch positions from database
   const fetchPositions = async () => {
-    if (!isConnected || !walletAddress) return;
+    if (!isConnected || !address) return;
 
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('market_making_positions')
         .select('*')
-        .eq('user_wallet', walletAddress)
+        .eq('user_wallet', address)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -55,7 +55,13 @@ export const useRealMarketMakingPositions = () => {
         return;
       }
 
-      setPositions(data || []);
+      // Cast the data to proper types
+      const typedPositions = (data || []).map(position => ({
+        ...position,
+        status: position.status as 'active' | 'paused' | 'closed'
+      })) as RealMarketMakingPosition[];
+
+      setPositions(typedPositions);
     } catch (error) {
       console.error('Error fetching positions:', error);
       toast({
@@ -77,7 +83,7 @@ export const useRealMarketMakingPositions = () => {
     priceA: number,
     priceB: number
   ) => {
-    if (!isConnected || !walletAddress) {
+    if (!isConnected || !address) {
       toast({
         title: "Wallet Required",
         description: "Please connect your wallet to add liquidity",
@@ -93,7 +99,7 @@ export const useRealMarketMakingPositions = () => {
       const { data, error } = await supabase
         .from('market_making_positions')
         .insert({
-          user_wallet: walletAddress,
+          user_wallet: address,
           pair,
           dex,
           liquidity_provided: liquidityProvided,
@@ -126,7 +132,7 @@ export const useRealMarketMakingPositions = () => {
         .from('market_making_transactions')
         .insert({
           position_id: data.id,
-          user_wallet: walletAddress,
+          user_wallet: address,
           transaction_type: 'add_liquidity',
           amount_a: tokenAAmount,
           amount_b: tokenBAmount,
@@ -135,7 +141,13 @@ export const useRealMarketMakingPositions = () => {
           status: 'confirmed'
         });
 
-      setPositions(prev => [data, ...prev]);
+      // Cast the returned data to proper type
+      const typedPosition = {
+        ...data,
+        status: data.status as 'active' | 'paused' | 'closed'
+      } as RealMarketMakingPosition;
+
+      setPositions(prev => [typedPosition, ...prev]);
       
       toast({
         title: "Success",
@@ -155,7 +167,7 @@ export const useRealMarketMakingPositions = () => {
 
   // Remove liquidity position
   const removeLiquidity = async (positionId: string) => {
-    if (!isConnected || !walletAddress) return;
+    if (!isConnected || !address) return;
 
     setIsLoading(true);
     try {
@@ -163,7 +175,7 @@ export const useRealMarketMakingPositions = () => {
         .from('market_making_positions')
         .update({ status: 'closed', updated_at: new Date().toISOString() })
         .eq('id', positionId)
-        .eq('user_wallet', walletAddress);
+        .eq('user_wallet', address);
 
       if (error) {
         console.error('Error removing liquidity:', error);
@@ -180,7 +192,7 @@ export const useRealMarketMakingPositions = () => {
         .from('market_making_transactions')
         .insert({
           position_id: positionId,
-          user_wallet: walletAddress,
+          user_wallet: address,
           transaction_type: 'remove_liquidity',
           status: 'confirmed'
         });
@@ -211,7 +223,7 @@ export const useRealMarketMakingPositions = () => {
 
   // Toggle position status
   const togglePosition = async (positionId: string) => {
-    if (!isConnected || !walletAddress) return;
+    if (!isConnected || !address) return;
 
     const position = positions.find(p => p.id === positionId);
     if (!position) return;
@@ -226,7 +238,7 @@ export const useRealMarketMakingPositions = () => {
           updated_at: new Date().toISOString() 
         })
         .eq('id', positionId)
-        .eq('user_wallet', walletAddress);
+        .eq('user_wallet', address);
 
       if (error) {
         console.error('Error toggling position:', error);
@@ -262,12 +274,12 @@ export const useRealMarketMakingPositions = () => {
 
   // Load positions when wallet connects
   useEffect(() => {
-    if (isConnected && walletAddress) {
+    if (isConnected && address) {
       fetchPositions();
     } else {
       setPositions([]);
     }
-  }, [isConnected, walletAddress]);
+  }, [isConnected, address]);
 
   return {
     positions: positions.filter(p => p.status !== 'closed'),

@@ -24,18 +24,18 @@ export interface MarketMakingStrategy {
 export const useMarketMakingStrategies = () => {
   const [strategies, setStrategies] = useState<MarketMakingStrategy[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { isConnected, walletAddress } = useWallet();
+  const { isConnected, address } = useWallet();
   const { toast } = useToast();
 
   const fetchStrategies = async () => {
-    if (!isConnected || !walletAddress) return;
+    if (!isConnected || !address) return;
 
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('market_making_strategies')
         .select('*')
-        .eq('user_wallet', walletAddress)
+        .eq('user_wallet', address)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -43,7 +43,13 @@ export const useMarketMakingStrategies = () => {
         return;
       }
 
-      setStrategies(data || []);
+      // Cast the data to proper types
+      const typedStrategies = (data || []).map(strategy => ({
+        ...strategy,
+        strategy_type: strategy.strategy_type as 'fixed_spread' | 'dynamic_spread' | 'grid_trading'
+      })) as MarketMakingStrategy[];
+
+      setStrategies(typedStrategies);
     } catch (error) {
       console.error('Error fetching strategies:', error);
     } finally {
@@ -52,7 +58,7 @@ export const useMarketMakingStrategies = () => {
   };
 
   const createStrategy = async (strategy: Omit<MarketMakingStrategy, 'id' | 'user_wallet' | 'created_at' | 'updated_at'>) => {
-    if (!isConnected || !walletAddress) {
+    if (!isConnected || !address) {
       toast({
         title: "Wallet Required",
         description: "Please connect your wallet to create a strategy",
@@ -67,7 +73,7 @@ export const useMarketMakingStrategies = () => {
         .from('market_making_strategies')
         .insert({
           ...strategy,
-          user_wallet: walletAddress
+          user_wallet: address
         })
         .select()
         .single();
@@ -82,7 +88,13 @@ export const useMarketMakingStrategies = () => {
         return;
       }
 
-      setStrategies(prev => [data, ...prev]);
+      // Cast the returned data to proper type
+      const typedStrategy = {
+        ...data,
+        strategy_type: data.strategy_type as 'fixed_spread' | 'dynamic_spread' | 'grid_trading'
+      } as MarketMakingStrategy;
+
+      setStrategies(prev => [typedStrategy, ...prev]);
       
       toast({
         title: "Success",
@@ -112,7 +124,7 @@ export const useMarketMakingStrategies = () => {
           updated_at: new Date().toISOString()
         })
         .eq('id', strategyId)
-        .eq('user_wallet', walletAddress);
+        .eq('user_wallet', address);
 
       if (error) {
         console.error('Error toggling strategy:', error);
@@ -142,12 +154,12 @@ export const useMarketMakingStrategies = () => {
   };
 
   useEffect(() => {
-    if (isConnected && walletAddress) {
+    if (isConnected && address) {
       fetchStrategies();
     } else {
       setStrategies([]);
     }
-  }, [isConnected, walletAddress]);
+  }, [isConnected, address]);
 
   return {
     strategies,
