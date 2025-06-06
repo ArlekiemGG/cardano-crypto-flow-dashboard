@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { realTimeMarketDataService } from './realTimeMarketDataService';
 import { realTradingService } from './realTradingService';
@@ -37,145 +36,131 @@ export class ArbitrageEngine {
     { dex: 'SundaeSwap', tradingFee: 0.003, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 5 },
     { dex: 'MuesliSwap', tradingFee: 0.0025, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 5 },
     { dex: 'WingRiders', tradingFee: 0.0035, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 10 },
-    { dex: 'DeFiLlama', tradingFee: 0.002, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 5 }
+    { dex: 'CoinGecko', tradingFee: 0, withdrawalFee: 0, networkFee: 0, minimumTrade: 0 }
   ];
 
-  // Umbrales más permisivos para encontrar más oportunidades
-  private readonly MIN_PROFIT_PERCENTAGE = 0.5; // Reducido para encontrar más oportunidades
-  private readonly MIN_VOLUME_ADA = 50; // Reducido el volumen mínimo
-  private readonly MAX_SLIPPAGE = 5; // Aumentado la tolerancia al slippage
-  private readonly MIN_CONFIDENCE_FOR_REAL_TRADES = 'MEDIUM'; // Permitir MEDIUM confidence
+  // More conservative thresholds for REAL trading
+  private readonly MIN_PROFIT_PERCENTAGE = 1.5; // Higher threshold for real trades
+  private readonly MIN_VOLUME_ADA = 100; // Higher minimum volume
+  private readonly MAX_SLIPPAGE = 3; // Lower slippage tolerance
+  private readonly MIN_CONFIDENCE_FOR_REAL_TRADES = 'HIGH'; // Only execute HIGH confidence trades
 
   private normalizePair(pair: string): string {
     return pair.toUpperCase().replace(/\s+/g, '').replace(/[\/\-]/g, '/');
   }
 
   async scanForArbitrageOpportunities(): Promise<ArbitrageOpportunityReal[]> {
-    console.log('🔍 SCANNING for REAL arbitrage opportunities only...');
+    console.log('🔍 Scanning for REAL arbitrage opportunities for LIVE TRADING...');
     
     try {
       const currentPrices = await realTimeMarketDataService.getCurrentPrices();
-      console.log(`📊 Found ${currentPrices.length} price entries from market data`);
+      console.log(`📊 Found ${currentPrices.length} real price entries from live DEX APIs`);
       
       if (currentPrices.length === 0) {
-        console.log('⚠️ No price data available - trying to fetch fresh data...');
-        
-        // Intentar obtener datos frescos si no hay datos en cache
-        const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
-          body: JSON.stringify({ action: 'fetch_all' })
-        });
-        
-        if (!error) {
-          console.log('✅ Fresh data fetched, retrying...');
-          const freshPrices = await realTimeMarketDataService.getCurrentPrices();
-          if (freshPrices.length === 0) {
-            console.log('❌ No real market data available - returning empty results');
-            return [];
-          }
-          return this.analyzeRealPrices(freshPrices);
-        }
-        
-        console.log('❌ No real market data available - returning empty results');
+        console.log('⚠️ No real price data available from DEX APIs');
         return [];
       }
 
-      return this.analyzeRealPrices(currentPrices);
+      // Filter out CoinGecko data for arbitrage analysis
+      const dexPrices = currentPrices.filter(price => price.dex !== 'CoinGecko');
+      console.log(`📊 Using ${dexPrices.length} DEX price entries for REAL arbitrage analysis`);
+
+      const opportunities: ArbitrageOpportunityReal[] = [];
+
+      // Group prices by pair from real DEX data
+      const pairGroups = new Map<string, typeof dexPrices>();
+      dexPrices.forEach(price => {
+        const normalizedPair = this.normalizePair(price.pair);
+        if (!pairGroups.has(normalizedPair)) {
+          pairGroups.set(normalizedPair, []);
+        }
+        pairGroups.get(normalizedPair)!.push(price);
+      });
+
+      console.log(`🔗 Grouped real DEX prices into ${pairGroups.size} unique pairs for REAL TRADING`);
+
+      // Analyze each pair for real arbitrage opportunities
+      for (const [pair, prices] of pairGroups) {
+        if (prices.length >= 2) {
+          const pairOpportunities = await this.analyzeRealArbitrageForPair(pair, prices);
+          opportunities.push(...pairOpportunities);
+        }
+      }
+
+      // Apply strict filters for REAL trading
+      const validOpportunities = opportunities
+        .filter(opp => opp.profitPercentage >= this.MIN_PROFIT_PERCENTAGE)
+        .filter(opp => opp.volumeAvailable >= this.MIN_VOLUME_ADA)
+        .filter(opp => opp.slippageRisk <= this.MAX_SLIPPAGE)
+        .filter(opp => opp.netProfit > 5) // Minimum 5 ADA profit for real trades
+        .filter(opp => opp.confidence === 'HIGH') // Only HIGH confidence for real trading
+        .sort((a, b) => b.netProfit - a.netProfit)
+        .slice(0, 10); // Limit to top 10 opportunities for focus
+
+      // Store real opportunities in database
+      await this.storeRealOpportunities(validOpportunities);
+
+      console.log(`✅ Found ${validOpportunities.length} REAL TRADING opportunities out of ${opportunities.length} total analyzed`);
+      console.log(`🎯 All opportunities are HIGH CONFIDENCE and ready for REAL EXECUTION`);
+      
+      return validOpportunities;
 
     } catch (error) {
-      console.error('❌ Error scanning for arbitrage opportunities:', error);
+      console.error('❌ Error scanning for REAL arbitrage opportunities:', error);
       return [];
     }
   }
 
-  private async analyzeRealPrices(currentPrices: any[]): Promise<ArbitrageOpportunityReal[]> {
+  private async analyzeRealArbitrageForPair(pair: string, prices: any[]): Promise<ArbitrageOpportunityReal[]> {
     const opportunities: ArbitrageOpportunityReal[] = [];
 
-    // Agrupar precios por par
-    const pairGroups = new Map<string, typeof currentPrices>();
-    currentPrices.forEach(price => {
-      const normalizedPair = this.normalizePair(price.pair);
-      if (!pairGroups.has(normalizedPair)) {
-        pairGroups.set(normalizedPair, []);
-      }
-      pairGroups.get(normalizedPair)!.push(price);
-    });
-
-    console.log(`🔗 Grouped prices into ${pairGroups.size} unique pairs`);
-
-    // Analizar cada par con criterios más permisivos
-    for (const [pair, prices] of pairGroups) {
-      if (prices.length >= 2) {
-        const pairOpportunities = await this.analyzeArbitrageForPair(pair, prices);
-        opportunities.push(...pairOpportunities);
-      }
-    }
-
-    // Aplicar filtros más permisivos
-    const validOpportunities = opportunities
-      .filter(opp => opp.profitPercentage >= this.MIN_PROFIT_PERCENTAGE)
-      .filter(opp => opp.volumeAvailable >= this.MIN_VOLUME_ADA)
-      .filter(opp => opp.slippageRisk <= this.MAX_SLIPPAGE)
-      .filter(opp => opp.netProfit > 1) // Reducido a 1 ADA mínimo
-      .sort((a, b) => b.netProfit - a.netProfit)
-      .slice(0, 15); // Aumentado el límite
-
-    await this.storeOpportunities(validOpportunities);
-
-    console.log(`✅ Found ${validOpportunities.length} REAL arbitrage opportunities`);
-    
-    return validOpportunities;
-  }
-
-  private async analyzeArbitrageForPair(pair: string, prices: any[]): Promise<ArbitrageOpportunityReal[]> {
-    const opportunities: ArbitrageOpportunityReal[] = [];
-
-    // Comparar todas las combinaciones de precios
+    // Compare all real price combinations between different DEXs
     for (let i = 0; i < prices.length; i++) {
       for (let j = i + 1; j < prices.length; j++) {
         const price1 = prices[i];
         const price2 = prices[j];
 
-        // Saltar si es el mismo DEX
+        // Skip if same DEX
         if (price1.dex === price2.dex) continue;
 
-        // Determinar DEXs de compra y venta
+        // Determine buy and sell DEXs based on real prices
         const [buyPrice, sellPrice, buyDex, sellDex] = 
           price1.price < price2.price 
             ? [price1, price2, price1.dex, price2.dex]
             : [price2, price1, price2.dex, price1.dex];
 
-        // Calcular diferencia de precio
+        // Calculate real profit based on actual price difference
         const priceDiff = sellPrice.price - buyPrice.price;
         const rawProfitPercentage = (priceDiff / buyPrice.price) * 100;
 
-        // Criterios más permisivos para encontrar oportunidades
-        if (rawProfitPercentage > 0.3 && rawProfitPercentage < 15) { // Rango más amplio
-          // Calcular fees
-          const buyFees = this.calculateDEXFees(buyDex, buyPrice.price);
-          const sellFees = this.calculateDEXFees(sellDex, sellPrice.price);
+        // Only consider realistic and profitable opportunities for REAL trading
+        if (rawProfitPercentage > 1.0 && rawProfitPercentage < 8) {
+          // Calculate real fees for these DEXs
+          const buyFees = this.calculateRealDEXFees(buyDex, buyPrice.price);
+          const sellFees = this.calculateRealDEXFees(sellDex, sellPrice.price);
           const totalFees = buyFees + sellFees;
 
-          // Volumen más conservador pero realista
+          // Use conservative volume estimation for REAL trading
           const volumeAvailable = Math.min(
-            buyPrice.volume24h * 0.02, // 2% del volumen diario
-            sellPrice.volume24h * 0.02,
-            Math.max(buyPrice.liquidity * 0.001, 50), // 0.1% de liquidez o mín 50 ADA
-            Math.max(sellPrice.liquidity * 0.001, 50),
-            1000 // Máximo 1000 ADA por oportunidad
+            buyPrice.volume24h * 0.01, // 1% of daily volume (more conservative)
+            sellPrice.volume24h * 0.01,
+            Math.max(buyPrice.liquidity * 0.0005, 100), // 0.05% of liquidity or min 100 ADA
+            Math.max(sellPrice.liquidity * 0.0005, 100),
+            500 // Max 500 ADA per opportunity for risk management
           );
 
-          // Calcular ganancias netas
+          // Calculate realistic net profit
           const grossProfit = priceDiff * volumeAvailable;
           const totalFeesForVolume = totalFees * volumeAvailable;
           const netProfit = grossProfit - totalFeesForVolume;
           const netProfitPercentage = (netProfit / (buyPrice.price * volumeAvailable)) * 100;
 
-          // Calcular scores de liquidez y slippage
-          const liquidityScore = this.calculateLiquidityScore(buyPrice.liquidity, sellPrice.liquidity);
-          const slippageRisk = this.calculateSlippageRisk(volumeAvailable, liquidityScore);
+          // Calculate realistic liquidity and slippage scores
+          const liquidityScore = this.calculateRealLiquidityScore(buyPrice.liquidity, sellPrice.liquidity);
+          const slippageRisk = this.calculateRealSlippageRisk(volumeAvailable, liquidityScore);
 
-          // Determinar confianza con criterios más permisivos
-          const confidence = this.calculateConfidence(
+          // Determine confidence based on real market conditions (stricter for real trading)
+          const confidence = this.calculateRealConfidence(
             netProfitPercentage, 
             liquidityScore, 
             slippageRisk,
@@ -183,8 +168,8 @@ export class ArbitrageEngine {
             volumeAvailable
           );
 
-          // Incluir oportunidades con profit positivo
-          if (netProfitPercentage > 0.3 && netProfit > 0.5) {
+          // Only include HIGH confidence opportunities with significant profit for REAL trading
+          if (netProfitPercentage > 1.5 && netProfit > 5 && slippageRisk < 3 && confidence === 'HIGH') {
             opportunities.push({
               id: `${pair}-${buyDex}-${sellDex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               pair,
@@ -198,11 +183,11 @@ export class ArbitrageEngine {
               totalFees: totalFeesForVolume,
               netProfit,
               confidence,
-              timeToExpiry: 300, // 5 minutos
+              timeToExpiry: 180, // 3 minutes for real markets
               slippageRisk,
               liquidityScore,
               timestamp: new Date().toISOString(),
-              executionReady: confidence === 'HIGH' && netProfit > 2
+              executionReady: true // All opportunities are execution ready for real trading
             });
           }
         }
@@ -212,94 +197,104 @@ export class ArbitrageEngine {
     return opportunities;
   }
 
-  private calculateDEXFees(dexName: string, price: number): number {
+  private calculateRealDEXFees(dexName: string, price: number): number {
     const dexFee = this.DEX_FEES.find(fee => fee.dex === dexName);
-    if (!dexFee) return 0.003; // Default 0.3% if DEX not found
+    if (!dexFee) return 0.004; // Default 0.4% if DEX not found
 
     return dexFee.tradingFee + dexFee.withdrawalFee + (dexFee.networkFee / price);
   }
 
-  private calculateLiquidityScore(buyLiquidity: number, sellLiquidity: number): number {
+  private calculateRealLiquidityScore(buyLiquidity: number, sellLiquidity: number): number {
     const avgLiquidity = (buyLiquidity + sellLiquidity) / 2;
     
-    if (avgLiquidity > 200000) return 90;
-    if (avgLiquidity > 100000) return 80;
-    if (avgLiquidity > 50000) return 70;
-    if (avgLiquidity > 20000) return 60;
-    if (avgLiquidity > 10000) return 50;
-    return Math.max(30, Math.min(50, (avgLiquidity / 1000) * 4));
+    // More realistic liquidity scoring based on actual Cardano DEX volumes
+    if (avgLiquidity > 500000) return 95;
+    if (avgLiquidity > 200000) return 85;
+    if (avgLiquidity > 100000) return 75;
+    if (avgLiquidity > 50000) return 65;
+    if (avgLiquidity > 20000) return 55;
+    if (avgLiquidity > 10000) return 45;
+    return Math.max(30, Math.min(45, (avgLiquidity / 1000) * 3));
   }
 
-  private calculateSlippageRisk(volume: number, liquidityScore: number): number {
+  private calculateRealSlippageRisk(volume: number, liquidityScore: number): number {
+    // More conservative slippage calculation for real markets
     const liquidityFactor = liquidityScore / 100;
-    const baseSlippage = (volume / (liquidityFactor * 30000)) * 100;
-    const marketImpact = volume > 300 ? (volume - 300) * 0.002 : 0;
+    const baseSlippage = (volume / (liquidityFactor * 50000)) * 100;
     
-    return Math.min(8, Math.max(0.5, baseSlippage + marketImpact));
+    // Add market impact based on volume
+    const marketImpact = volume > 500 ? (volume - 500) * 0.001 : 0;
+    
+    return Math.min(10, Math.max(0.2, baseSlippage + marketImpact));
   }
 
-  private calculateConfidence(
+  private calculateRealConfidence(
     profitPercentage: number, 
     liquidityScore: number, 
     slippageRisk: number,
     priceDiff: number,
     volume: number
   ): 'HIGH' | 'MEDIUM' | 'LOW' {
+    // Stricter confidence calculation for real trading
     let score = 0;
     
-    // Factor de ganancia
-    score += Math.min(30, profitPercentage * 8);
+    // Profit factor (higher profit = higher confidence)
+    score += Math.min(40, profitPercentage * 10);
     
-    // Factor de liquidez
-    score += liquidityScore * 0.4;
+    // Liquidity factor
+    score += liquidityScore * 0.5;
     
-    // Penalización por slippage
-    score -= slippageRisk * 3;
+    // Slippage penalty (more severe for real trading)
+    score -= slippageRisk * 5;
     
-    // Factor de volumen
-    score += Math.min(10, volume / 30);
+    // Price difference factor (too high might be stale data)
+    if (priceDiff / 0.5 > 0.02) score -= 15; // Higher penalty for very high price differences
     
-    // Criterios más permisivos
-    if (score > 70) return 'HIGH';
-    if (score > 50) return 'MEDIUM';
+    // Volume factor
+    score += Math.min(15, volume / 50);
+    
+    // For real trading, we're much more conservative
+    if (score > 85) return 'HIGH';
+    if (score > 70) return 'MEDIUM';
     return 'LOW';
   }
 
-  private async storeOpportunities(opportunities: ArbitrageOpportunityReal[]) {
+  private async storeRealOpportunities(opportunities: ArbitrageOpportunityReal[]) {
+    // Clear old opportunities first
     try {
-      // Limpiar oportunidades antiguas
       await supabase
         .from('arbitrage_opportunities')
         .delete()
-        .lt('timestamp', new Date(Date.now() - 600000).toISOString()); // 10 minutos
-
-      // Insertar nuevas oportunidades
-      for (const opp of opportunities) {
-        try {
-          await supabase
-            .from('arbitrage_opportunities')
-            .insert({
-              dex_pair: opp.pair,
-              source_dex_a: opp.buyDex,
-              source_dex_b: opp.sellDex,
-              price_a: opp.buyPrice,
-              price_b: opp.sellPrice,
-              price_diff: opp.sellPrice - opp.buyPrice,
-              profit_potential: opp.profitPercentage,
-              volume_available: opp.volumeAvailable,
-              confidence_score: opp.confidence === 'HIGH' ? 85 : opp.confidence === 'MEDIUM' ? 65 : 45,
-              is_active: true,
-              timestamp: opp.timestamp
-            });
-        } catch (error) {
-          console.error('Error storing opportunity:', error);
-        }
-      }
+        .lt('timestamp', new Date(Date.now() - 300000).toISOString()); // Clear opportunities older than 5 minutes
     } catch (error) {
-      console.error('Error in storeOpportunities:', error);
+      console.error('Error clearing old opportunities:', error);
+    }
+
+    // Insert new real opportunities
+    for (const opp of opportunities) {
+      try {
+        await supabase
+          .from('arbitrage_opportunities')
+          .insert({
+            dex_pair: opp.pair,
+            source_dex_a: opp.buyDex,
+            source_dex_b: opp.sellDex,
+            price_a: opp.buyPrice,
+            price_b: opp.sellPrice,
+            price_diff: opp.sellPrice - opp.buyPrice,
+            profit_potential: opp.profitPercentage,
+            volume_available: opp.volumeAvailable,
+            confidence_score: 90, // All stored opportunities are HIGH confidence
+            is_active: true,
+            timestamp: opp.timestamp
+          });
+      } catch (error) {
+        console.error('Error storing real opportunity:', error);
+      }
     }
   }
 
+  // Remove simulation methods since we're doing REAL trading
   async executeRealArbitrageTrade(opportunity: ArbitrageOpportunityReal, walletApi: any): Promise<{
     success: boolean;
     txHash?: string;
