@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -144,20 +145,33 @@ export const useTradingStrategies = (userWallet?: string) => {
     if (!userWallet) return;
 
     try {
+      console.log('Deleting strategy:', strategyId, 'for user:', userWallet);
+      
+      // Update local state immediately for better UX
+      setStrategies(prev => prev.filter(s => s.id !== strategyId));
+      
       const { error } = await supabase
         .from('trading_strategies')
         .delete()
         .eq('id', strategyId)
         .eq('user_wallet', userWallet);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error deleting strategy:', error);
+        // Revert local state if deletion failed
+        fetchStrategies();
+        throw error;
+      }
+      
+      console.log('Strategy deleted successfully from database');
       
       toast({
         title: "Success",
         description: "Strategy deleted successfully"
       });
       
-      fetchStrategies();
+      // Refresh strategies to ensure consistency
+      await fetchStrategies();
     } catch (error) {
       console.error('Error deleting strategy:', error);
       toast({
