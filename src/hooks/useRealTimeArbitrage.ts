@@ -72,8 +72,9 @@ export const useRealTimeArbitrage = () => {
         const throttlingMonitor = setInterval(() => {
           const status = dataThrottlingService.getThrottlingStatus();
           const canScanArbitrage = status.arbitrage?.canFetch;
+          const currentPrices = realTimeMarketDataService.getCurrentPrices();
           
-          if (canScanArbitrage && !isScanning && data.length > 0) {
+          if (canScanArbitrage && !isScanning && currentPrices.length > 0) {
             console.log('⚡ Oportunidad de escaneo detectada por monitor');
             performRealScan();
           }
