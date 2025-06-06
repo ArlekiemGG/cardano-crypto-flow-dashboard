@@ -79,14 +79,14 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
         // If we have a buy transaction but sell failed, record partial execution
         if (result.buyTxHash) {
           await supabase.from('trade_history').insert({
-            pair: opportunity.pair,
-            trade_type: 'partial_arbitrage',
+            trade_type: 'arbitrage',
             amount: opportunity.volumeAvailable,
             profit_loss: -opportunity.totalFees, // Record as loss due to fees
             dex_name: `${opportunity.buyDex}-${opportunity.sellDex}`,
-            status: 'partial',
+            status: 'failed',
             tx_hash: result.buyTxHash,
             metadata_json: {
+              pair: opportunity.pair,
               buyDex: opportunity.buyDex,
               sellDex: opportunity.sellDex,
               buyTxHash: result.buyTxHash,

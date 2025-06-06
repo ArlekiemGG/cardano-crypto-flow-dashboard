@@ -217,13 +217,12 @@ export class RealTradingService {
   // DEX-specific transaction builders
   private async buildMinswapBuyTransaction(lucid: LucidEvolution, params: any) {
     // Build Minswap-specific transaction using their smart contracts
-    // This requires integrating with Minswap's SDK or building the transaction manually
     console.log('🔧 Building Minswap buy transaction...');
     
     // For now, return a basic transaction structure
     // In production, this needs to interact with Minswap's smart contracts
     const tx = lucid.newTx()
-      .payToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) }); // Convert ADA to lovelace
+      .pay.ToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) }); // Convert ADA to lovelace
     
     return tx;
   }
@@ -232,7 +231,7 @@ export class RealTradingService {
     console.log('🔧 Building SundaeSwap buy transaction...');
     
     const tx = lucid.newTx()
-      .payToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
+      .pay.ToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
     
     return tx;
   }
@@ -241,7 +240,7 @@ export class RealTradingService {
     console.log('🔧 Building MuesliSwap buy transaction...');
     
     const tx = lucid.newTx()
-      .payToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
+      .pay.ToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
     
     return tx;
   }
@@ -250,7 +249,7 @@ export class RealTradingService {
     console.log('🔧 Building WingRiders buy transaction...');
     
     const tx = lucid.newTx()
-      .payToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
+      .pay.ToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
     
     return tx;
   }
@@ -259,7 +258,7 @@ export class RealTradingService {
     console.log('🔧 Building Minswap sell transaction...');
     
     const tx = lucid.newTx()
-      .payToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
+      .pay.ToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
     
     return tx;
   }
@@ -268,7 +267,7 @@ export class RealTradingService {
     console.log('🔧 Building SundaeSwap sell transaction...');
     
     const tx = lucid.newTx()
-      .payToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
+      .pay.ToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
     
     return tx;
   }
@@ -277,7 +276,7 @@ export class RealTradingService {
     console.log('🔧 Building MuesliSwap sell transaction...');
     
     const tx = lucid.newTx()
-      .payToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
+      .pay.ToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
     
     return tx;
   }
@@ -286,7 +285,7 @@ export class RealTradingService {
     console.log('🔧 Building WingRiders sell transaction...');
     
     const tx = lucid.newTx()
-      .payToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
+      .pay.ToAddress("addr1...", { lovelace: BigInt(params.amount * 1000000) });
     
     return tx;
   }
@@ -302,14 +301,14 @@ export class RealTradingService {
   }): Promise<void> {
     try {
       await supabase.from('trade_history').insert({
-        pair: trade.pair,
-        trade_type: 'real_arbitrage',
+        trade_type: 'arbitrage',
         amount: trade.amount,
         profit_loss: trade.profit,
         dex_name: `${trade.buyDex}-${trade.sellDex}`,
         status: 'executed',
         tx_hash: `${trade.buyTxHash},${trade.sellTxHash}`,
         metadata_json: {
+          pair: trade.pair,
           buyDex: trade.buyDex,
           sellDex: trade.sellDex,
           buyTxHash: trade.buyTxHash,
