@@ -91,15 +91,16 @@ export const TradingControlPanel = ({
           />
         </div>
 
-        {/* Panel de debug */}
-        <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-          <div className="text-sm text-yellow-400 mb-2">🔧 Panel de Debugging:</div>
+        {/* Panel de información */}
+        <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+          <div className="text-sm text-blue-400 mb-2">ℹ️ Sistema de Arbitraje Real:</div>
           <div className="text-xs text-gray-300 space-y-1">
-            <div>• Sistema configurado con umbrales más permisivos</div>
-            <div>• Profit mínimo: 0.5% (reducido desde 1.5%)</div>
-            <div>• Volumen mínimo: 50 ADA (reducido desde 100 ADA)</div>
-            <div>• Si no hay datos reales, se generan oportunidades de muestra</div>
-            <div>• Usa "Force Refresh" si no aparecen oportunidades</div>
+            <div>• Sistema configurado para detectar SOLO oportunidades reales</div>
+            <div>• No se generan datos simulados o de prueba</div>
+            <div>• Profit mínimo: 0.5% (configurable)</div>
+            <div>• Volumen mínimo: 50 ADA (configurable)</div>
+            <div>• Usa "Force Refresh" para actualizar datos de mercado</div>
+            <div>• Si no hay oportunidades, el resultado será vacío</div>
           </div>
         </div>
       </CardContent>

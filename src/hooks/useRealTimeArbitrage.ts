@@ -40,7 +40,7 @@ export const useRealTimeArbitrage = () => {
     if (isInitializedRef.current) return;
     isInitializedRef.current = true;
 
-    console.log('🚀 Inicializando monitoreo de arbitraje con configuración mejorada...');
+    console.log('🚀 Inicializando monitoreo de arbitraje REAL (sin datos simulados)...');
     
     const initializeServices = async () => {
       try {
@@ -52,10 +52,9 @@ export const useRealTimeArbitrage = () => {
         const unsubscribe = realTimeMarketDataService.subscribe((data) => {
           if (data.length > 0) {
             console.log('📊 Datos de mercado actualizados, programando escaneo...');
-            // Escaneo más frecuente para pruebas
             setTimeout(() => {
               if (!isScanning) {
-                console.log('🔍 Ejecutando escaneo automático...');
+                console.log('🔍 Ejecutando escaneo automático de datos reales...');
                 performRealScan();
               }
             }, 5000); // 5 segundos de delay
@@ -65,7 +64,7 @@ export const useRealTimeArbitrage = () => {
         subscriptionRef.current = unsubscribe;
 
         // Primer escaneo inmediato
-        console.log('🔍 Ejecutando primer escaneo inmediatamente...');
+        console.log('🔍 Ejecutando primer escaneo de datos reales...');
         setTimeout(() => {
           performRealScan();
         }, 2000); // 2 segundos inicial
@@ -92,13 +91,13 @@ export const useRealTimeArbitrage = () => {
 
   // Función de escaneo manual mejorada
   const performManualScan = async () => {
-    console.log('🔍 ESCANEO MANUAL INICIADO - Forzando reset de throttling...');
+    console.log('🔍 ESCANEO MANUAL INICIADO - Solo datos reales...');
     dataThrottlingService.forceReset('arbitrage');
     dataThrottlingService.forceReset('marketData');
     
     try {
       await performRealScan();
-      console.log('✅ Escaneo manual completado');
+      console.log('✅ Escaneo manual completado (solo datos reales)');
     } catch (error) {
       console.error('❌ Error en escaneo manual:', error);
     }

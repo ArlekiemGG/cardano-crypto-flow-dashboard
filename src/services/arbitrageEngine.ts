@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { realTimeMarketDataService } from './realTimeMarketDataService';
 import { realTradingService } from './realTradingService';
@@ -50,7 +51,7 @@ export class ArbitrageEngine {
   }
 
   async scanForArbitrageOpportunities(): Promise<ArbitrageOpportunityReal[]> {
-    console.log('🔍 SCANNING for arbitrage opportunities with RELAXED criteria...');
+    console.log('🔍 SCANNING for REAL arbitrage opportunities only...');
     
     try {
       const currentPrices = await realTimeMarketDataService.getCurrentPrices();
@@ -68,60 +69,61 @@ export class ArbitrageEngine {
           console.log('✅ Fresh data fetched, retrying...');
           const freshPrices = await realTimeMarketDataService.getCurrentPrices();
           if (freshPrices.length === 0) {
-            return this.generateMockOpportunities(); // Generar oportunidades de prueba
+            console.log('❌ No real market data available - returning empty results');
+            return [];
           }
+          return this.analyzeRealPrices(freshPrices);
         }
         
-        return this.generateMockOpportunities();
+        console.log('❌ No real market data available - returning empty results');
+        return [];
       }
 
-      const opportunities: ArbitrageOpportunityReal[] = [];
-
-      // Agrupar precios por par
-      const pairGroups = new Map<string, typeof currentPrices>();
-      currentPrices.forEach(price => {
-        const normalizedPair = this.normalizePair(price.pair);
-        if (!pairGroups.has(normalizedPair)) {
-          pairGroups.set(normalizedPair, []);
-        }
-        pairGroups.get(normalizedPair)!.push(price);
-      });
-
-      console.log(`🔗 Grouped prices into ${pairGroups.size} unique pairs`);
-
-      // Analizar cada par con criterios más permisivos
-      for (const [pair, prices] of pairGroups) {
-        if (prices.length >= 2) {
-          const pairOpportunities = await this.analyzeArbitrageForPair(pair, prices);
-          opportunities.push(...pairOpportunities);
-        }
-      }
-
-      // Si no encontramos oportunidades reales, generar algunas de muestra
-      if (opportunities.length === 0) {
-        console.log('⚠️ No real opportunities found, generating sample opportunities for testing...');
-        return this.generateMockOpportunities();
-      }
-
-      // Aplicar filtros más permisivos
-      const validOpportunities = opportunities
-        .filter(opp => opp.profitPercentage >= this.MIN_PROFIT_PERCENTAGE)
-        .filter(opp => opp.volumeAvailable >= this.MIN_VOLUME_ADA)
-        .filter(opp => opp.slippageRisk <= this.MAX_SLIPPAGE)
-        .filter(opp => opp.netProfit > 1) // Reducido a 1 ADA mínimo
-        .sort((a, b) => b.netProfit - a.netProfit)
-        .slice(0, 15); // Aumentado el límite
-
-      await this.storeOpportunities(validOpportunities);
-
-      console.log(`✅ Found ${validOpportunities.length} arbitrage opportunities`);
-      
-      return validOpportunities;
+      return this.analyzeRealPrices(currentPrices);
 
     } catch (error) {
       console.error('❌ Error scanning for arbitrage opportunities:', error);
-      return this.generateMockOpportunities();
+      return [];
     }
+  }
+
+  private async analyzeRealPrices(currentPrices: any[]): Promise<ArbitrageOpportunityReal[]> {
+    const opportunities: ArbitrageOpportunityReal[] = [];
+
+    // Agrupar precios por par
+    const pairGroups = new Map<string, typeof currentPrices>();
+    currentPrices.forEach(price => {
+      const normalizedPair = this.normalizePair(price.pair);
+      if (!pairGroups.has(normalizedPair)) {
+        pairGroups.set(normalizedPair, []);
+      }
+      pairGroups.get(normalizedPair)!.push(price);
+    });
+
+    console.log(`🔗 Grouped prices into ${pairGroups.size} unique pairs`);
+
+    // Analizar cada par con criterios más permisivos
+    for (const [pair, prices] of pairGroups) {
+      if (prices.length >= 2) {
+        const pairOpportunities = await this.analyzeArbitrageForPair(pair, prices);
+        opportunities.push(...pairOpportunities);
+      }
+    }
+
+    // Aplicar filtros más permisivos
+    const validOpportunities = opportunities
+      .filter(opp => opp.profitPercentage >= this.MIN_PROFIT_PERCENTAGE)
+      .filter(opp => opp.volumeAvailable >= this.MIN_VOLUME_ADA)
+      .filter(opp => opp.slippageRisk <= this.MAX_SLIPPAGE)
+      .filter(opp => opp.netProfit > 1) // Reducido a 1 ADA mínimo
+      .sort((a, b) => b.netProfit - a.netProfit)
+      .slice(0, 15); // Aumentado el límite
+
+    await this.storeOpportunities(validOpportunities);
+
+    console.log(`✅ Found ${validOpportunities.length} REAL arbitrage opportunities`);
+    
+    return validOpportunities;
   }
 
   private async analyzeArbitrageForPair(pair: string, prices: any[]): Promise<ArbitrageOpportunityReal[]> {
@@ -208,73 +210,6 @@ export class ArbitrageEngine {
     }
 
     return opportunities;
-  }
-
-  private generateMockOpportunities(): ArbitrageOpportunityReal[] {
-    console.log('🎭 Generating mock opportunities for testing...');
-    
-    const mockOpportunities: ArbitrageOpportunityReal[] = [
-      {
-        id: `mock-ada-usdc-${Date.now()}`,
-        pair: 'ADA/USDC',
-        buyDex: 'Minswap',
-        sellDex: 'SundaeSwap',
-        buyPrice: 0.6420,
-        sellPrice: 0.6455,
-        profitPercentage: 2.15,
-        profitADA: 8.45,
-        volumeAvailable: 250,
-        totalFees: 1.25,
-        netProfit: 7.20,
-        confidence: 'HIGH' as const,
-        timeToExpiry: 240,
-        slippageRisk: 1.2,
-        liquidityScore: 85,
-        timestamp: new Date().toISOString(),
-        executionReady: true
-      },
-      {
-        id: `mock-ada-djed-${Date.now()}`,
-        pair: 'ADA/DJED',
-        buyDex: 'MuesliSwap',
-        sellDex: 'WingRiders',
-        buyPrice: 0.6435,
-        sellPrice: 0.6462,
-        profitPercentage: 1.87,
-        profitADA: 6.12,
-        volumeAvailable: 180,
-        totalFees: 0.95,
-        netProfit: 5.17,
-        confidence: 'MEDIUM' as const,
-        timeToExpiry: 180,
-        slippageRisk: 2.1,
-        liquidityScore: 72,
-        timestamp: new Date().toISOString(),
-        executionReady: true
-      },
-      {
-        id: `mock-ada-usd-${Date.now()}`,
-        pair: 'ADA/USD',
-        buyDex: 'SundaeSwap',
-        sellDex: 'Minswap',
-        buyPrice: 0.6441,
-        sellPrice: 0.6468,
-        profitPercentage: 1.45,
-        profitADA: 4.23,
-        volumeAvailable: 320,
-        totalFees: 1.45,
-        netProfit: 2.78,
-        confidence: 'MEDIUM' as const,
-        timeToExpiry: 300,
-        slippageRisk: 1.8,
-        liquidityScore: 78,
-        timestamp: new Date().toISOString(),
-        executionReady: false
-      }
-    ];
-
-    console.log(`✅ Generated ${mockOpportunities.length} mock opportunities for testing`);
-    return mockOpportunities;
   }
 
   private calculateDEXFees(dexName: string, price: number): number {
