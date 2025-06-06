@@ -28,11 +28,9 @@ export default function Dashboard() {
   const marketStats = useMemo(() => {
     const allPrices = realTimeMarketDataService.getCurrentPrices()
     const totalVolume = allPrices.reduce((sum, price) => sum + price.volume24h, 0)
-    const activePairs = new Set(allPrices.map(price => price.pair)).size
 
     return {
-      totalVolume24h: totalVolume,
-      activePairs
+      totalVolume24h: totalVolume
     }
   }, [marketData])
 
@@ -53,7 +51,6 @@ export default function Dashboard() {
         highConfidenceOpportunities={arbitrageStats.highConfidenceOpportunities}
         totalPotentialProfit={arbitrageStats.totalPotentialProfit}
         avgProfitPercentage={arbitrageStats.avgProfitPercentage}
-        activePairs={marketStats.activePairs}
         totalVolume24h={marketStats.totalVolume24h}
       />
 
