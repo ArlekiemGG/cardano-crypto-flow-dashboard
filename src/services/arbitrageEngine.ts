@@ -37,15 +37,22 @@ export class ArbitrageEngine {
     { dex: 'WingRiders', tradingFee: 0.0035, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 10 }
   ];
 
-  private readonly MIN_PROFIT_PERCENTAGE = 0.5; // 0.5% minimum profit
-  private readonly MIN_VOLUME_ADA = 100; // Minimum 100 ADA volume
-  private readonly MAX_SLIPPAGE = 5; // Maximum 5% slippage tolerance
+  private readonly MIN_PROFIT_PERCENTAGE = 0.3; // Lowered threshold for more opportunities
+  private readonly MIN_VOLUME_ADA = 50; // Lowered minimum volume
+  private readonly MAX_SLIPPAGE = 8; // Increased tolerance
 
   async scanForArbitrageOpportunities(): Promise<ArbitrageOpportunityReal[]> {
     console.log('🔍 Scanning for real arbitrage opportunities...');
     
     try {
       const currentPrices = await realTimeMarketDataService.getCurrentPrices();
+      console.log(`📊 Found ${currentPrices.length} current price entries from database`);
+      
+      if (currentPrices.length === 0) {
+        console.log('⚠️ No current prices available, returning empty opportunities');
+        return [];
+      }
+
       const opportunities: ArbitrageOpportunityReal[] = [];
 
       // Group prices by pair
@@ -57,6 +64,8 @@ export class ArbitrageEngine {
         }
         pairGroups.get(normalizedPair)!.push(price);
       });
+
+      console.log(`🔗 Grouped prices into ${pairGroups.size} unique pairs`);
 
       // Analyze each pair for arbitrage opportunities
       for (const [pair, prices] of pairGroups) {
@@ -76,7 +85,7 @@ export class ArbitrageEngine {
       // Store in database
       await this.storeOpportunities(validOpportunities);
 
-      console.log(`✅ Found ${validOpportunities.length} valid arbitrage opportunities`);
+      console.log(`✅ Found ${validOpportunities.length} valid arbitrage opportunities out of ${opportunities.length} total`);
       return validOpportunities;
 
     } catch (error) {
@@ -104,19 +113,23 @@ export class ArbitrageEngine {
         const priceDiff = sellPrice.price - buyPrice.price;
         const rawProfitPercentage = (priceDiff / buyPrice.price) * 100;
 
-        if (rawProfitPercentage > 0.1) { // Only consider if > 0.1% raw profit
+        if (rawProfitPercentage > 0.05) { // Only consider if > 0.05% raw profit
           // Calculate all fees
           const buyFees = this.calculateDEXFees(buyDex, buyPrice.price);
           const sellFees = this.calculateDEXFees(sellDex, sellPrice.price);
           const totalFees = buyFees + sellFees;
 
-          // Calculate net profit
-          const grossProfit = priceDiff;
-          const netProfit = grossProfit - totalFees;
-          const netProfitPercentage = (netProfit / buyPrice.price) * 100;
+          // Calculate available volume (use smaller of the two liquidity values)
+          const volumeAvailable = Math.min(
+            Math.max(buyPrice.volume24h * 0.05, 100), // At least 100 ADA
+            Math.max(sellPrice.volume24h * 0.05, 100)
+          );
 
-          // Calculate available volume (limited by smaller volume)
-          const volumeAvailable = Math.min(buyPrice.volume24h, sellPrice.volume24h) * 0.1; // Use 10% of 24h volume
+          // Calculate net profit
+          const grossProfit = priceDiff * volumeAvailable;
+          const totalFeesForVolume = totalFees * volumeAvailable;
+          const netProfit = grossProfit - totalFeesForVolume;
+          const netProfitPercentage = (netProfit / (buyPrice.price * volumeAvailable)) * 100;
 
           // Calculate liquidity and slippage scores
           const liquidityScore = this.calculateLiquidityScore(buyPrice.liquidity, sellPrice.liquidity);
@@ -125,18 +138,18 @@ export class ArbitrageEngine {
           // Determine confidence level
           const confidence = this.calculateConfidence(netProfitPercentage, liquidityScore, slippageRisk);
 
-          if (netProfitPercentage > 0) {
+          if (netProfitPercentage > 0 && netProfit > 0) {
             opportunities.push({
-              id: `${pair}-${buyDex}-${sellDex}-${Date.now()}`,
+              id: `${pair}-${buyDex}-${sellDex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               pair,
               buyDex,
               sellDex,
               buyPrice: buyPrice.price,
               sellPrice: sellPrice.price,
               profitPercentage: netProfitPercentage,
-              profitADA: netProfit * volumeAvailable,
+              profitADA: netProfit,
               volumeAvailable,
-              totalFees,
+              totalFees: totalFeesForVolume,
               netProfit,
               confidence,
               timeToExpiry: 300, // 5 minutes
@@ -154,9 +167,9 @@ export class ArbitrageEngine {
 
   private calculateDEXFees(dexName: string, price: number): number {
     const dexFee = this.DEX_FEES.find(fee => fee.dex === dexName);
-    if (!dexFee) return 0.005 * price; // Default 0.5% if not found
+    if (!dexFee) return 0.005; // Default 0.5% if not found
 
-    return (dexFee.tradingFee + dexFee.withdrawalFee) * price + dexFee.networkFee;
+    return dexFee.tradingFee + dexFee.withdrawalFee + (dexFee.networkFee / price);
   }
 
   private calculateLiquidityScore(buyLiquidity: number, sellLiquidity: number): number {
@@ -165,19 +178,19 @@ export class ArbitrageEngine {
     if (avgLiquidity > 500000) return 80;
     if (avgLiquidity > 100000) return 60;
     if (avgLiquidity > 50000) return 40;
-    return 20;
+    return Math.max(20, Math.min(40, avgLiquidity / 1000));
   }
 
   private calculateSlippageRisk(volume: number, liquidityScore: number): number {
-    const baseSlippage = volume / (liquidityScore * 1000);
-    return Math.min(10, Math.max(0.1, baseSlippage));
+    const baseSlippage = (volume / (liquidityScore * 100)) * 100;
+    return Math.min(15, Math.max(0.1, baseSlippage));
   }
 
   private calculateConfidence(profitPercentage: number, liquidityScore: number, slippageRisk: number): 'HIGH' | 'MEDIUM' | 'LOW' {
-    const score = profitPercentage * 10 + liquidityScore - slippageRisk * 10;
+    const score = profitPercentage * 5 + liquidityScore * 0.5 - slippageRisk * 2;
     
-    if (score > 80) return 'HIGH';
-    if (score > 50) return 'MEDIUM';
+    if (score > 70) return 'HIGH';
+    if (score > 40) return 'MEDIUM';
     return 'LOW';
   }
 
@@ -186,11 +199,15 @@ export class ArbitrageEngine {
   }
 
   private async storeOpportunities(opportunities: ArbitrageOpportunityReal[]) {
-    // Clear old opportunities
-    await supabase
-      .from('arbitrage_opportunities')
-      .delete()
-      .lt('timestamp', new Date(Date.now() - 300000).toISOString());
+    // Clear old opportunities first
+    try {
+      await supabase
+        .from('arbitrage_opportunities')
+        .delete()
+        .lt('timestamp', new Date(Date.now() - 600000).toISOString()); // Clear opportunities older than 10 minutes
+    } catch (error) {
+      console.error('Error clearing old opportunities:', error);
+    }
 
     // Insert new opportunities
     for (const opp of opportunities) {
@@ -236,7 +253,7 @@ export class ArbitrageEngine {
       const actualSellPrice = opportunity.sellPrice * (1 - sellSlippage / 100);
 
       // Calculate actual profit
-      const actualProfit = (actualSellPrice - actualBuyPrice) * opportunity.volumeAvailable;
+      const actualProfit = (actualSellPrice - actualBuyPrice) * opportunity.volumeAvailable - opportunity.totalFees;
       const totalSlippage = buySlippage + sellSlippage;
 
       // Estimate gas costs
@@ -265,7 +282,6 @@ export class ArbitrageEngine {
     }
   }
 
-  // Get historical arbitrage performance
   async getArbitragePerformance(days = 7): Promise<{
     totalOpportunities: number;
     avgProfitPercentage: number;
@@ -285,8 +301,12 @@ export class ArbitrageEngine {
     }
 
     const totalOpportunities = data?.length || 0;
-    const avgProfitPercentage = data?.reduce((sum, opp) => sum + Number(opp.profit_potential), 0) / totalOpportunities || 0;
-    const successRate = data?.filter(opp => opp.is_active).length / totalOpportunities * 100 || 0;
+    const avgProfitPercentage = totalOpportunities > 0 
+      ? data?.reduce((sum, opp) => sum + Number(opp.profit_potential), 0) / totalOpportunities || 0
+      : 0;
+    const successRate = totalOpportunities > 0 
+      ? (data?.filter(opp => opp.is_active).length / totalOpportunities * 100) || 0
+      : 0;
     const totalVolume = data?.reduce((sum, opp) => sum + Number(opp.volume_available), 0) || 0;
 
     return {

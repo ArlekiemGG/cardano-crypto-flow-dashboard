@@ -115,14 +115,12 @@ export const useRealTimeArbitrage = () => {
     );
   };
 
-  // Get opportunities by pair
   const getOpportunitiesByPair = (pair: string) => {
     return opportunities.filter(opp => 
       opp.pair.toLowerCase().includes(pair.toLowerCase())
     );
   };
 
-  // Get top opportunities by profit
   const getTopOpportunities = (limit: number = 5) => {
     return opportunities
       .sort((a, b) => b.profitADA - a.profitADA)
@@ -135,18 +133,20 @@ export const useRealTimeArbitrage = () => {
 
     console.log('🚀 Initializing real-time arbitrage monitoring...');
     
-    // Start market data service
+    // Start market data service first
     realTimeMarketDataService.startRealTimeUpdates(30);
     
-    // Start auto-scanning after a short delay
+    // Start auto-scanning after data service is ready
     setTimeout(() => {
       startAutoScan(scanInterval);
     }, 5000);
 
     // Subscribe to market data updates to trigger rescans
-    const unsubscribe = realTimeMarketDataService.subscribe(() => {
-      console.log('📊 Market data updated, triggering arbitrage rescan...');
-      performScan();
+    const unsubscribe = realTimeMarketDataService.subscribe((data) => {
+      if (data.length > 0) {
+        console.log('📊 Market data updated, triggering arbitrage rescan...');
+        performScan();
+      }
     });
 
     return () => {
