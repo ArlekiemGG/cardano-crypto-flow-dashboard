@@ -86,14 +86,14 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }));
   }, [isConnecting, error]);
 
-  // Connect to wallet
+  // Connect to wallet with manual authorization
   const connectWallet = async (walletName: string): Promise<void> => {
     try {
-      console.log('Attempting to connect to wallet:', walletName);
+      console.log('Initiating manual wallet connection for:', walletName);
       
       const connectionResult = await connectWalletHook(walletName);
       
-      console.log('Wallet connection successful, setting state...');
+      console.log('Manual wallet authorization successful, setting state...');
       console.log('Connection result:', connectionResult);
       
       setWalletState(prev => ({
@@ -109,7 +109,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         error: null,
       }));
 
-      // Save wallet session to database with real data
+      // Save wallet session to database with real data ONLY after successful manual connection
       await walletService.saveWalletSession({
         address: connectionResult.address,
         walletName,
@@ -117,10 +117,14 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         network: connectionResult.network,
       });
 
-      console.log('Wallet connected successfully with address:', connectionResult.address);
+      // Save to localStorage ONLY after successful manual authorization
+      localStorage.setItem('connectedWallet', walletName);
+      localStorage.setItem('walletAddress', connectionResult.address);
+
+      console.log('Wallet connected successfully with manual authorization:', connectionResult.address);
       
     } catch (error) {
-      console.error('Failed to connect wallet:', error);
+      console.error('Manual wallet connection failed:', error);
       setWalletState(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to connect wallet',
@@ -132,29 +136,19 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   // Disconnect wallet
   const disconnectWallet = () => {
+    // Clear ALL stored data to prevent auto-reconnection
     localStorage.removeItem('connectedWallet');
     localStorage.removeItem('walletAddress');
     
     setWalletState(initialState);
-    console.log('Wallet disconnected');
+    console.log('Wallet disconnected and all cached data cleared');
   };
 
-  // Auto-reconnect on page load
+  // CRÍTICO: Eliminar auto-reconexión automática
+  // Los usuarios deben autorizar manualmente cada sesión por seguridad
   useEffect(() => {
-    const savedWallet = localStorage.getItem('connectedWallet');
-    const savedAddress = localStorage.getItem('walletAddress');
-    
-    console.log('Checking for saved wallet:', savedWallet, savedAddress);
-    
-    if (savedWallet && getAvailableWallets().includes(savedWallet)) {
-      console.log('Attempting to auto-reconnect to saved wallet:', savedWallet);
-      connectWallet(savedWallet).catch(error => {
-        console.error('Auto-reconnect failed:', error);
-        // Clear saved data if auto-reconnect fails
-        localStorage.removeItem('connectedWallet');
-        localStorage.removeItem('walletAddress');
-      });
-    }
+    console.log('WalletProvider initialized - NO auto-reconnection for security');
+    // REMOVIDO: Auto-reconnection code para forzar autorización manual cada vez
   }, []);
 
   const contextValue: WalletContextType = {

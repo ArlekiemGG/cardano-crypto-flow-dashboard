@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { AlertCircle, CheckCircle, Loader2, Wallet } from 'lucide-react';
+import { AlertCircle, CheckCircle, Loader2, Wallet, Shield } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const walletInfo = {
@@ -54,14 +54,18 @@ const walletInfo = {
 export const WalletConnector: React.FC = () => {
   const { connectWallet, isConnecting, error, getAvailableWallets } = useWallet();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [connectingWallet, setConnectingWallet] = useState<string | null>(null);
   const availableWallets = getAvailableWallets();
 
   const handleWalletConnect = async (walletName: string) => {
     try {
+      setConnectingWallet(walletName);
       await connectWallet(walletName);
       setIsModalOpen(false);
+      setConnectingWallet(null);
     } catch (error) {
       console.error('Failed to connect wallet:', error);
+      setConnectingWallet(null);
     }
   };
 
@@ -78,11 +82,22 @@ export const WalletConnector: React.FC = () => {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md glass border border-white/20">
         <DialogHeader>
-          <DialogTitle className="text-white">Connect Cardano Wallet</DialogTitle>
+          <DialogTitle className="text-white flex items-center">
+            <Shield className="w-5 h-5 mr-2 text-crypto-primary" />
+            Connect Cardano Wallet
+          </DialogTitle>
           <DialogDescription className="text-gray-400">
-            Choose your preferred Cardano wallet to connect to the application
+            Choose your wallet. You'll be asked to authorize the connection for security.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Security Notice */}
+        <Alert className="border-crypto-primary/50 bg-crypto-primary/10">
+          <Shield className="h-4 w-4 text-crypto-primary" />
+          <AlertDescription className="text-crypto-primary text-sm">
+            Your wallet will ask for permission before connecting. This is normal and ensures your security.
+          </AlertDescription>
+        </Alert>
 
         {error && (
           <Alert className="border-red-500/50 bg-red-500/10">
@@ -97,6 +112,8 @@ export const WalletConnector: React.FC = () => {
           {availableWallets.length > 0 ? (
             availableWallets.map((walletName) => {
               const wallet = walletInfo[walletName as keyof typeof walletInfo];
+              const isCurrentlyConnecting = connectingWallet === walletName;
+              
               return (
                 <Button
                   key={walletName}
@@ -110,18 +127,22 @@ export const WalletConnector: React.FC = () => {
                     <div className="text-left">
                       <div className="font-medium">{wallet?.name}</div>
                       <div className="text-xs text-gray-400">
-                        {isConnecting ? (
-                          <div className="flex items-center">
+                        {isCurrentlyConnecting ? (
+                          <div className="flex items-center text-crypto-primary">
                             <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                            Connecting...
+                            Requesting authorization...
                           </div>
                         ) : (
-                          'Available'
+                          'Click to authorize connection'
                         )}
                       </div>
                     </div>
                   </div>
-                  <CheckCircle className="w-5 h-5 ml-auto text-green-400" />
+                  {isCurrentlyConnecting ? (
+                    <Loader2 className="w-5 h-5 ml-auto text-crypto-primary animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-5 h-5 ml-auto text-green-400 opacity-50" />
+                  )}
                 </Button>
               );
             })
@@ -150,8 +171,9 @@ export const WalletConnector: React.FC = () => {
           )}
         </div>
 
-        <div className="text-xs text-gray-500 text-center mt-4">
-          Make sure to refresh the page after installing a wallet extension
+        <div className="text-xs text-gray-500 text-center mt-4 space-y-1">
+          <p>🔒 Each connection requires your explicit authorization</p>
+          <p>Refresh the page after installing wallet extensions</p>
         </div>
       </DialogContent>
     </Dialog>

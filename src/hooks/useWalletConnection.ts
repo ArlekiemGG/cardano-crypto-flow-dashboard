@@ -28,10 +28,35 @@ export const useWalletConnection = () => {
         throw new Error(`${walletName} wallet not found. Please install the wallet extension.`);
       }
 
-      // Enable wallet
-      const walletApi = await window.cardano[walletName].enable();
+      console.log(`Requesting authorization from ${walletName} wallet...`);
+
+      // CRÍTICO: Verificar primero si la wallet está disponible pero NO auto-conectar
+      const walletExtension = window.cardano[walletName];
       
-      console.log('Wallet API enabled:', walletApi);
+      if (!walletExtension) {
+        throw new Error(`${walletName} extension not found`);
+      }
+
+      // IMPORTANTE: Verificar si ya está conectada y desconectar primero si es necesario
+      // Esto fuerza a que la wallet pida autorización cada vez
+      if (walletExtension.isEnabled && typeof walletExtension.isEnabled === 'function') {
+        const isAlreadyEnabled = await walletExtension.isEnabled();
+        if (isAlreadyEnabled) {
+          console.log(`${walletName} wallet was previously connected. Forcing re-authorization...`);
+          // No reutilizamos la conexión existente - forzamos nueva autorización
+        }
+      }
+
+      // SOLUCIÓN: Llamar enable() SIEMPRE para forzar el popup de autorización
+      // Esto debe abrir el popup de la wallet pidiendo permiso al usuario
+      console.log(`Opening ${walletName} authorization popup...`);
+      const walletApi = await walletExtension.enable();
+      
+      if (!walletApi) {
+        throw new Error(`Failed to get authorization from ${walletName} wallet. User may have denied permission.`);
+      }
+
+      console.log(`${walletName} wallet authorized successfully!`);
 
       // Get network ID
       const networkId = await walletApi.getNetworkId();
@@ -46,14 +71,11 @@ export const useWalletConnection = () => {
         console.log('Used addresses from wallet:', usedAddresses);
         
         if (usedAddresses && usedAddresses.length > 0) {
-          // Convert from CBOR hex to bech32 if needed
           const firstAddress = usedAddresses[0];
           if (typeof firstAddress === 'string') {
-            // If it's already a bech32 address
             if (firstAddress.startsWith('addr1')) {
               address = firstAddress;
             } else {
-              // Try to decode CBOR hex - for now just use the hex
               address = firstAddress;
             }
           }
@@ -102,10 +124,10 @@ export const useWalletConnection = () => {
       }
 
       if (!address) {
-        throw new Error('Could not retrieve wallet address');
+        throw new Error('Could not retrieve wallet address after authorization');
       }
 
-      console.log('Final wallet address obtained:', address);
+      console.log('Wallet address obtained after authorization:', address);
 
       // Get stake address
       let stakeAddress: string | null = null;
@@ -121,16 +143,14 @@ export const useWalletConnection = () => {
         console.warn('Could not fetch stake address:', error);
       }
 
-      // Save to localStorage for persistence
-      localStorage.setItem('connectedWallet', walletName);
-      localStorage.setItem('walletAddress', address);
-
-      setConnectionState({ isConnecting: false, error: null });
-
-      console.log(`Successfully connected to ${walletName} wallet`);
-      console.log('Real address:', address);
+      // IMPORTANTE: NO guardar en localStorage automáticamente aquí
+      // Solo guardar después de que el usuario confirme que quiere mantenerse conectado
+      console.log(`Successfully connected to ${walletName} wallet with manual authorization`);
+      console.log('Authorized address:', address);
       console.log('Network:', network);
       console.log('Stake address:', stakeAddress);
+
+      setConnectionState({ isConnecting: false, error: null });
 
       return {
         walletApi,
@@ -142,8 +162,19 @@ export const useWalletConnection = () => {
       };
       
     } catch (error) {
-      console.error('Wallet connection failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to connect wallet';
+      console.error('Wallet authorization failed:', error);
+      let errorMessage = 'Failed to authorize wallet connection';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('User declined')) {
+          errorMessage = 'User declined wallet authorization';
+        } else if (error.message.includes('not found')) {
+          errorMessage = 'Wallet extension not found or not installed';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       setConnectionState({ isConnecting: false, error: errorMessage });
       throw error;
     }
