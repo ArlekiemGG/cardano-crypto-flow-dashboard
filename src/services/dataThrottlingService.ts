@@ -1,37 +1,43 @@
 
 class DataThrottlingService {
   private lastFetchTimes: Map<string, number> = new Map();
-  private readonly DEFAULT_COOLDOWN = 60000; // 1 minute
+  private readonly THROTTLE_INTERVALS = {
+    arbitrage: 60000, // 1 minute
+    orderbook: 30000, // 30 seconds
+    charts: 45000,    // 45 seconds
+    market: 20000     // 20 seconds
+  };
 
-  canFetch(service: string, cooldownMs?: number): boolean {
-    const cooldown = cooldownMs || this.DEFAULT_COOLDOWN;
-    const lastFetch = this.lastFetchTimes.get(service) || 0;
+  canFetch(dataType: keyof typeof this.THROTTLE_INTERVALS): boolean {
     const now = Date.now();
+    const lastFetch = this.lastFetchTimes.get(dataType) || 0;
+    const interval = this.THROTTLE_INTERVALS[dataType];
     
-    if (now - lastFetch >= cooldown) {
-      this.lastFetchTimes.set(service, now);
+    if (now - lastFetch >= interval) {
+      this.lastFetchTimes.set(dataType, now);
+      console.log(`✅ Data fetch allowed for ${dataType}`);
       return true;
     }
     
+    const timeLeft = Math.ceil((interval - (now - lastFetch)) / 1000);
+    console.log(`⏳ Data fetch throttled for ${dataType}, ${timeLeft}s remaining`);
     return false;
   }
 
-  markFetched(service: string): void {
-    this.lastFetchTimes.set(service, Date.now());
+  getTimeUntilNextFetch(dataType: keyof typeof this.THROTTLE_INTERVALS): number {
+    const now = Date.now();
+    const lastFetch = this.lastFetchTimes.get(dataType) || 0;
+    const interval = this.THROTTLE_INTERVALS[dataType];
+    return Math.max(0, interval - (now - lastFetch));
   }
 
-  getRemainingCooldown(service: string, cooldownMs?: number): number {
-    const cooldown = cooldownMs || this.DEFAULT_COOLDOWN;
-    const lastFetch = this.lastFetchTimes.get(service) || 0;
-    const elapsed = Date.now() - lastFetch;
-    return Math.max(0, cooldown - elapsed);
-  }
-
-  reset(service?: string): void {
-    if (service) {
-      this.lastFetchTimes.delete(service);
+  reset(dataType?: keyof typeof this.THROTTLE_INTERVALS) {
+    if (dataType) {
+      this.lastFetchTimes.delete(dataType);
+      console.log(`🔄 Reset throttling for ${dataType}`);
     } else {
       this.lastFetchTimes.clear();
+      console.log('🔄 Reset all data throttling');
     }
   }
 }
