@@ -1,191 +1,139 @@
 
-import { dataFetchingService } from './dataFetchingService';
-import { intervalManagerService } from './intervalManagerService';
-import { dataThrottlingService } from './dataThrottlingService';
+import { supabase } from '@/integrations/supabase/client';
+import { MarketData } from '@/types/trading';
 
-interface RealTimePrice {
-  dex: string;
-  pair: string;
-  price: number;
-  volume24h: number;
-  liquidity: number;
-  lastUpdate: string;
+interface MarketDataSubscription {
+  unsubscribe: () => void;
 }
 
 class RealTimeMarketDataService {
-  private subscribers = new Set<(data: RealTimePrice[]) => void>();
-  private currentPrices: RealTimePrice[] = [];
-  private isServiceActive = false;
-  private lastUpdateTime = 0;
-  private healthCheckInterval: NodeJS.Timeout | null = null;
+  private isActive = false;
+  private currentPrices: MarketData[] = [];
+  private subscription: MarketDataSubscription | null = null;
+  private abortController: AbortController | null = null;
+  private dataUpdateInterval: number | null = null;
 
-  async startRealTimeUpdates(intervalSeconds: number = 45): Promise<void> {
-    if (this.isServiceActive) {
-      console.log('📊 Servicio ya activo');
-      return;
-    }
-
-    this.isServiceActive = true;
-    console.log(`🚀 Iniciando servicio (intervalo: ${intervalSeconds}s)...`);
+  async initialize() {
+    if (this.isActive) return;
     
-    try {
-      // Fetch inicial
-      await this.fetchAndNotify();
-
-      // Configurar actualizaciones periódicas
-      intervalManagerService.startUpdateInterval(async () => {
-        if (dataThrottlingService.canFetch('marketData')) {
-          await this.fetchAndNotify();
-        }
-      }, intervalSeconds * 1000);
-
-      // Iniciar monitoreo de salud
-      this.startHealthCheck();
-
-    } catch (error) {
-      console.error('❌ Error iniciando servicio:', error);
-      this.isServiceActive = false;
-    }
-  }
-
-  private startHealthCheck(): void {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-    }
-
-    this.healthCheckInterval = setInterval(() => {
-      const now = Date.now();
-      const timeSinceLastUpdate = now - this.lastUpdateTime;
-      
-      // Si no hemos tenido actualizaciones en 3 minutos, forzar fetch
-      if (timeSinceLastUpdate > 180000) {
-        console.log('🔄 Forzando actualización por inactividad...');
-        this.fetchAndNotify().catch(error => {
-          console.error('❌ Error en fetch forzado:', error);
-        });
-      }
-    }, 60000);
-  }
-
-  private async fetchAndNotify(): Promise<void> {
-    if (!this.isServiceActive) return;
+    console.log('🚀 Initializing real-time market data service...');
+    this.isActive = true;
+    this.abortController = new AbortController();
 
     try {
-      const startTime = Date.now();
-      const prices = await dataFetchingService.fetchSimplifiedData();
-      const fetchDuration = Date.now() - startTime;
-      
-      if (prices.length > 0) {
-        const uniquePrices = this.deduplicatePrices(prices);
-        const freshPrices = this.filterFreshData(uniquePrices);
-        
-        if (freshPrices.length > 0) {
-          this.currentPrices = freshPrices;
-          this.lastUpdateTime = Date.now();
-          this.notifySubscribers(freshPrices);
-          intervalManagerService.resetRetryCount();
-          
-          console.log(`✅ Datos actualizados: ${freshPrices.length} precios (${fetchDuration}ms)`);
-        }
-      }
-
+      await this.setupRealtimeSubscription();
+      this.startPeriodicUpdates();
     } catch (error) {
-      console.error('❌ Error en fetch:', error);
-      
-      const maxRetries = intervalManagerService.incrementRetryCount();
-      if (maxRetries) {
-        intervalManagerService.scheduleReconnect(async () => {
-          await this.fetchAndNotify();
+      console.error('Error initializing market data service:', error);
+      this.isActive = false;
+    }
+  }
+
+  private async setupRealtimeSubscription() {
+    try {
+      // Setup Supabase realtime subscription
+      const subscription = supabase
+        .channel('market_data_changes')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'market_data_cache' },
+          (payload) => {
+            console.log('📊 Market data updated:', payload);
+            this.handleDataUpdate(payload);
+          }
+        )
+        .subscribe((status) => {
+          console.log(`📊 Subscription status: ${status}`);
         });
-      }
+
+      this.subscription = {
+        unsubscribe: () => {
+          supabase.removeChannel(subscription);
+        }
+      };
+    } catch (error) {
+      console.error('Error setting up realtime subscription:', error);
     }
   }
 
-  private deduplicatePrices(prices: RealTimePrice[]): RealTimePrice[] {
-    const seen = new Set<string>();
-    return prices.filter(price => {
-      const key = `${price.dex}-${price.pair}`;
-      if (seen.has(key)) {
-        return false;
+  private startPeriodicUpdates() {
+    // Use modern APIs instead of obsolete ones
+    this.dataUpdateInterval = window.setInterval(() => {
+      if (!this.isActive) return;
+      
+      this.fetchLatestData().catch(error => {
+        console.error('Error in periodic update:', error);
+      });
+    }, 30000); // Update every 30 seconds
+  }
+
+  private async fetchLatestData() {
+    if (!this.isActive || this.abortController?.signal.aborted) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('market_data_cache')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        this.currentPrices = data.map(item => ({
+          symbol: item.symbol || 'UNKNOWN',
+          price: item.price || 0,
+          change24h: item.change_24h || 0,
+          volume24h: item.volume_24h || 0,
+          marketCap: item.market_cap || 0,
+          lastUpdate: item.timestamp || new Date().toISOString(),
+          source: item.source || 'cache'
+        }));
       }
-      seen.add(key);
-      return true;
-    });
+    } catch (error) {
+      console.error('Error fetching latest data:', error);
+    }
   }
 
-  private filterFreshData(prices: RealTimePrice[]): RealTimePrice[] {
-    const now = new Date();
-    const maxAge = 30 * 60 * 1000; // 30 minutos máximo
-
-    return prices.filter(price => {
-      const priceTime = new Date(price.lastUpdate);
-      const age = now.getTime() - priceTime.getTime();
-      return age <= maxAge;
-    });
-  }
-
-  subscribe(callback: (data: RealTimePrice[]) => void) {
-    this.subscribers.add(callback);
+  private handleDataUpdate(payload: any) {
+    if (!this.isActive) return;
     
-    // Enviar datos actuales inmediatamente
-    if (this.currentPrices.length > 0) {
-      callback(this.currentPrices);
-    }
-
-    return () => {
-      this.subscribers.delete(callback);
-    };
+    // Process the real-time update
+    console.log('Processing real-time market data update');
+    this.fetchLatestData();
   }
 
-  private notifySubscribers(data: RealTimePrice[]) {
-    this.subscribers.forEach(callback => {
-      try {
-        callback(data);
-      } catch (error) {
-        console.error('❌ Error notificando suscriptor:', error);
-      }
-    });
-  }
-
-  getCurrentPrices(): RealTimePrice[] {
-    return this.currentPrices;
+  getCurrentPrices(): MarketData[] {
+    return [...this.currentPrices];
   }
 
   isConnected(): boolean {
-    const hasData = this.currentPrices.length > 0;
-    const isRecent = this.lastUpdateTime > 0 && (Date.now() - this.lastUpdateTime) < 300000;
-    return this.isServiceActive && hasData && isRecent;
+    return this.isActive && this.subscription !== null;
   }
 
-  getConnectionStatus(): {
-    isActive: boolean;
-    hasData: boolean;
-    lastUpdate: number;
-    dataAge: number;
-    priceCount: number;
-  } {
-    return {
-      isActive: this.isServiceActive,
-      hasData: this.currentPrices.length > 0,
-      lastUpdate: this.lastUpdateTime,
-      dataAge: this.lastUpdateTime > 0 ? Date.now() - this.lastUpdateTime : -1,
-      priceCount: this.currentPrices.length
-    };
-  }
+  async cleanup() {
+    console.log('🧹 Cleaning up real-time market data service...');
+    this.isActive = false;
 
-  stop(): void {
-    console.log('🛑 Deteniendo servicio...');
-    this.isServiceActive = false;
-    
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-      this.healthCheckInterval = null;
+    // Cancel any ongoing operations
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
     }
-    
-    intervalManagerService.cleanup();
-    this.subscribers.clear();
+
+    // Clear periodic updates
+    if (this.dataUpdateInterval) {
+      clearInterval(this.dataUpdateInterval);
+      this.dataUpdateInterval = null;
+    }
+
+    // Unsubscribe from realtime updates
+    if (this.subscription) {
+      this.subscription.unsubscribe();
+      this.subscription = null;
+    }
+
     this.currentPrices = [];
-    this.lastUpdateTime = 0;
+    console.log('✅ Real-time market data service cleaned up');
   }
 }
 
