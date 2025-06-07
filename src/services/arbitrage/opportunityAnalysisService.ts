@@ -1,4 +1,3 @@
-
 import { ExtendedMarketData, ArbitrageOpportunityReal, ArbitrageConfig } from './types';
 import { feeCalculationService } from './feeCalculationService';
 
@@ -8,7 +7,8 @@ export class OpportunityAnalysisService {
     MIN_VOLUME_ADA: 50,
     MAX_SLIPPAGE: 4,
     MIN_CONFIDENCE_FOR_AUTO_TRADES: 'HIGH',
-    MIN_PRICE_DIFFERENCE: 0.001
+    MIN_PRICE_DIFFERENCE: 0.001,
+    SCAN_COOLDOWN: 45000
   };
 
   private normalizePair(pair: string): string {
