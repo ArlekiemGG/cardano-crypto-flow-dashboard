@@ -8,8 +8,20 @@ export interface SecurityValidation {
   recommendations: string[];
 }
 
-// Use a specific type instead of a generic index signature to avoid infinite recursion
-type AuditTrailDetails = Record<string, string | number | boolean | null>;
+// Define a concrete interface for audit trail details to avoid TypeScript recursion issues
+interface AuditTrailDetails {
+  action?: string;
+  amount?: number;
+  transaction_id?: string;
+  user_wallet?: string;
+  dex?: string;
+  pair?: string;
+  slippage?: number;
+  risk_level?: string;
+  validation_result?: boolean;
+  error_message?: string;
+  [key: string]: string | number | boolean | null | undefined;
+}
 
 export class SecurityManager {
   async validateTransaction(
