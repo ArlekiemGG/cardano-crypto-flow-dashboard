@@ -109,7 +109,7 @@ const WelcomeHero = () => {
         {/* Footer */}
         <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 text-center animate-fade-in" style={{ animationDelay: '1.8s' }}>
           <p className="text-gray-500 text-sm">
-            🔒 Secure • 🚀 Fast • ⚡ Powerful
+            © 2025 CardanoTrade. All rights reserved.
           </p>
         </div>
       </div>
