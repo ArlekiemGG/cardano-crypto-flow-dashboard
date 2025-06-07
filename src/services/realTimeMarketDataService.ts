@@ -12,6 +12,7 @@ class RealTimeMarketDataService {
   private subscription: MarketDataSubscription | null = null;
   private abortController: AbortController | null = null;
   private dataUpdateInterval: number | null = null;
+  private subscribers: ((data: MarketData[]) => void)[] = [];
 
   async initialize() {
     if (this.isActive) return;
@@ -27,6 +28,51 @@ class RealTimeMarketDataService {
       console.error('Error initializing market data service:', error);
       this.isActive = false;
     }
+  }
+
+  async startRealTimeUpdates(intervalSeconds: number = 45) {
+    if (this.isActive) return;
+    
+    console.log(`🚀 Starting real-time updates every ${intervalSeconds} seconds...`);
+    await this.initialize();
+    
+    if (this.dataUpdateInterval) {
+      clearInterval(this.dataUpdateInterval);
+    }
+    
+    this.dataUpdateInterval = window.setInterval(() => {
+      if (!this.isActive) return;
+      
+      this.fetchLatestData().catch(error => {
+        console.error('Error in periodic update:', error);
+      });
+    }, intervalSeconds * 1000);
+  }
+
+  subscribe(callback: (data: MarketData[]) => void): () => void {
+    this.subscribers.push(callback);
+    
+    // Immediately call with current data
+    if (this.currentPrices.length > 0) {
+      callback(this.currentPrices);
+    }
+    
+    return () => {
+      const index = this.subscribers.indexOf(callback);
+      if (index > -1) {
+        this.subscribers.splice(index, 1);
+      }
+    };
+  }
+
+  private notifySubscribers() {
+    this.subscribers.forEach(callback => {
+      try {
+        callback(this.currentPrices);
+      } catch (error) {
+        console.error('Error notifying subscriber:', error);
+      }
+    });
   }
 
   private async setupRealtimeSubscription() {
@@ -80,14 +126,16 @@ class RealTimeMarketDataService {
 
       if (data && data.length > 0) {
         this.currentPrices = data.map(item => ({
-          symbol: item.symbol || 'UNKNOWN',
+          symbol: item.pair?.split('/')[0] || 'UNKNOWN',
           price: item.price || 0,
           change24h: item.change_24h || 0,
           volume24h: item.volume_24h || 0,
           marketCap: item.market_cap || 0,
           lastUpdate: item.timestamp || new Date().toISOString(),
-          source: item.source || 'cache'
+          source: item.source_dex || 'cache'
         }));
+        
+        this.notifySubscribers();
       }
     } catch (error) {
       console.error('Error fetching latest data:', error);
@@ -132,6 +180,8 @@ class RealTimeMarketDataService {
       this.subscription = null;
     }
 
+    // Clear subscribers
+    this.subscribers = [];
     this.currentPrices = [];
     console.log('✅ Real-time market data service cleaned up');
   }

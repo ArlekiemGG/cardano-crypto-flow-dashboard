@@ -6,7 +6,9 @@ import { realTimeMarketDataService } from '@/services/realTimeMarketDataService'
 export const useMarketData = () => {
   const [marketData, setMarketData] = useState<MarketData[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [arbitrageOpportunities, setArbitrageOpportunities] = useState<any[]>([]);
   const cleanupRef = useRef<(() => void) | null>(null);
   const isInitializedRef = useRef(false);
 
@@ -33,6 +35,7 @@ export const useMarketData = () => {
           
           setMarketData(prices);
           setIsConnected(connected);
+          setIsLoading(false);
           setLastUpdate(new Date());
         };
 
@@ -52,6 +55,7 @@ export const useMarketData = () => {
         console.error('Error initializing market data:', error);
         if (isMounted) {
           setIsConnected(false);
+          setIsLoading(false);
         }
       }
     };
@@ -87,7 +91,9 @@ export const useMarketData = () => {
   return {
     marketData,
     isConnected,
+    isLoading,
     lastUpdate,
+    arbitrageOpportunities,
     refreshData
   };
 };

@@ -30,6 +30,14 @@ interface DEXFeeStructure {
   minimumTrade: number;
 }
 
+interface ExtendedMarketData {
+  pair: string;
+  dex: string;
+  price: number;
+  volume24h: number;
+  liquidity: number;
+}
+
 export class ArbitrageEngine {
   private readonly DEX_FEES: DEXFeeStructure[] = [
     { dex: 'Minswap', tradingFee: 0.003, withdrawalFee: 0.001, networkFee: 0.17, minimumTrade: 10 },
@@ -61,15 +69,24 @@ export class ArbitrageEngine {
         return [];
       }
 
-      // Filter out CoinGecko data for arbitrage analysis but keep other sources
-      const dexPrices = currentPrices.filter(price => price.dex !== 'CoinGecko');
-      console.log(`📊 Using ${dexPrices.length} DEX price entries for arbitrage analysis`);
+      // Convert MarketData to ExtendedMarketData format for processing
+      const extendedPrices: ExtendedMarketData[] = currentPrices
+        .filter(price => price.source !== 'CoinGecko')
+        .map(price => ({
+          pair: `${price.symbol}/USD`,
+          dex: price.source || 'Unknown',
+          price: price.price,
+          volume24h: price.volume24h,
+          liquidity: price.volume24h * 0.1 // Estimate liquidity as 10% of 24h volume
+        }));
+
+      console.log(`📊 Using ${extendedPrices.length} DEX price entries for arbitrage analysis`);
 
       const opportunities: ArbitrageOpportunityReal[] = [];
 
       // Group prices by pair from DEX data
-      const pairGroups = new Map<string, typeof dexPrices>();
-      dexPrices.forEach(price => {
+      const pairGroups = new Map<string, ExtendedMarketData[]>();
+      extendedPrices.forEach(price => {
         const normalizedPair = this.normalizePair(price.pair);
         if (!pairGroups.has(normalizedPair)) {
           pairGroups.set(normalizedPair, []);
@@ -111,7 +128,7 @@ export class ArbitrageEngine {
     }
   }
 
-  private async analyzeArbitrageForPair(pair: string, prices: any[]): Promise<ArbitrageOpportunityReal[]> {
+  private async analyzeArbitrageForPair(pair: string, prices: ExtendedMarketData[]): Promise<ArbitrageOpportunityReal[]> {
     const opportunities: ArbitrageOpportunityReal[] = [];
 
     // Compare all price combinations between different DEXs
