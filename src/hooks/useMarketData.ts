@@ -11,6 +11,12 @@ export const useMarketData = () => {
   const [arbitrageOpportunities, setArbitrageOpportunities] = useState<any[]>([]);
   const cleanupRef = useRef<(() => void) | null>(null);
   const isInitializedRef = useRef(false);
+  const lastDataHash = useRef<string>('');
+
+  // Create a hash of the data to prevent unnecessary updates
+  const createDataHash = (data: MarketData[]): string => {
+    return data.map(item => `${item.symbol}-${item.price}-${item.lastUpdate}`).join('|');
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -18,7 +24,6 @@ export const useMarketData = () => {
     const initializeService = async () => {
       if (isInitializedRef.current) return;
       
-      console.log('🚀 Initializing market data service...');
       isInitializedRef.current = true;
 
       try {
@@ -26,24 +31,35 @@ export const useMarketData = () => {
         
         if (!isMounted) return;
 
-        // Set up periodic data fetching
+        // Optimized data fetching with reduced frequency
         const fetchData = () => {
           if (!isMounted) return;
           
           const prices = realTimeMarketDataService.getCurrentPrices();
           const connected = realTimeMarketDataService.isConnected();
           
-          setMarketData(prices);
+          // Only update if data has actually changed
+          const newDataHash = createDataHash(prices);
+          if (newDataHash !== lastDataHash.current) {
+            lastDataHash.current = newDataHash;
+            setMarketData([...prices]); // Create new array reference
+            setLastUpdate(new Date());
+            
+            // Log only significant updates
+            if (prices.length > 0) {
+              console.log(`📊 Market data updated: ${prices.length} entries`);
+            }
+          }
+          
           setIsConnected(connected);
           setIsLoading(false);
-          setLastUpdate(new Date());
         };
 
         // Initial fetch
         fetchData();
 
-        // Set up interval for updates
-        const updateInterval = setInterval(fetchData, 10000); // Every 10 seconds
+        // Reduced update frequency
+        const updateInterval = setInterval(fetchData, 30000); // Every 30 seconds instead of 10
 
         // Store cleanup function
         cleanupRef.current = () => {
@@ -62,7 +78,6 @@ export const useMarketData = () => {
 
     initializeService();
 
-    // Modern cleanup using AbortController pattern
     return () => {
       isMounted = false;
       console.log('🧹 Cleaning up useMarketData...');
@@ -73,16 +88,22 @@ export const useMarketData = () => {
       }
       
       isInitializedRef.current = false;
-      console.log('✅ Cleanup completed');
+      lastDataHash.current = '';
     };
   }, []);
 
-  // Provide manual refresh function
+  // Optimized manual refresh function
   const refreshData = async () => {
     try {
       const prices = realTimeMarketDataService.getCurrentPrices();
-      setMarketData(prices);
-      setLastUpdate(new Date());
+      const newDataHash = createDataHash(prices);
+      
+      if (newDataHash !== lastDataHash.current) {
+        lastDataHash.current = newDataHash;
+        setMarketData([...prices]);
+        setLastUpdate(new Date());
+        console.log('🔄 Manual data refresh completed');
+      }
     } catch (error) {
       console.error('Error refreshing market data:', error);
     }

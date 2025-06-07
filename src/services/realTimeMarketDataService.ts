@@ -13,6 +13,10 @@ class RealTimeMarketDataService {
   private abortController: AbortController | null = null;
   private dataUpdateInterval: number | null = null;
   private subscribers: ((data: MarketData[]) => void)[] = [];
+  private lastFetchTime = 0;
+  private readonly FETCH_COOLDOWN = 60000; // 1 minute cooldown between fetches
+  private readonly MAX_RETRIES = 3;
+  private retryCount = 0;
 
   async initialize() {
     if (this.isActive) return;
@@ -30,7 +34,7 @@ class RealTimeMarketDataService {
     }
   }
 
-  async startRealTimeUpdates(intervalSeconds: number = 45) {
+  async startRealTimeUpdates(intervalSeconds: number = 60) {
     if (this.isActive) return;
     
     console.log(`🚀 Starting real-time updates every ${intervalSeconds} seconds...`);
@@ -40,6 +44,7 @@ class RealTimeMarketDataService {
       clearInterval(this.dataUpdateInterval);
     }
     
+    // Increased interval to reduce API calls
     this.dataUpdateInterval = window.setInterval(() => {
       if (!this.isActive) return;
       
@@ -52,8 +57,8 @@ class RealTimeMarketDataService {
   subscribe(callback: (data: MarketData[]) => void): () => void {
     this.subscribers.push(callback);
     
-    // Immediately call with current data
-    if (this.currentPrices.length > 0) {
+    // Only call with current data if we have substantial data and it's recent
+    if (this.currentPrices.length > 0 && this.isDataFresh()) {
       callback(this.currentPrices);
     }
     
@@ -65,10 +70,16 @@ class RealTimeMarketDataService {
     };
   }
 
+  private isDataFresh(): boolean {
+    return Date.now() - this.lastFetchTime < this.FETCH_COOLDOWN;
+  }
+
   private notifySubscribers() {
+    if (this.subscribers.length === 0) return;
+    
     this.subscribers.forEach(callback => {
       try {
-        callback(this.currentPrices);
+        callback([...this.currentPrices]); // Create copy to prevent mutations
       } catch (error) {
         console.error('Error notifying subscriber:', error);
       }
@@ -77,13 +88,12 @@ class RealTimeMarketDataService {
 
   private async setupRealtimeSubscription() {
     try {
-      // Setup Supabase realtime subscription
       const subscription = supabase
         .channel('market_data_changes')
         .on('postgres_changes', 
           { event: '*', schema: 'public', table: 'market_data_cache' },
           (payload) => {
-            console.log('📊 Market data updated:', payload);
+            console.log('📊 Market data updated via realtime');
             this.handleDataUpdate(payload);
           }
         )
@@ -102,30 +112,40 @@ class RealTimeMarketDataService {
   }
 
   private startPeriodicUpdates() {
-    // Use modern APIs instead of obsolete ones
+    // Reduced frequency to prevent excessive API calls
     this.dataUpdateInterval = window.setInterval(() => {
-      if (!this.isActive) return;
+      if (!this.isActive || !this.canFetch()) return;
       
       this.fetchLatestData().catch(error => {
         console.error('Error in periodic update:', error);
       });
-    }, 30000); // Update every 30 seconds
+    }, 90000); // Update every 90 seconds instead of 30
+  }
+
+  private canFetch(): boolean {
+    const now = Date.now();
+    return now - this.lastFetchTime >= this.FETCH_COOLDOWN;
   }
 
   private async fetchLatestData() {
-    if (!this.isActive || this.abortController?.signal.aborted) return;
+    if (!this.isActive || this.abortController?.signal.aborted || !this.canFetch()) {
+      return;
+    }
 
     try {
+      this.lastFetchTime = Date.now();
+      
       const { data, error } = await supabase
         .from('market_data_cache')
         .select('*')
         .order('timestamp', { ascending: false })
-        .limit(50);
+        .limit(20) // Reduced from 50 to 20
+        .gte('timestamp', new Date(Date.now() - 3600000).toISOString()); // Only get data from last hour
 
       if (error) throw error;
 
       if (data && data.length > 0) {
-        this.currentPrices = data.map(item => ({
+        const newPrices = data.map(item => ({
           symbol: item.pair?.split('/')[0] || 'UNKNOWN',
           price: item.price || 0,
           change24h: item.change_24h || 0,
@@ -135,19 +155,48 @@ class RealTimeMarketDataService {
           source: item.source_dex || 'cache'
         }));
         
-        this.notifySubscribers();
+        // Only update if data has actually changed
+        if (this.hasDataChanged(newPrices)) {
+          this.currentPrices = newPrices;
+          this.notifySubscribers();
+          this.retryCount = 0; // Reset retry count on success
+        }
       }
     } catch (error) {
       console.error('Error fetching latest data:', error);
+      this.retryCount++;
+      
+      // Exponential backoff for retries
+      if (this.retryCount <= this.MAX_RETRIES) {
+        setTimeout(() => {
+          if (this.isActive) {
+            this.fetchLatestData();
+          }
+        }, Math.min(this.retryCount * 2000, 10000));
+      }
     }
   }
 
-  private handleDataUpdate(payload: any) {
-    if (!this.isActive) return;
+  private hasDataChanged(newPrices: MarketData[]): boolean {
+    if (this.currentPrices.length !== newPrices.length) return true;
     
-    // Process the real-time update
-    console.log('Processing real-time market data update');
-    this.fetchLatestData();
+    return newPrices.some((newPrice, index) => {
+      const currentPrice = this.currentPrices[index];
+      return !currentPrice || 
+             Math.abs(currentPrice.price - newPrice.price) > 0.001 ||
+             currentPrice.symbol !== newPrice.symbol;
+    });
+  }
+
+  private handleDataUpdate(payload: any) {
+    if (!this.isActive || !this.canFetch()) return;
+    
+    // Debounce realtime updates
+    setTimeout(() => {
+      if (this.isActive && this.canFetch()) {
+        this.fetchLatestData();
+      }
+    }, 5000);
   }
 
   getCurrentPrices(): MarketData[] {
@@ -162,27 +211,25 @@ class RealTimeMarketDataService {
     console.log('🧹 Cleaning up real-time market data service...');
     this.isActive = false;
 
-    // Cancel any ongoing operations
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
     }
 
-    // Clear periodic updates
     if (this.dataUpdateInterval) {
       clearInterval(this.dataUpdateInterval);
       this.dataUpdateInterval = null;
     }
 
-    // Unsubscribe from realtime updates
     if (this.subscription) {
       this.subscription.unsubscribe();
       this.subscription = null;
     }
 
-    // Clear subscribers
     this.subscribers = [];
     this.currentPrices = [];
+    this.lastFetchTime = 0;
+    this.retryCount = 0;
     console.log('✅ Real-time market data service cleaned up');
   }
 }
