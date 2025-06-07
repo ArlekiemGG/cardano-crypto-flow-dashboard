@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRealTimeArbitrage } from '@/hooks/useRealTimeArbitrage';
@@ -22,7 +23,7 @@ export const RealTimeTradingPanel = () => {
     getExecutableOpportunities
   } = useRealTimeArbitrage();
 
-  const [minProfitThreshold, setMinProfitThreshold] = useState(5.0); // Higher threshold for real trading
+  const [minProfitThreshold, setMinProfitThreshold] = useState(5.0);
   const [marketDataConnected, setMarketDataConnected] = useState(false);
 
   // Check market data connection status
@@ -88,7 +89,7 @@ export const RealTimeTradingPanel = () => {
         return;
       }
 
-      startAutoScanning(30); // Set to scan every 30 seconds for real trading
+      startAutoScanning(30);
       toast.success('🤖 Auto REAL trading enabled - monitoring for HIGH confidence opportunities', {
         description: 'Only opportunities with >5 ADA profit will be auto-executed',
         duration: 8000

@@ -30,6 +30,22 @@ export const RealTimeArbitrageMonitor = () => {
 
   const topOpportunities = getTopOpportunities(8);
 
+  // Convert opportunities to the expected format for the component
+  const convertedOpportunities = topOpportunities.map(opp => ({
+    id: opp.id,
+    pair: opp.pair || 'ADA/USDC',
+    buyDex: opp.buyDex || 'Unknown',
+    sellDex: opp.sellDex || 'Unknown',
+    buyPrice: opp.buyPrice || 0,
+    sellPrice: opp.sellPrice || 0,
+    profitPercentage: opp.profitPercentage,
+    profitADA: opp.profitADA || 0,
+    volumeAvailable: opp.volumeAvailable || 0,
+    confidence: opp.confidence as 'HIGH' | 'MEDIUM' | 'LOW',
+    timeToExpiry: opp.timeToExpiry || 300,
+    slippageRisk: opp.slippageRisk || 0
+  }));
+
   const handleAutoScanToggle = () => {
     if (isAutoScanning) {
       stopAutoScan();
@@ -61,7 +77,7 @@ export const RealTimeArbitrageMonitor = () => {
       />
 
       <ArbitrageOpportunityList
-        opportunities={topOpportunities}
+        opportunities={convertedOpportunities}
         isScanning={isScanning}
         onSimulate={handleSimulate}
       />

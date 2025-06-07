@@ -40,6 +40,22 @@ export const AdvancedArbitragePanel = () => {
 
   const topOpportunities = getTopOpportunities(10);
 
+  // Convert opportunities to the expected format for the component
+  const convertedOpportunities = topOpportunities.map(opp => ({
+    id: opp.id,
+    pair: opp.pair || 'ADA/USDC',
+    buyDex: opp.buyDex || 'Unknown',
+    sellDex: opp.sellDex || 'Unknown',
+    buyPrice: opp.buyPrice || 0,
+    sellPrice: opp.sellPrice || 0,
+    profitPercentage: opp.profitPercentage,
+    profitADA: opp.profitADA || 0,
+    volumeAvailable: opp.volumeAvailable || 0,
+    confidence: opp.confidence as 'HIGH' | 'MEDIUM' | 'LOW',
+    timeToExpiry: opp.timeToExpiry || 300,
+    slippageRisk: opp.slippageRisk || 0
+  }));
+
   return (
     <div className="space-y-6">
       {/* Advanced Controls Header */}
@@ -86,7 +102,7 @@ export const AdvancedArbitragePanel = () => {
 
         <TabsContent value="opportunities" className="mt-6">
           <ArbitrageOpportunityList
-            opportunities={topOpportunities}
+            opportunities={convertedOpportunities}
             isScanning={isScanning}
             onSimulate={(id) => console.log('Simulating:', id)}
           />

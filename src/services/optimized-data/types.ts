@@ -13,6 +13,17 @@ export interface DeFiLlamaProtocol {
   category?: string;
 }
 
+export interface DeFiLlamaPrice {
+  price: number;
+  symbol: string;
+  timestamp: number;
+  confidence?: number;
+}
+
+export interface DeFiLlamaPriceResponse {
+  coins: Record<string, DeFiLlamaPrice>;
+}
+
 export interface CacheStats {
   lastUpdate: Date;
   hitRate: number;

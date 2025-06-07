@@ -10,18 +10,42 @@ interface ArbitrageOpportunity {
   confidence: string;
 }
 
+interface ExecutionResult {
+  success: boolean;
+  actualProfit?: number;
+  buyTxHash?: string;
+  sellTxHash?: string;
+  error?: string;
+}
+
+interface AutoExecuteResult {
+  executed: number;
+  successful: number;
+}
+
 export const useArbitrageExecution = (opportunities: ArbitrageOpportunity[]) => {
   const [executingTrades, setExecutingTrades] = useState<Set<string>>(new Set());
 
-  const executeArbitrage = async (opportunityId: string) => {
+  const executeArbitrage = async (opportunityId: string): Promise<ExecutionResult> => {
     setExecutingTrades(prev => new Set([...prev, opportunityId]));
     
     try {
       // Simulate trade execution
       await new Promise(resolve => setTimeout(resolve, 2000));
       console.log('Trade executed for opportunity:', opportunityId);
+      
+      return {
+        success: true,
+        actualProfit: Math.random() * 10,
+        buyTxHash: `0x${Math.random().toString(16).substr(2, 8)}`,
+        sellTxHash: `0x${Math.random().toString(16).substr(2, 8)}`
+      };
     } catch (error) {
       console.error('Error executing trade:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     } finally {
       setExecutingTrades(prev => {
         const newSet = new Set(prev);
@@ -44,14 +68,21 @@ export const useArbitrageExecution = (opportunities: ArbitrageOpportunity[]) => 
     };
   };
 
-  const autoExecuteHighConfidence = async () => {
+  const autoExecuteHighConfidence = async (): Promise<AutoExecuteResult> => {
     const highConfidenceOpportunities = opportunities.filter(
       opp => opp.confidence === 'HIGH' && !executingTrades.has(opp.id)
     );
 
+    let successful = 0;
     for (const opportunity of highConfidenceOpportunities.slice(0, 3)) {
-      await executeArbitrage(opportunity.id);
+      const result = await executeArbitrage(opportunity.id);
+      if (result.success) successful++;
     }
+
+    return {
+      executed: Math.min(3, highConfidenceOpportunities.length),
+      successful
+    };
   };
 
   return {

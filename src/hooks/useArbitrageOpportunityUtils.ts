@@ -1,9 +1,15 @@
 
 interface ArbitrageOpportunity {
   id: string;
+  pair: string;
+  buyDex: string;
+  sellDex: string;
+  buyPrice: number;
+  sellPrice: number;
   profitPercentage: number;
   profitADA: number;
-  confidence: string;
+  volumeAvailable: number;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   executionReady?: boolean;
 }
 
@@ -24,6 +30,14 @@ export const useArbitrageOpportunityUtils = (
       .slice(0, limit);
   };
 
+  const getExecutableOpportunities = () => {
+    return opportunities.filter(opp => 
+      opp.confidence === 'HIGH' && 
+      opp.profitPercentage > 5.0 && 
+      opp.executionReady
+    );
+  };
+
   const totalOpportunities = opportunities.length;
   const highConfidenceOpportunities = opportunities.filter(opp => opp.confidence === 'HIGH').length;
   const avgProfitPercentage = stats.avgProfitPercentage;
@@ -31,6 +45,7 @@ export const useArbitrageOpportunityUtils = (
 
   return {
     getTopOpportunities,
+    getExecutableOpportunities,
     totalOpportunities,
     highConfidenceOpportunities,
     avgProfitPercentage,
