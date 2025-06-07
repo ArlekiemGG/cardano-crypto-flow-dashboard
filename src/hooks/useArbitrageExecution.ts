@@ -38,8 +38,14 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
     try {
       // Check if wallet is connected
       const walletApi = window.cardano?.eternl || window.cardano?.nami || window.cardano?.vespr;
-      if (!walletApi || !walletApi.isEnabled) {
-        throw new Error('No wallet connected. Please connect your wallet first.');
+      if (!walletApi) {
+        throw new Error('No wallet extension found. Please install a Cardano wallet.');
+      }
+
+      // Check if wallet is enabled
+      const isEnabled = await walletApi.isEnabled().catch(() => false);
+      if (!isEnabled) {
+        throw new Error('Wallet is not enabled. Please connect your wallet first.');
       }
 
       // Enable the wallet to get the proper API
@@ -53,9 +59,14 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
 
       console.log(`💰 Wallet validated: ${walletValidation.balance} ADA available`);
 
-      // Get wallet address
-      const changeAddress = await enabledWalletApi.getChangeAddress();
-      const walletAddress = changeAddress || 'unknown';
+      // Get wallet address safely
+      let walletAddress = 'unknown';
+      try {
+        const changeAddress = await enabledWalletApi.getChangeAddress();
+        walletAddress = changeAddress || 'unknown';
+      } catch (error) {
+        console.warn('Could not get wallet address:', error);
+      }
 
       // Execute the real arbitrage trade
       const result = await realTradingService.executeRealArbitrageTrade({
@@ -139,10 +150,18 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
     try {
       // Check wallet connection for simulation
       const walletApi = window.cardano?.eternl || window.cardano?.nami || window.cardano?.vespr;
-      if (!walletApi || !walletApi.isEnabled) {
+      if (!walletApi) {
         return {
           success: false,
-          error: 'No wallet connected for simulation'
+          error: 'No wallet extension found for simulation'
+        };
+      }
+
+      const isEnabled = await walletApi.isEnabled().catch(() => false);
+      if (!isEnabled) {
+        return {
+          success: false,
+          error: 'Wallet not enabled for simulation'
         };
       }
 

@@ -94,8 +94,8 @@ class SystemDiagnosticsService {
     const startTime = Date.now();
     
     try {
-      // Simple connection test
-      const { data, error } = await supabase.from('health_checks').select('count').limit(1);
+      // Simple connection test - use a basic query instead of accessing 'count'
+      const { data, error } = await supabase.from('market_data_cache').select('id').limit(1);
       const latency = Date.now() - startTime;
 
       if (error) {
@@ -166,7 +166,16 @@ class SystemDiagnosticsService {
     const startTime = Date.now();
     
     try {
-      // Test data availability by checking API connection status
+      // Check if the service has the expected methods
+      if (typeof optimizedDataService.isApiConnected !== 'function') {
+        return {
+          service: 'Optimized Data Service',
+          status: 'error',
+          message: 'Service not properly initialized',
+          latency: Date.now() - startTime
+        };
+      }
+
       const isConnected = optimizedDataService.isApiConnected();
       const latency = Date.now() - startTime;
 
@@ -186,7 +195,7 @@ class SystemDiagnosticsService {
         latency,
         data: { 
           apiConnected: isConnected,
-          cacheStats: optimizedDataService.getCacheStats()
+          cacheStats: optimizedDataService.getCacheStats ? optimizedDataService.getCacheStats() : {}
         }
       };
     } catch (error) {
