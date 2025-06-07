@@ -66,6 +66,7 @@ export type Database = {
           timestamp: string
           user_agent: string | null
           user_wallet: string
+          wallet_address: string | null
         }
         Insert: {
           action: string
@@ -75,6 +76,7 @@ export type Database = {
           timestamp?: string
           user_agent?: string | null
           user_wallet: string
+          wallet_address?: string | null
         }
         Update: {
           action?: string
@@ -84,6 +86,7 @@ export type Database = {
           timestamp?: string
           user_agent?: string | null
           user_wallet?: string
+          wallet_address?: string | null
         }
         Relationships: []
       }
@@ -208,6 +211,7 @@ export type Database = {
           updated_at: string
           user_wallet: string
           volume_24h: number
+          wallet_address: string | null
         }
         Insert: {
           apy?: number
@@ -230,6 +234,7 @@ export type Database = {
           updated_at?: string
           user_wallet: string
           volume_24h?: number
+          wallet_address?: string | null
         }
         Update: {
           apy?: number
@@ -252,6 +257,7 @@ export type Database = {
           updated_at?: string
           user_wallet?: string
           volume_24h?: number
+          wallet_address?: string | null
         }
         Relationships: []
       }
@@ -271,6 +277,7 @@ export type Database = {
           strategy_type: string
           updated_at: string
           user_wallet: string
+          wallet_address: string | null
         }
         Insert: {
           active?: boolean
@@ -287,6 +294,7 @@ export type Database = {
           strategy_type: string
           updated_at?: string
           user_wallet: string
+          wallet_address?: string | null
         }
         Update: {
           active?: boolean
@@ -303,6 +311,7 @@ export type Database = {
           strategy_type?: string
           updated_at?: string
           user_wallet?: string
+          wallet_address?: string | null
         }
         Relationships: []
       }
@@ -323,6 +332,7 @@ export type Database = {
           transaction_type: string
           tx_hash: string | null
           user_wallet: string
+          wallet_address: string | null
         }
         Insert: {
           amount_a?: number | null
@@ -340,6 +350,7 @@ export type Database = {
           transaction_type: string
           tx_hash?: string | null
           user_wallet: string
+          wallet_address?: string | null
         }
         Update: {
           amount_a?: number | null
@@ -357,6 +368,7 @@ export type Database = {
           transaction_type?: string
           tx_hash?: string | null
           user_wallet?: string
+          wallet_address?: string | null
         }
         Relationships: [
           {
@@ -449,7 +461,7 @@ export type Database = {
           timestamp: string | null
           trade_type: Database["public"]["Enums"]["trade_type"]
           tx_hash: string | null
-          user_wallet: string | null
+          wallet_address: string
         }
         Insert: {
           amount: number
@@ -463,7 +475,7 @@ export type Database = {
           timestamp?: string | null
           trade_type: Database["public"]["Enums"]["trade_type"]
           tx_hash?: string | null
-          user_wallet?: string | null
+          wallet_address: string
         }
         Update: {
           amount?: number
@@ -477,12 +489,12 @@ export type Database = {
           timestamp?: string | null
           trade_type?: Database["public"]["Enums"]["trade_type"]
           tx_hash?: string | null
-          user_wallet?: string | null
+          wallet_address?: string
         }
         Relationships: [
           {
-            foreignKeyName: "trade_history_user_wallet_fkey"
-            columns: ["user_wallet"]
+            foreignKeyName: "fk_trade_history_wallet"
+            columns: ["wallet_address"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["wallet_address"]
@@ -582,6 +594,10 @@ export type Database = {
           p_strategy_type: Database["public"]["Enums"]["trading_strategy_type"]
           p_config_json?: Json
         }
+        Returns: string
+      }
+      current_wallet_address: {
+        Args: Record<PropertyKey, never>
         Returns: string
       }
       delete_trading_strategy: {

@@ -84,21 +84,22 @@ serve(async (req) => {
       }
     }
 
-    console.log('🚀 Starting real data fetch process...');
+    console.log('🚀 Starting comprehensive real data fetch process...');
     
     let totalPoolsProcessed = 0;
     let totalArbitrageOpportunities = 0;
     let sourcesProcessed = [];
+    let adaPriceSuccess = false;
 
     // Clear old cached data (older than 1 hour)
     await clearOldCachedData(supabaseClient);
 
-    // 1. Get REAL ADA data from multiple sources
-    console.log('📊 Fetching REAL ADA data from external APIs...');
+    // 1. Get REAL ADA data from CoinGecko with comprehensive information
+    console.log('💰 Fetching REAL ADA price data from CoinGecko...');
     try {
       const realAdaData = await fetchEnhancedADAData();
       if (realAdaData && realAdaData.price > 0) {
-        // Cache real ADA data with comprehensive information
+        // Cache real ADA data with comprehensive information from CoinGecko
         const { error } = await supabaseClient
           .from('market_data_cache')
           .upsert({
@@ -118,14 +119,19 @@ serve(async (req) => {
           console.log(`✅ REAL ADA data cached: $${realAdaData.price}, Vol: $${realAdaData.volume24h}, Change: ${realAdaData.change24h}%`);
           sourcesProcessed.push('CoinGecko');
           totalPoolsProcessed++;
+          adaPriceSuccess = true;
+        } else {
+          console.error('❌ Error caching ADA data:', error);
         }
+      } else {
+        console.warn('⚠️ Failed to get valid ADA price data');
       }
     } catch (error) {
       console.error('❌ Error fetching real ADA data:', error);
     }
 
     // 2. Get real Cardano DeFi protocols data
-    console.log('📊 Fetching real Cardano protocols from DeFiLlama...');
+    console.log('🏦 Fetching real Cardano protocols from DeFiLlama...');
     try {
       const cardanoProtocols = await fetchCardanoProtocols();
       for (const protocol of cardanoProtocols) {
@@ -216,7 +222,7 @@ serve(async (req) => {
 
     const responseData = {
       success: true,
-      message: 'Real data fetch completed successfully',
+      message: 'Comprehensive real data fetch completed successfully',
       data: {
         pools_processed: totalPoolsProcessed,
         arbitrage_opportunities: totalArbitrageOpportunities,
@@ -224,12 +230,14 @@ serve(async (req) => {
         sources_count: sourcesProcessed.length,
         blockfrost_enabled: !!blockfrostKey,
         defillama_enabled: true,
+        coingecko_enabled: adaPriceSuccess,
         real_data_fetched: true,
+        ada_price_success: adaPriceSuccess,
         timestamp: new Date().toISOString()
       }
     };
 
-    console.log('✅ Real data fetch summary:', responseData.data);
+    console.log('✅ Comprehensive real data fetch summary:', responseData.data);
 
     return new Response(
       JSON.stringify(responseData),
@@ -240,7 +248,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('❌ Error in real data fetch function:', error);
+    console.error('❌ Error in comprehensive real data fetch function:', error);
     return new Response(
       JSON.stringify({
         success: false,

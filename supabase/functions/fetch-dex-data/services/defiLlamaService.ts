@@ -63,12 +63,15 @@ export async function fetchEnhancedADAData(): Promise<{
 
       if (response.cardano) {
         const data = response.cardano;
-        return {
+        const result = {
           price: data.usd || 0,
           volume24h: data.usd_24h_vol || 0,
           change24h: data.usd_24h_change || 0,
           marketCap: data.usd_market_cap || 0
         };
+        
+        console.log('✅ Enhanced ADA data from CoinGecko:', result);
+        return result;
       }
     } catch (error) {
       console.warn('⚠️ CoinGecko detailed data failed:', error);
@@ -97,7 +100,7 @@ export async function fetchCardanoProtocols(): Promise<any[]> {
   try {
     console.log('🏦 Fetching Cardano DeFi protocols from DeFiLlama...');
     const protocolsData = await retryWithBackoff(async () => {
-      const response = await fetchWithTimeout('https://api.llama.fi/protocols', {}, 20000);
+      const response = await fetchWithTimeout('https://api.llama.fi/protocols', {}, 25000);
       if (!response.ok) throw new Error(`DeFiLlama protocols error: ${response.status}`);
       return await response.json();
     });
@@ -121,7 +124,7 @@ export async function fetchDEXVolumes(): Promise<any[]> {
   try {
     console.log('📈 Fetching real Cardano DEX volumes from DeFiLlama...');
     const dexData = await retryWithBackoff(async () => {
-      const response = await fetchWithTimeout('https://api.llama.fi/overview/dexs/cardano', {}, 20000);
+      const response = await fetchWithTimeout('https://api.llama.fi/overview/dexs/cardano', {}, 25000);
       if (!response.ok) throw new Error(`DeFiLlama DEX error: ${response.status}`);
       return await response.json();
     });
