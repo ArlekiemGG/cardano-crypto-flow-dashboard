@@ -19,6 +19,16 @@ export interface ArbitrageOpportunity {
   volume: number;
   confidence: 'High' | 'Medium' | 'Low';
   timestamp: string;
+  // Add missing properties that components expect
+  buyDex?: string;
+  sellDex?: string;
+  buyPrice?: number;
+  sellPrice?: number;
+  profitADA?: number;
+  volumeAvailable?: number;
+  timeToExpiry?: number;
+  slippageRisk?: number;
+  executionReady?: boolean;
 }
 
 export interface TradingStrategy {

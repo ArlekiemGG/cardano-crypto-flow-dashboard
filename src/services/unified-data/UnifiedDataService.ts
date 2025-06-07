@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { DeFiLlamaProtocol } from '@/services/optimized-data/types';
 
@@ -70,6 +69,7 @@ class UnifiedDataService {
       return (data || []).map(item => ({
         id: item.id,
         name: item.pair?.replace('/TVL', '') || 'Unknown',
+        url: `https://defillama.com/protocol/${item.id}`, // Add required url property
         tvl: item.market_cap || item.price || 0,
         change_1d: item.change_24h || 0,
         chains: ['Cardano'],

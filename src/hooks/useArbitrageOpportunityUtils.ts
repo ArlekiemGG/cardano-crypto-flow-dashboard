@@ -10,6 +10,8 @@ interface ArbitrageOpportunity {
   profitADA: number;
   volumeAvailable: number;
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  timeToExpiry?: number;
+  slippageRisk?: number;
   executionReady?: boolean;
 }
 
@@ -34,7 +36,7 @@ export const useArbitrageOpportunityUtils = (
     return opportunities.filter(opp => 
       opp.confidence === 'HIGH' && 
       opp.profitPercentage > 5.0 && 
-      opp.executionReady
+      (opp.executionReady ?? true)
     );
   };
 

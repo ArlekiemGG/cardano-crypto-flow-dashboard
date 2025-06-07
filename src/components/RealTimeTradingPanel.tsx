@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRealTimeArbitrage } from '@/hooks/useRealTimeArbitrage';
@@ -130,6 +129,17 @@ export const RealTimeTradingPanel = () => {
 
   const executableOpportunities = getExecutableOpportunities();
 
+  // Convert opportunities to the proper Opportunity type with required executionReady property
+  const convertedOpportunities = opportunities.map(opp => ({
+    ...opp,
+    executionReady: opp.executionReady ?? true // Ensure executionReady is always defined
+  }));
+
+  const convertedExecutableOpportunities = executableOpportunities.map(opp => ({
+    ...opp,
+    executionReady: opp.executionReady ?? true // Ensure executionReady is always defined
+  }));
+
   return (
     <div className="space-y-6">
       {/* REAL TRADING WARNING */}
@@ -181,8 +191,8 @@ export const RealTimeTradingPanel = () => {
         </CardHeader>
         <CardContent>
           <OpportunityTabs
-            opportunities={opportunities}
-            executableOpportunities={executableOpportunities}
+            opportunities={convertedOpportunities}
+            executableOpportunities={convertedExecutableOpportunities}
             highConfidenceCount={stats.highConfidenceCount}
             onExecute={handleExecuteTrade}
             executingTrades={executingTrades}
