@@ -133,6 +133,47 @@ export class ArbitrageEngine {
     }
   }
 
+  private async storeOpportunities(opportunities: ArbitrageOpportunityReal[]): Promise<void> {
+    if (opportunities.length === 0) return;
+
+    try {
+      // Clean up old opportunities first
+      await supabase
+        .from('arbitrage_opportunities')
+        .delete()
+        .lt('timestamp', new Date(Date.now() - 3600000).toISOString()); // Remove older than 1 hour
+
+      // Insert new opportunities
+      const opportunitiesData = opportunities.map(opp => ({
+        pair: opp.pair,
+        buy_dex: opp.buyDex,
+        sell_dex: opp.sellDex,
+        buy_price: opp.buyPrice,
+        sell_price: opp.sellPrice,
+        profit_potential: opp.profitPercentage,
+        volume_available: opp.volumeAvailable,
+        confidence_level: opp.confidence.toLowerCase(),
+        slippage_risk: opp.slippageRisk,
+        liquidity_score: opp.liquidityScore,
+        expires_at: new Date(Date.now() + (opp.timeToExpiry * 1000)).toISOString(),
+        timestamp: opp.timestamp,
+        is_active: true
+      }));
+
+      const { error } = await supabase
+        .from('arbitrage_opportunities')
+        .insert(opportunitiesData);
+
+      if (error) {
+        console.error('Error storing arbitrage opportunities:', error);
+      } else {
+        console.log(`✅ Stored ${opportunities.length} arbitrage opportunities`);
+      }
+    } catch (error) {
+      console.error('Error in storeOpportunities:', error);
+    }
+  }
+
   private canScan(): boolean {
     return Date.now() - this.lastScanTime >= this.SCAN_COOLDOWN;
   }
