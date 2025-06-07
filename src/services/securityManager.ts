@@ -8,10 +8,8 @@ export interface SecurityValidation {
   recommendations: string[];
 }
 
-// Add proper typing for audit trail details
-interface AuditTrailDetails {
-  [key: string]: string | number | boolean | null;
-}
+// Use a specific type instead of a generic index signature to avoid infinite recursion
+type AuditTrailDetails = Record<string, string | number | boolean | null>;
 
 export class SecurityManager {
   async validateTransaction(
