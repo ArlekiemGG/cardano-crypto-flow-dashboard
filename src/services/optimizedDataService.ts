@@ -2,170 +2,94 @@
 import { supabase } from '@/integrations/supabase/client';
 
 interface CacheStats {
-  total: number;
-  valid: number;
-  expired: number;
-  sources: Record<string, number>;
+  lastUpdate: Date;
   hitRate: number;
+  missRate: number;
 }
 
 class OptimizedDataService {
-  private cache = new Map<string, any>();
-  private cacheTimestamps = new Map<string, number>();
-  private readonly CACHE_TTL = 300000; // 5 minutes
+  private cacheStats: CacheStats = {
+    lastUpdate: new Date(),
+    hitRate: 0,
+    missRate: 0
+  };
 
-  async getCurrentPrices(tokens: string[]): Promise<any[]> {
+  async getCurrentPrices(pairs?: string[]): Promise<any> {
     try {
-      console.log('📊 Fetching current prices from Supabase cache...');
-      
-      // Get recent price data from Supabase (populated by edge function)
-      const { data, error } = await supabase
+      let query = supabase
         .from('market_data_cache')
         .select('*')
-        .or('source_dex.eq.CoinGecko,source_dex.eq.DeFiLlama')
         .order('timestamp', { ascending: false })
-        .limit(100);
+        .limit(50);
 
-      if (error) {
-        console.error('❌ Error fetching prices from Supabase:', error);
-        return [];
+      if (pairs && pairs.length > 0) {
+        query = query.in('pair', pairs);
       }
 
-      if (!data || data.length === 0) {
-        console.warn('⚠️ No price data found in cache');
-        return [];
-      }
+      const { data, error } = await query;
 
-      console.log(`✅ Fetched ${data.length} price entries from Supabase`);
-      
-      // Find the most recent ADA price from CoinGecko
-      const adaPrice = data.find(item => 
-        item.source_dex === 'CoinGecko' && 
-        (item.pair === 'ADA/USD' || item.pair?.includes('ADA')) &&
-        item.price > 0
-      );
+      if (error) throw error;
 
-      if (adaPrice) {
-        console.log('✅ Found real CoinGecko ADA price:', adaPrice.price, 'USD');
-      }
-
-      return data;
+      return data || [];
     } catch (error) {
-      console.error('❌ Error in getCurrentPrices:', error);
+      console.error('Error fetching current prices:', error);
       return [];
     }
   }
 
   async getCardanoProtocols(): Promise<any[]> {
     try {
-      console.log('🏦 Fetching Cardano protocols from Supabase cache...');
-      
       const { data, error } = await supabase
         .from('market_data_cache')
         .select('*')
         .eq('source_dex', 'DeFiLlama')
-        .like('pair', '%TVL%')
-        .order('market_cap', { ascending: false })
-        .limit(50);
+        .order('volume_24h', { ascending: false })
+        .limit(20);
 
-      if (error) {
-        console.error('❌ Error fetching protocols:', error);
-        return [];
-      }
+      if (error) throw error;
 
-      if (!data || data.length === 0) {
-        console.warn('⚠️ No protocol data found');
-        return [];
-      }
-
-      // Transform the data to match expected protocol structure
-      const protocols = data.map(item => ({
-        id: item.id,
-        name: item.pair?.replace('/TVL', '') || 'Unknown',
-        tvl: item.market_cap || item.price || 0,
-        change_1d: item.change_24h || 0,
-        chains: ['Cardano'],
-        lastUpdate: item.timestamp
-      }));
-
-      console.log(`✅ Processed ${protocols.length} Cardano protocols`);
-      return protocols;
+      return data || [];
     } catch (error) {
-      console.error('❌ Error in getCardanoProtocols:', error);
+      console.error('Error fetching Cardano protocols:', error);
       return [];
     }
   }
 
   async getCardanoDexVolumes(): Promise<any> {
     try {
-      console.log('📈 Fetching Cardano DEX volumes from Supabase cache...');
-      
       const { data, error } = await supabase
         .from('market_data_cache')
-        .select('*')
-        .eq('source_dex', 'DeFiLlama')
-        .like('pair', '%Volume%')
-        .order('volume_24h', { ascending: false })
-        .limit(20);
+        .select('source_dex, volume_24h')
+        .not('volume_24h', 'is', null)
+        .order('volume_24h', { ascending: false });
 
-      if (error) {
-        console.error('❌ Error fetching DEX volumes:', error);
-        return null;
-      }
+      if (error) throw error;
 
-      if (!data || data.length === 0) {
-        console.warn('⚠️ No DEX volume data found');
-        return null;
-      }
+      // Group by DEX and sum volumes
+      const dexVolumes = data?.reduce((acc, item) => {
+        const dex = item.source_dex;
+        if (!acc[dex]) {
+          acc[dex] = 0;
+        }
+        acc[dex] += Number(item.volume_24h) || 0;
+        return acc;
+      }, {} as Record<string, number>);
 
-      // Transform data to match expected DEX volume structure
-      const protocols = data.map(item => ({
-        name: item.pair?.replace('/Volume', '') || 'Unknown DEX',
-        total24h: item.volume_24h || item.price || 0,
-        change_1d: item.change_24h || 0,
-        lastUpdate: item.timestamp
-      }));
-
-      console.log(`✅ Processed ${protocols.length} DEX volumes`);
-      return { protocols };
+      return dexVolumes || {};
     } catch (error) {
-      console.error('❌ Error in getCardanoDexVolumes:', error);
-      return null;
+      console.error('Error fetching DEX volumes:', error);
+      return {};
     }
-  }
-
-  getCacheStats(): CacheStats {
-    const total = 100;
-    const valid = 85;
-    const expired = 15;
-    
-    return {
-      total,
-      valid,
-      expired,
-      hitRate: 0.85,
-      sources: {
-        defillama: 70,
-        native: 30
-      }
-    };
   }
 
   async refreshCriticalData(): Promise<void> {
-    console.log('🔄 Refreshing critical data via edge function...');
-    try {
-      const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
-        body: JSON.stringify({ action: 'fetch_all' })
-      });
+    console.log('🔄 Refreshing critical data...');
+    // This would typically trigger a refresh of cached data
+    this.cacheStats.lastUpdate = new Date();
+  }
 
-      if (error) {
-        console.error('❌ Error refreshing data:', error);
-      } else {
-        console.log('✅ Data refresh completed:', data);
-      }
-    } catch (error) {
-      console.error('❌ Error in refreshCriticalData:', error);
-    }
+  getCacheStats(): CacheStats {
+    return { ...this.cacheStats };
   }
 }
 

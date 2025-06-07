@@ -44,7 +44,6 @@ class RealTimeMarketDataService {
       clearInterval(this.dataUpdateInterval);
     }
     
-    // Increased interval to reduce API calls
     this.dataUpdateInterval = window.setInterval(() => {
       if (!this.isActive) return;
       
@@ -57,7 +56,6 @@ class RealTimeMarketDataService {
   subscribe(callback: (data: MarketData[]) => void): () => void {
     this.subscribers.push(callback);
     
-    // Only call with current data if we have substantial data and it's recent
     if (this.currentPrices.length > 0 && this.isDataFresh()) {
       callback(this.currentPrices);
     }
@@ -79,7 +77,7 @@ class RealTimeMarketDataService {
     
     this.subscribers.forEach(callback => {
       try {
-        callback([...this.currentPrices]); // Create copy to prevent mutations
+        callback([...this.currentPrices]);
       } catch (error) {
         console.error('Error notifying subscriber:', error);
       }
@@ -112,14 +110,13 @@ class RealTimeMarketDataService {
   }
 
   private startPeriodicUpdates() {
-    // Reduced frequency to prevent excessive API calls
     this.dataUpdateInterval = window.setInterval(() => {
       if (!this.isActive || !this.canFetch()) return;
       
       this.fetchLatestData().catch(error => {
         console.error('Error in periodic update:', error);
       });
-    }, 90000); // Update every 90 seconds instead of 30
+    }, 90000); // Update every 90 seconds
   }
 
   private canFetch(): boolean {
@@ -139,8 +136,8 @@ class RealTimeMarketDataService {
         .from('market_data_cache')
         .select('*')
         .order('timestamp', { ascending: false })
-        .limit(20) // Reduced from 50 to 20
-        .gte('timestamp', new Date(Date.now() - 3600000).toISOString()); // Only get data from last hour
+        .limit(20)
+        .gte('timestamp', new Date(Date.now() - 3600000).toISOString());
 
       if (error) throw error;
 
@@ -155,48 +152,38 @@ class RealTimeMarketDataService {
           source: item.source_dex || 'cache'
         }));
         
-        // Only update if data has actually changed
         if (this.hasDataChanged(newPrices)) {
           this.currentPrices = newPrices;
           this.notifySubscribers();
-          this.retryCount = 0; // Reset retry count on success
+          this.retryCount = 0;
         }
       }
     } catch (error) {
-      console.error('Error fetching latest data:', error);
+      console.error('Error fetching market data:', error);
       this.retryCount++;
-      
-      // Exponential backoff for retries
-      if (this.retryCount <= this.MAX_RETRIES) {
-        setTimeout(() => {
-          if (this.isActive) {
-            this.fetchLatestData();
-          }
-        }, Math.min(this.retryCount * 2000, 10000));
+      if (this.retryCount < this.MAX_RETRIES) {
+        setTimeout(() => this.fetchLatestData(), 5000 * this.retryCount);
       }
     }
   }
 
   private hasDataChanged(newPrices: MarketData[]): boolean {
-    if (this.currentPrices.length !== newPrices.length) return true;
+    if (newPrices.length !== this.currentPrices.length) return true;
     
     return newPrices.some((newPrice, index) => {
       const currentPrice = this.currentPrices[index];
       return !currentPrice || 
-             Math.abs(currentPrice.price - newPrice.price) > 0.001 ||
-             currentPrice.symbol !== newPrice.symbol;
+             newPrice.price !== currentPrice.price || 
+             newPrice.symbol !== currentPrice.symbol;
     });
   }
 
   private handleDataUpdate(payload: any) {
-    if (!this.isActive || !this.canFetch()) return;
+    if (!this.isActive) return;
     
-    // Debounce realtime updates
     setTimeout(() => {
-      if (this.isActive && this.canFetch()) {
-        this.fetchLatestData();
-      }
-    }, 5000);
+      this.fetchLatestData();
+    }, 1000);
   }
 
   getCurrentPrices(): MarketData[] {
@@ -204,33 +191,32 @@ class RealTimeMarketDataService {
   }
 
   isConnected(): boolean {
-    return this.isActive && this.subscription !== null;
+    return this.isActive && this.currentPrices.length > 0;
   }
 
-  async cleanup() {
+  cleanup() {
     console.log('🧹 Cleaning up real-time market data service...');
     this.isActive = false;
-
-    if (this.abortController) {
-      this.abortController.abort();
-      this.abortController = null;
-    }
-
-    if (this.dataUpdateInterval) {
-      clearInterval(this.dataUpdateInterval);
-      this.dataUpdateInterval = null;
-    }
-
+    
     if (this.subscription) {
       this.subscription.unsubscribe();
       this.subscription = null;
     }
-
+    
+    if (this.dataUpdateInterval) {
+      clearInterval(this.dataUpdateInterval);
+      this.dataUpdateInterval = null;
+    }
+    
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+    
     this.subscribers = [];
     this.currentPrices = [];
     this.lastFetchTime = 0;
     this.retryCount = 0;
-    console.log('✅ Real-time market data service cleaned up');
   }
 }
 

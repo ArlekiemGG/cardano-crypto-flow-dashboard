@@ -1,29 +1,31 @@
 
-export interface DeFiLlamaPrice {
-  price: number;
-  change_24h?: number;
-  volume_24h?: number;
-  market_cap?: number;
-  timestamp: string;
-}
-
-export interface DeFiLlamaPriceResponse {
-  coins: Record<string, DeFiLlamaPrice>;
-}
-
 export interface DeFiLlamaProtocol {
   id: string;
   name: string;
+  url: string;
+  description?: string;
+  chains: string[];
   tvl: number;
+  change_1h?: number;
   change_1d?: number;
-  chains?: string[];
-  lastUpdate?: string;
+  change_7d?: number;
+  mcap?: number;
+  category?: string;
 }
 
 export interface CacheStats {
-  total: number;
-  valid: number;
-  expired: number;
-  sources: Record<string, number>;
+  lastUpdate: Date;
   hitRate: number;
+  missRate: number;
+  totalRequests?: number;
+  cacheSize?: number;
+}
+
+export interface MarketDataEntry {
+  pair: string;
+  price: number;
+  volume24h: number;
+  change24h?: number;
+  source: string;
+  timestamp: string;
 }
