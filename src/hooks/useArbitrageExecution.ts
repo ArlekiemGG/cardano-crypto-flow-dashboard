@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from 'react';
 import { realTradingService } from '@/services/realTradingService';
 import { supabase } from '@/integrations/supabase/client';
@@ -49,6 +50,10 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
 
       console.log(`💰 Wallet validated: ${walletValidation.balance} ADA available`);
 
+      // Get wallet address
+      const changeAddress = await walletApi.getChangeAddress();
+      const walletAddress = changeAddress || 'unknown';
+
       // Execute the real arbitrage trade
       const result = await realTradingService.executeRealArbitrageTrade({
         pair: opportunity.pair,
@@ -78,6 +83,7 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
         // If we have a buy transaction but sell failed, record partial execution
         if (result.buyTxHash) {
           await supabase.from('trade_history').insert({
+            wallet_address: walletAddress,
             pair: opportunity.pair,
             trade_type: 'arbitrage',
             amount: opportunity.volumeAvailable,

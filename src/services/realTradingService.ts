@@ -87,7 +87,8 @@ export class RealTradingService {
         amount: request.amount,
         profit: actualProfit,
         buyTxHash: buyResult.txHash!,
-        sellTxHash: sellResult.txHash!
+        sellTxHash: sellResult.txHash!,
+        walletApi: request.walletApi
       });
 
       return {
@@ -297,9 +298,15 @@ export class RealTradingService {
     profit: number;
     buyTxHash: string;
     sellTxHash: string;
+    walletApi: any;
   }): Promise<void> {
     try {
+      // Get wallet address
+      const changeAddress = await trade.walletApi.getChangeAddress();
+      const walletAddress = changeAddress || 'unknown';
+
       await supabase.from('trade_history').insert({
+        wallet_address: walletAddress,
         pair: trade.pair,
         trade_type: 'arbitrage',
         amount: trade.amount,

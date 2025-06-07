@@ -15,12 +15,12 @@ interface PortfolioHolding {
   priceUSD: number;
 }
 
-interface TradeHistory {
+interface SimpleTradeHistory {
   id: string;
   pair: string;
   trade_type: string;
   amount: number;
-  profit_loss: number;
+  profit_loss: number | null;
   timestamp: string;
   status: string;
   tx_hash: string | null;
@@ -30,7 +30,7 @@ export const RealTimePortfolio = () => {
   const { balance, isConnected, address } = useWallet();
   const { marketData } = useRealTimeData();
   const [holdings, setHoldings] = useState<PortfolioHolding[]>([]);
-  const [tradeHistory, setTradeHistory] = useState<TradeHistory[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<SimpleTradeHistory[]>([]);
   const [portfolioMetrics, setPortfolioMetrics] = useState({
     totalValue: 0,
     dailyPnL: 0,
@@ -82,8 +82,8 @@ export const RealTimePortfolio = () => {
       try {
         const { data, error } = await supabase
           .from('trade_history')
-          .select('*')
-          .eq('user_wallet', address)
+          .select('id, pair, trade_type, amount, profit_loss, timestamp, status, tx_hash')
+          .eq('wallet_address', address)
           .order('timestamp', { ascending: false })
           .limit(50);
 
@@ -93,10 +93,21 @@ export const RealTimePortfolio = () => {
         }
 
         if (data) {
-          setTradeHistory(data);
+          const typedData: SimpleTradeHistory[] = data.map(trade => ({
+            id: trade.id,
+            pair: trade.pair,
+            trade_type: trade.trade_type,
+            amount: trade.amount,
+            profit_loss: trade.profit_loss,
+            timestamp: trade.timestamp,
+            status: trade.status,
+            tx_hash: trade.tx_hash
+          }));
+          
+          setTradeHistory(typedData);
           
           // Calculate performance metrics
-          const completedTrades = data.filter(trade => trade.status === 'executed'); // Changed from 'completed' to 'executed'
+          const completedTrades = typedData.filter(trade => trade.status === 'executed');
           const totalTrades = completedTrades.length;
           const winningTrades = completedTrades.filter(trade => (trade.profit_loss || 0) > 0).length;
           const totalPnL = completedTrades.reduce((sum, trade) => sum + (trade.profit_loss || 0), 0);

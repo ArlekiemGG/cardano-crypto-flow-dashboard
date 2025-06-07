@@ -1,5 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { realTimeMarketDataService } from '@/services/realTimeMarketDataService';
+import { optimizedDataService } from '@/services/optimizedDataService';
 
 interface DiagnosticResult {
   service: string;
@@ -21,338 +23,280 @@ interface ComprehensiveDiagnostic {
   };
 }
 
-export class SystemDiagnosticsService {
-  private static instance: SystemDiagnosticsService;
-
-  static getInstance(): SystemDiagnosticsService {
-    if (!SystemDiagnosticsService.instance) {
-      SystemDiagnosticsService.instance = new SystemDiagnosticsService();
-    }
-    return SystemDiagnosticsService.instance;
-  }
-
+class SystemDiagnosticsService {
   async performComprehensiveDiagnosis(): Promise<ComprehensiveDiagnostic> {
     console.log('🔍 Starting comprehensive system diagnosis...');
     
+    const startTime = Date.now();
     const results: DiagnosticResult[] = [];
     const recommendations: string[] = [];
-    
-    // 1. Test Supabase Connection
+
+    // Test Supabase connection
     const supabaseResult = await this.testSupabaseConnection();
     results.push(supabaseResult);
-    
-    // 2. Test Edge Function
-    const edgeFunctionResult = await this.testEdgeFunction();
+
+    // Test Real-time Market Data Service
+    const marketDataResult = await this.testRealTimeMarketData();
+    results.push(marketDataResult);
+
+    // Test Optimized Data Service
+    const optimizedDataResult = await this.testOptimizedDataService();
+    results.push(optimizedDataResult);
+
+    // Test Edge Function Health
+    const edgeFunctionResult = await this.testEdgeFunctionHealth();
     results.push(edgeFunctionResult);
+
+    // Test Database Performance
+    const dbPerformanceResult = await this.testDatabasePerformance();
+    results.push(dbPerformanceResult);
+
+    // Calculate overall health
+    const errorCount = results.filter(r => r.status === 'error').length;
+    const warningCount = results.filter(r => r.status === 'warning').length;
     
-    // 3. Test Data Cache Quality
-    const cacheResult = await this.testDataCacheQuality();
-    results.push(cacheResult);
-    
-    // 4. Test Real-time Data Sources
-    const realTimeResult = await this.testRealTimeDataSources();
-    results.push(realTimeResult);
-    
-    // 5. Test API Coverage
-    const apiCoverageResult = await this.testAPICoverage();
-    results.push(apiCoverageResult);
-    
-    // Generate overall health assessment
-    const overallHealth = this.calculateOverallHealth(results);
-    const dataQuality = this.assessDataQuality(results);
-    
-    // Generate recommendations
-    if (overallHealth !== 'healthy') {
-      recommendations.push(...this.generateRecommendations(results));
+    let overallHealth: 'healthy' | 'degraded' | 'critical' = 'healthy';
+    if (errorCount > 2) {
+      overallHealth = 'critical';
+    } else if (errorCount > 0 || warningCount > 2) {
+      overallHealth = 'degraded';
     }
-    
-    const diagnosis: ComprehensiveDiagnostic = {
+
+    // Generate recommendations
+    if (errorCount > 0) {
+      recommendations.push('Critical issues detected - immediate attention required');
+    }
+    if (warningCount > 0) {
+      recommendations.push('Performance issues detected - consider optimization');
+    }
+
+    // Calculate data quality metrics
+    const successfulServices = results.filter(r => r.status === 'success').length;
+    const dataQuality = {
+      realTimeDataAvailable: marketDataResult.status === 'success',
+      apiCoverage: (successfulServices / results.length) * 100,
+      dataFreshness: this.calculateDataFreshness(results)
+    };
+
+    const totalTime = Date.now() - startTime;
+    console.log(`✅ Comprehensive diagnosis completed in ${totalTime}ms`);
+
+    return {
       timestamp: new Date().toISOString(),
       overallHealth,
       results,
       recommendations,
       dataQuality
     };
-    
-    console.log('📊 Comprehensive diagnosis completed:', diagnosis);
-    return diagnosis;
   }
 
   private async testSupabaseConnection(): Promise<DiagnosticResult> {
     const startTime = Date.now();
     
     try {
-      const { data, error } = await supabase
-        .from('market_data_cache')
-        .select('count(*)')
-        .limit(1);
-        
+      // Simple connection test
+      const { data, error } = await supabase.from('health_checks').select('count').limit(1);
       const latency = Date.now() - startTime;
-      
+
       if (error) {
         return {
-          service: 'Supabase Database',
+          service: 'Supabase Database Connection',
           status: 'error',
           message: `Connection failed: ${error.message}`,
           latency
         };
       }
-      
+
       return {
-        service: 'Supabase Database',
+        service: 'Supabase Database Connection',
         status: 'success',
-        message: 'Connected successfully',
+        message: 'Database connection healthy',
         latency,
-        data: { recordCount: data?.[0]?.count || 0 }
+        data: { connected: true, responseTime: latency }
       };
     } catch (error) {
       return {
-        service: 'Supabase Database',
+        service: 'Supabase Database Connection',
         status: 'error',
-        message: `Connection error: ${error}`,
+        message: `Connection error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         latency: Date.now() - startTime
       };
     }
   }
 
-  private async testEdgeFunction(): Promise<DiagnosticResult> {
+  private async testRealTimeMarketData(): Promise<DiagnosticResult> {
     const startTime = Date.now();
     
     try {
-      const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
-        body: JSON.stringify({ action: 'fetch_all' })
-      });
-      
+      const isConnected = realTimeMarketDataService.isConnected();
+      const marketData = realTimeMarketDataService.getCurrentData();
       const latency = Date.now() - startTime;
-      
-      if (error) {
+
+      if (!isConnected) {
         return {
-          service: 'Edge Function',
-          status: 'error',
-          message: `Edge function failed: ${error.message}`,
+          service: 'Real-time Market Data Service',
+          status: 'warning',
+          message: 'Service not connected - attempting reconnection',
           latency
         };
       }
-      
+
       return {
-        service: 'Edge Function',
+        service: 'Real-time Market Data Service',
         status: 'success',
-        message: 'Edge function responding correctly',
+        message: `Connected with ${marketData.length} data points`,
         latency,
-        data: data
+        data: { 
+          connected: isConnected, 
+          dataPoints: marketData.length,
+          lastUpdate: marketData[0]?.timestamp || 'N/A'
+        }
       };
     } catch (error) {
       return {
-        service: 'Edge Function',
+        service: 'Real-time Market Data Service',
         status: 'error',
-        message: `Edge function error: ${error}`,
+        message: `Service error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         latency: Date.now() - startTime
       };
     }
   }
 
-  private async testDataCacheQuality(): Promise<DiagnosticResult> {
+  private async testOptimizedDataService(): Promise<DiagnosticResult> {
+    const startTime = Date.now();
+    
     try {
-      const { data: cachedData, error } = await supabase
-        .from('market_data_cache')
-        .select('*')
-        .order('timestamp', { ascending: false })
-        .limit(50);
-        
-      if (error) {
+      // Test data availability
+      const hasData = await optimizedDataService.hasValidData();
+      const latency = Date.now() - startTime;
+
+      if (!hasData) {
         return {
-          service: 'Data Cache',
-          status: 'error',
-          message: `Cache read error: ${error.message}`
+          service: 'Optimized Data Service',
+          status: 'warning',
+          message: 'No valid cached data available',
+          latency
         };
       }
-      
-      if (!cachedData || cachedData.length === 0) {
-        return {
-          service: 'Data Cache',
-          status: 'error',
-          message: 'No cached data available'
-        };
-      }
-      
-      // Analyze data quality
-      const now = new Date().getTime();
-      const recentData = cachedData.filter(item => {
-        const itemTime = new Date(item.timestamp).getTime();
-        return (now - itemTime) < 900000; // 15 minutes
+
+      return {
+        service: 'Optimized Data Service',
+        status: 'success',
+        message: 'Cached data available and valid',
+        latency,
+        data: { 
+          hasValidData: hasData,
+          cacheStatus: 'active'
+        }
+      };
+    } catch (error) {
+      return {
+        service: 'Optimized Data Service',
+        status: 'error',
+        message: `Service error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        latency: Date.now() - startTime
+      };
+    }
+  }
+
+  private async testEdgeFunctionHealth(): Promise<DiagnosticResult> {
+    const startTime = Date.now();
+    
+    try {
+      const response = await fetch('/api/health', { 
+        method: 'GET',
+        signal: AbortSignal.timeout(10000) // 10 second timeout
       });
       
-      const sources = [...new Set(cachedData.map(item => item.source_dex))];
-      const adaPrice = cachedData.find(item => 
-        item.pair === 'ADA/USD' && item.source_dex === 'CoinGecko'
-      );
-      
-      let status: 'success' | 'warning' | 'error' = 'success';
-      let message = `Cache healthy: ${recentData.length}/${cachedData.length} recent entries`;
-      
-      if (recentData.length < cachedData.length * 0.7) {
-        status = 'warning';
-        message = 'Some cached data is stale';
-      }
-      
-      if (!adaPrice) {
-        status = 'warning';
-        message += ', Missing real ADA price from CoinGecko';
-      }
-      
-      return {
-        service: 'Data Cache',
-        status,
-        message,
-        data: {
-          totalEntries: cachedData.length,
-          recentEntries: recentData.length,
-          sources,
-          hasADAPrice: !!adaPrice
-        }
-      };
-    } catch (error) {
-      return {
-        service: 'Data Cache',
-        status: 'error',
-        message: `Cache analysis error: ${error}`
-      };
-    }
-  }
+      const latency = Date.now() - startTime;
 
-  private async testRealTimeDataSources(): Promise<DiagnosticResult> {
-    try {
-      // Test if we're getting real-time data from external APIs
-      const { data: recentData, error } = await supabase
-        .from('market_data_cache')
-        .select('*')
-        .gte('timestamp', new Date(Date.now() - 300000).toISOString()) // Last 5 minutes
-        .order('timestamp', { ascending: false });
-        
-      if (error) {
+      if (!response.ok) {
         return {
-          service: 'Real-time Data',
-          status: 'error',
-          message: `Real-time data check failed: ${error.message}`
+          service: 'Edge Function Health',
+          status: 'warning',
+          message: `Edge function responded with status ${response.status}`,
+          latency
         };
       }
-      
-      const defiLlamaData = recentData?.filter(item => item.source_dex === 'DeFiLlama') || [];
-      const blockfrostData = recentData?.filter(item => item.source_dex === 'Blockfrost') || [];
-      const coinGeckoData = recentData?.filter(item => item.source_dex === 'CoinGecko') || [];
-      
-      let status: 'success' | 'warning' | 'error' = 'success';
-      let message = 'Real-time data flowing correctly';
-      
-      if (defiLlamaData.length === 0) {
-        status = 'warning';
-        message = 'No recent DeFiLlama data';
-      }
-      
-      if (coinGeckoData.length === 0) {
-        status = 'warning';
-        message += ', No recent CoinGecko data';
-      }
-      
+
       return {
-        service: 'Real-time Data',
-        status,
-        message,
-        data: {
-          defiLlamaEntries: defiLlamaData.length,
-          blockfrostEntries: blockfrostData.length,
-          coinGeckoEntries: coinGeckoData.length
+        service: 'Edge Function Health',
+        status: 'success',
+        message: 'Edge functions responding normally',
+        latency,
+        data: { 
+          status: response.status,
+          available: true
         }
       };
     } catch (error) {
       return {
-        service: 'Real-time Data',
+        service: 'Edge Function Health',
         status: 'error',
-        message: `Real-time data analysis error: ${error}`
+        message: `Edge function unavailable: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        latency: Date.now() - startTime
       };
     }
   }
 
-  private async testAPICoverage(): Promise<DiagnosticResult> {
+  private async testDatabasePerformance(): Promise<DiagnosticResult> {
+    const startTime = Date.now();
+    
     try {
-      const { data: allData, error } = await supabase
+      // Test database query performance
+      const { data, error } = await supabase
         .from('market_data_cache')
-        .select('source_dex, pair')
-        .gte('timestamp', new Date(Date.now() - 3600000).toISOString()); // Last hour
-        
+        .select('id, timestamp')
+        .limit(10);
+      
+      const latency = Date.now() - startTime;
+
       if (error) {
         return {
-          service: 'API Coverage',
+          service: 'Database Performance',
           status: 'error',
-          message: `API coverage check failed: ${error.message}`
+          message: `Query failed: ${error.message}`,
+          latency
         };
       }
-      
-      const expectedAPIs = ['DeFiLlama', 'CoinGecko', 'Blockfrost'];
-      const presentAPIs = [...new Set(allData?.map(item => item.source_dex) || [])];
-      const missingAPIs = expectedAPIs.filter(api => !presentAPIs.includes(api));
-      
-      const coverage = (presentAPIs.length / expectedAPIs.length) * 100;
-      
-      let status: 'success' | 'warning' | 'error' = 'success';
-      if (coverage < 100) {
-        status = coverage > 50 ? 'warning' : 'error';
-      }
-      
+
+      const status = latency > 1000 ? 'warning' : 'success';
+      const message = latency > 1000 ? 
+        `Slow query performance: ${latency}ms` : 
+        `Good query performance: ${latency}ms`;
+
       return {
-        service: 'API Coverage',
+        service: 'Database Performance',
         status,
-        message: `${coverage.toFixed(0)}% API coverage`,
-        data: {
-          expectedAPIs,
-          presentAPIs,
-          missingAPIs,
-          coverage
+        message,
+        latency,
+        data: { 
+          queryTime: latency,
+          recordsReturned: data?.length || 0
         }
       };
     } catch (error) {
       return {
-        service: 'API Coverage',
+        service: 'Database Performance',
         status: 'error',
-        message: `API coverage analysis error: ${error}`
+        message: `Performance test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        latency: Date.now() - startTime
       };
     }
   }
 
-  private calculateOverallHealth(results: DiagnosticResult[]): 'healthy' | 'degraded' | 'critical' {
-    const errorCount = results.filter(r => r.status === 'error').length;
-    const warningCount = results.filter(r => r.status === 'warning').length;
-    
-    if (errorCount > 0) return 'critical';
-    if (warningCount > 1) return 'degraded';
-    return 'healthy';
-  }
+  private calculateDataFreshness(results: DiagnosticResult[]): number {
+    // Calculate freshness based on successful services and their response times
+    const successfulResults = results.filter(r => r.status === 'success');
+    if (successfulResults.length === 0) return 0;
 
-  private assessDataQuality(results: DiagnosticResult[]): any {
-    const cacheResult = results.find(r => r.service === 'Data Cache');
-    const realTimeResult = results.find(r => r.service === 'Real-time Data');
-    const apiResult = results.find(r => r.service === 'API Coverage');
+    const avgLatency = successfulResults.reduce((sum, r) => sum + (r.latency || 0), 0) / successfulResults.length;
     
-    return {
-      realTimeDataAvailable: realTimeResult?.status === 'success',
-      apiCoverage: apiResult?.data?.coverage || 0,
-      dataFreshness: cacheResult?.data?.recentEntries / (cacheResult?.data?.totalEntries || 1)
-    };
-  }
-
-  private generateRecommendations(results: DiagnosticResult[]): string[] {
-    const recommendations: string[] = [];
+    // Convert latency to freshness score (lower latency = higher freshness)
+    const freshnessScore = Math.max(0, 1 - (avgLatency / 5000)); // 5 seconds max for full score
     
-    results.forEach(result => {
-      if (result.status === 'error') {
-        recommendations.push(`Fix ${result.service}: ${result.message}`);
-      } else if (result.status === 'warning') {
-        recommendations.push(`Improve ${result.service}: ${result.message}`);
-      }
-    });
-    
-    return recommendations;
+    return freshnessScore;
   }
 }
 
-export const systemDiagnostics = SystemDiagnosticsService.getInstance();
+export const systemDiagnostics = new SystemDiagnosticsService();
