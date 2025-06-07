@@ -143,18 +143,17 @@ export class ArbitrageEngine {
         .delete()
         .lt('timestamp', new Date(Date.now() - 3600000).toISOString()); // Remove older than 1 hour
 
-      // Insert new opportunities
+      // Insert new opportunities with correct field mapping
       const opportunitiesData = opportunities.map(opp => ({
-        pair: opp.pair,
-        buy_dex: opp.buyDex,
-        sell_dex: opp.sellDex,
-        buy_price: opp.buyPrice,
-        sell_price: opp.sellPrice,
+        dex_pair: opp.pair,
+        source_dex_a: opp.buyDex,
+        source_dex_b: opp.sellDex,
+        price_a: opp.buyPrice,
+        price_b: opp.sellPrice,
+        price_diff: opp.sellPrice - opp.buyPrice,
         profit_potential: opp.profitPercentage,
         volume_available: opp.volumeAvailable,
-        confidence_level: opp.confidence.toLowerCase(),
-        slippage_risk: opp.slippageRisk,
-        liquidity_score: opp.liquidityScore,
+        confidence_score: opp.confidence === 'HIGH' ? 90 : opp.confidence === 'MEDIUM' ? 70 : 50,
         expires_at: new Date(Date.now() + (opp.timeToExpiry * 1000)).toISOString(),
         timestamp: opp.timestamp,
         is_active: true
