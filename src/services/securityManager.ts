@@ -8,6 +8,11 @@ export interface SecurityValidation {
   recommendations: string[];
 }
 
+// Add proper typing for audit trail details
+interface AuditTrailDetails {
+  [key: string]: string | number | boolean | null;
+}
+
 export class SecurityManager {
   async validateTransaction(
     txData: any,
@@ -70,16 +75,18 @@ export class SecurityManager {
   async createAuditTrail(
     action: string,
     userWallet: string,
-    details: any
+    details: AuditTrailDetails
   ): Promise<void> {
-    await supabase.from('audit_trail').insert({
+    const auditData = {
       user_wallet: userWallet,
       action,
-      details_json: details,
+      details_json: JSON.stringify(details),
       timestamp: new Date().toISOString(),
       ip_address: 'masked', // Would capture real IP in production
-      user_agent: navigator.userAgent.substring(0, 255)
-    });
+      user_agent: (typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown').substring(0, 255)
+    };
+
+    await supabase.from('audit_trail').insert(auditData);
   }
 
   async encryptSensitiveData(data: string): Promise<string> {
@@ -109,6 +116,8 @@ export class SecurityManager {
   }
 
   async enforceHTTPS(): Promise<boolean> {
+    if (typeof window === 'undefined') return true; // Server-side
+    
     if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
       console.warn('🔒 HTTPS required for production');
       return false;
