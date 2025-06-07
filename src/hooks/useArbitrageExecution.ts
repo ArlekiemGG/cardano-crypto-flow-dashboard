@@ -42,8 +42,11 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
         throw new Error('No wallet connected. Please connect your wallet first.');
       }
 
+      // Enable the wallet to get the proper API
+      const enabledWalletApi = await walletApi.enable();
+
       // Validate wallet for trading
-      const walletValidation = await realTradingService.validateWalletForTrading(walletApi);
+      const walletValidation = await realTradingService.validateWalletForTrading(enabledWalletApi);
       if (!walletValidation.valid) {
         throw new Error(walletValidation.error || 'Wallet validation failed');
       }
@@ -51,7 +54,7 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
       console.log(`💰 Wallet validated: ${walletValidation.balance} ADA available`);
 
       // Get wallet address
-      const changeAddress = await walletApi.getChangeAddress();
+      const changeAddress = await enabledWalletApi.getChangeAddress();
       const walletAddress = changeAddress || 'unknown';
 
       // Execute the real arbitrage trade
@@ -62,7 +65,7 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
         buyPrice: opportunity.buyPrice,
         sellPrice: opportunity.sellPrice,
         amount: Math.min(opportunity.volumeAvailable, walletValidation.balance * 0.5), // Use max 50% of balance
-        walletApi
+        walletApi: enabledWalletApi
       });
 
       if (result.success) {
@@ -143,7 +146,8 @@ export const useArbitrageExecution = (opportunities: RealArbitrageOpportunity[])
         };
       }
 
-      const walletValidation = await realTradingService.validateWalletForTrading(walletApi);
+      const enabledWalletApi = await walletApi.enable();
+      const walletValidation = await realTradingService.validateWalletForTrading(enabledWalletApi);
       
       return {
         success: walletValidation.valid,

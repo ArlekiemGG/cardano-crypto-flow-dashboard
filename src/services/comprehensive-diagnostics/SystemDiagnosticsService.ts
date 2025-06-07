@@ -1,7 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { realTimeMarketDataService } from '@/services/realTimeMarketDataService';
-import { optimizedDataService } from '@/services/optimizedDataService';
+import { optimizedDataService } from '@/services/optimized-data/OptimizedDataService';
 
 interface DiagnosticResult {
   service: string;
@@ -129,7 +129,7 @@ class SystemDiagnosticsService {
     
     try {
       const isConnected = realTimeMarketDataService.isConnected();
-      const marketData = realTimeMarketDataService.getCurrentData();
+      const marketData = realTimeMarketDataService.getCurrentPrices();
       const latency = Date.now() - startTime;
 
       if (!isConnected) {
@@ -149,7 +149,7 @@ class SystemDiagnosticsService {
         data: { 
           connected: isConnected, 
           dataPoints: marketData.length,
-          lastUpdate: marketData[0]?.timestamp || 'N/A'
+          lastUpdate: marketData[0]?.lastUpdate || 'N/A'
         }
       };
     } catch (error) {
@@ -166,15 +166,15 @@ class SystemDiagnosticsService {
     const startTime = Date.now();
     
     try {
-      // Test data availability
-      const hasData = await optimizedDataService.hasValidData();
+      // Test data availability by checking API connection status
+      const isConnected = optimizedDataService.isApiConnected();
       const latency = Date.now() - startTime;
 
-      if (!hasData) {
+      if (!isConnected) {
         return {
           service: 'Optimized Data Service',
           status: 'warning',
-          message: 'No valid cached data available',
+          message: 'API connection not active',
           latency
         };
       }
@@ -182,11 +182,11 @@ class SystemDiagnosticsService {
       return {
         service: 'Optimized Data Service',
         status: 'success',
-        message: 'Cached data available and valid',
+        message: 'API connection active and responding',
         latency,
         data: { 
-          hasValidData: hasData,
-          cacheStatus: 'active'
+          apiConnected: isConnected,
+          cacheStats: optimizedDataService.getCacheStats()
         }
       };
     } catch (error) {
