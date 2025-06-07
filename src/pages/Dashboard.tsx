@@ -1,13 +1,13 @@
 
-import { useRealTimeData } from "@/hooks/useRealTimeData"
 import { useRealTimeArbitrage } from "@/hooks/useRealTimeArbitrage"
 import { useArbitrageStats } from "@/hooks/useArbitrageStats"
 import { usePortfolioCalculations } from "@/hooks/usePortfolioCalculations"
+import { useOptimizedMarketData } from "@/hooks/useOptimizedMarketData"
 import { LiveArbitrageOpportunities } from "@/components/LiveArbitrageOpportunities"
 import { DEXConnectionStatus } from "@/components/DEXConnectionStatus"
 import { HeroSection } from "@/components/dashboard/HeroSection"
 import { MetricsGrid } from "@/components/dashboard/MetricsGrid"
-import { ComprehensiveDiagnosticsDashboard } from "@/components/diagnostics/ComprehensiveDiagnosticsDashboard"
+import { SystemHealthIndicator } from "@/components/diagnostics/SystemHealthIndicator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useWallet } from "@/contexts/ModernWalletContext"
@@ -16,7 +16,9 @@ import { Zap, Activity } from "lucide-react"
 import { useUnifiedMarketData } from "@/hooks/useUnifiedMarketData"
 
 export default function Dashboard() {
-  const { marketData, isConnected } = useRealTimeData()
+  // Use optimized market data hook
+  const { marketData, isConnected, isLoading, errorMessage } = useOptimizedMarketData()
+  
   const { 
     opportunities,
     stats 
@@ -42,10 +44,7 @@ export default function Dashboard() {
 
   const marketStats = useMemo(() => {
     const totalVolume = marketData.reduce((sum, data) => sum + (data.volume24h || 0), 0)
-
-    return {
-      totalVolume24h: totalVolume
-    }
+    return { totalVolume24h: totalVolume }
   }, [marketData])
 
   return (
@@ -57,7 +56,7 @@ export default function Dashboard() {
         stats={stats}
       />
 
-      {/* Enhanced Metrics Grid with Real Data */}
+      {/* Enhanced Metrics Grid */}
       <MetricsGrid
         portfolioValue={portfolioCalculations.portfolioValue}
         dailyPnL={portfolioCalculations.dailyPnL}
@@ -68,36 +67,45 @@ export default function Dashboard() {
         totalVolume24h={totalDexVolume}
       />
 
-      {/* Real-time Data Quality Indicator */}
-      <Card className="glass">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className={`w-3 h-3 rounded-full ${hasRealData ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
-              <div>
-                <div className="font-medium text-white">
-                  Estado de APIs: {hasRealData ? 'Datos en Vivo' : 'Datos Parciales'}
-                </div>
-                <div className="text-sm text-gray-400">
-                  Fuente: {dataSource === 'defillama' ? 'DeFiLlama + CoinGecko' : 
-                          dataSource === 'mixed' ? 'APIs Mixtas' : 'Cache Local'}
+      {/* System Status Indicators */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SystemHealthIndicator />
+        
+        <Card className="glass">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className={`w-3 h-3 rounded-full ${hasRealData ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'}`}></div>
+                <div>
+                  <div className="font-medium text-white">
+                    Estado de APIs: {hasRealData ? 'Datos en Vivo' : 'Datos Parciales'}
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    Fuente: {dataSource === 'defillama' ? 'DeFiLlama + CoinGecko' : 
+                            dataSource === 'mixed' ? 'APIs Mixtas' : 'Cache Local'}
+                  </div>
+                  {errorMessage && (
+                    <div className="text-xs text-red-400 mt-1">
+                      Error: {errorMessage}
+                    </div>
+                  )}
                 </div>
               </div>
+              
+              {adaPrice > 0 && (
+                <div className="text-right">
+                  <div className="font-mono text-lg text-crypto-primary">
+                    ADA: ${adaPrice.toFixed(4)}
+                  </div>
+                  <div className={`text-sm ${adaChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {adaChange >= 0 ? '+' : ''}{adaChange.toFixed(2)}%
+                  </div>
+                </div>
+              )}
             </div>
-            
-            {adaPrice > 0 && (
-              <div className="text-right">
-                <div className="font-mono text-lg text-crypto-primary">
-                  ADA: ${adaPrice.toFixed(4)}
-                </div>
-                <div className={`text-sm ${adaChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {adaChange >= 0 ? '+' : ''}{adaChange.toFixed(2)}%
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Main Dashboard Tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
@@ -108,13 +116,12 @@ export default function Dashboard() {
           <TabsTrigger value="trading" className="data-[state=active]:bg-crypto-primary">
             Trading
           </TabsTrigger>
-          <TabsTrigger value="diagnostics" className="data-[state=active]:bg-crypto-primary">
-            Diagnósticos
+          <TabsTrigger value="analytics" className="data-[state=active]:bg-crypto-primary">
+            Analytics
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Live Data Sections */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <LiveArbitrageOpportunities />
             <DEXConnectionStatus />
@@ -122,7 +129,6 @@ export default function Dashboard() {
         </TabsContent>
 
         <TabsContent value="trading" className="space-y-6">
-          {/* Real-Time Trading Panel */}
           <Card className="glass">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -163,9 +169,44 @@ export default function Dashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="diagnostics" className="space-y-6">
-          {/* Comprehensive Diagnostics */}
-          <ComprehensiveDiagnosticsDashboard />
+        <TabsContent value="analytics" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SystemHealthIndicator />
+            <Card className="glass">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Activity className="h-5 w-5 text-crypto-secondary" />
+                  <span>Performance Metrics</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Datos cargados</span>
+                    <span className="text-white">{marketData.length} entradas</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Estado de conexión</span>
+                    <span className={isConnected ? "text-green-400" : "text-red-400"}>
+                      {isConnected ? "Conectado" : "Desconectado"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Última actualización</span>
+                    <span className="text-white text-sm">
+                      {new Date().toLocaleTimeString()}
+                    </span>
+                  </div>
+                  {isLoading && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Estado</span>
+                      <span className="text-yellow-400">Cargando...</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

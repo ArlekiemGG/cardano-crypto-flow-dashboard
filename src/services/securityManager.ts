@@ -8,8 +8,8 @@ export interface SecurityValidation {
   recommendations: string[];
 }
 
-// Simplified type without index signature to avoid TypeScript recursion issues
-type AuditTrailDetails = {
+// Simplified type to avoid TypeScript recursion issues
+type SimpleAuditDetails = {
   action?: string;
   amount?: number;
   transaction_id?: string;
@@ -84,7 +84,7 @@ export class SecurityManager {
   async createAuditTrail(
     action: string,
     userWallet: string,
-    details: AuditTrailDetails
+    details: SimpleAuditDetails
   ): Promise<void> {
     const auditData = {
       user_wallet: userWallet,
