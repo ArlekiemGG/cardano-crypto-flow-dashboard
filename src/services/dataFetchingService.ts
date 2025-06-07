@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { dataThrottlingService } from './dataThrottlingService';
 import { supabaseConflictResolver } from './supabaseConflictResolver';
@@ -17,8 +16,8 @@ export class DataFetchingService {
   private lastSuccessfulFetch = 0;
 
   async fetchSimplifiedData(): Promise<RealTimePrice[]> {
-    // Verificar throttling antes de proceder
-    if (!dataThrottlingService.canFetch('marketData')) {
+    // Verificar throttling antes de proceder - using 'market' instead of 'marketData'
+    if (!dataThrottlingService.canFetch('market')) {
       return this.getCachedData();
     }
 
@@ -32,8 +31,8 @@ export class DataFetchingService {
     try {
       console.log('📊 Iniciando fetch optimizado de datos...');
       
-      // Solo llamar al edge function si han pasado suficientes minutos
-      const shouldCallEdgeFunction = dataThrottlingService.canFetch('defiLlama');
+      // Solo llamar al edge function si han pasado suficientes minutos - using 'arbitrage' instead of 'defiLlama'
+      const shouldCallEdgeFunction = dataThrottlingService.canFetch('arbitrage');
       
       if (shouldCallEdgeFunction) {
         const { data, error } = await supabase.functions.invoke('fetch-dex-data', {
@@ -104,7 +103,8 @@ export class DataFetchingService {
   }
 
   canFetch(): boolean {
-    return !this.isFetching && dataThrottlingService.canFetch('marketData');
+    // Using 'market' instead of 'marketData'
+    return !this.isFetching && dataThrottlingService.canFetch('market');
   }
 
   getLastFetchTime(): number {
