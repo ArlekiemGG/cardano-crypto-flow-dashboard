@@ -8,8 +8,8 @@ export interface SecurityValidation {
   recommendations: string[];
 }
 
-// Define a concrete interface for audit trail details to avoid TypeScript recursion issues
-interface AuditTrailDetails {
+// Simplified type without index signature to avoid TypeScript recursion issues
+type AuditTrailDetails = {
   action?: string;
   amount?: number;
   transaction_id?: string;
@@ -20,8 +20,7 @@ interface AuditTrailDetails {
   risk_level?: string;
   validation_result?: boolean;
   error_message?: string;
-  [key: string]: string | number | boolean | null | undefined;
-}
+};
 
 export class SecurityManager {
   async validateTransaction(
